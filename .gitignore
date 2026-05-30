@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# OSFabricum local development
+/osfabricum.toml
+/osfabricum-dev.db
+*.db
+/dev-store/

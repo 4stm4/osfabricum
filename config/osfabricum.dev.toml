@@ -1,0 +1,31 @@
+# Minimal local development config (SQLite, no auth).
+# Copy to ./osfabricum.toml or point OSFABRICUM_CONFIG at it.
+
+[database]
+url = "sqlite+aiosqlite:///./osfabricum-dev.db"
+
+[store]
+root = "./dev-store/store"
+work_root = "./dev-store/work"
+cache_root = "./dev-store/cache"
+
+[queue]
+backend = "sqlite"
+
+[api]
+host = "127.0.0.1"
+port = 8000
+log_level = "debug"
+
+[auth]
+enabled = false
+
+[security]
+require_source_hash = false
+verify_on_ingest = true
+verify_on_use = true
+mask_secrets_in_logs = true
+
+[telemetry]
+log_format = "pretty"
+metrics_enabled = false

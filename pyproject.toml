@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "osfabricum"
+version = "0.1.0"
+description = "Build system for Linux-based operating systems, firmware, and bootable images"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "4STM4" }]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pydantic>=2.6",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "typer>=0.12",
+    "aiosqlite>=0.20",
+]
+
+[project.optional-dependencies]
+postgres = ["asyncpg>=0.29"]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pytest>=8.2",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+osfabricum-api = "apps.api.main:main"
+osfabricum-worker = "apps.worker.main:main"
+osfabricumctl = "apps.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["osfabricum", "apps"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["uvicorn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
