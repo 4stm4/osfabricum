@@ -1,0 +1,14 @@
+apiVersion: osfabricum/v1
+kind: DistributionList
+items:
+  - name: tinywifi
+    description: Minimal Wi-Fi access point OS
+    default_channel: dev
+
+  - name: netos
+    description: NetOS network operating system
+    default_channel: dev
+
+  - name: ocultum
+    description: Ocultum secure OS
+    default_channel: dev

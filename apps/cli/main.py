@@ -12,6 +12,7 @@ from typing import Annotated
 
 import typer
 
+from apps.cli.commands.catalog import catalog_app
 from osfabricum import __version__
 
 # group name -> (help text, subcommand names)
@@ -32,7 +33,6 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     "workers": ("Inspect worker inventory", ["list", "show", "disable", "enable"]),
     "flash": ("Flash images to devices", ["list-devices", "image", "verify"]),
     "test": ("Run image tests", ["run", "list-suites"]),
-    "catalog": ("Browse the registry", ["list", "show", "import"]),
     "releases": ("Manage releases and promotion", ["list", "show", "promote", "publish"]),
 }
 
@@ -107,6 +107,7 @@ def _register_groups() -> None:
         for cmd in commands:
             group.command(name=cmd)(_make_stub(f"{name} {cmd}"))
         app.add_typer(group, name=name)
+    app.add_typer(catalog_app, name="catalog")
 
 
 _register_groups()

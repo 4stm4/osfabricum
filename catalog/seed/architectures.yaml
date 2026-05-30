@@ -1,0 +1,6 @@
+apiVersion: osfabricum/v1
+kind: ArchitectureList
+items:
+  - name: aarch64
+  - name: x86_64
+  - name: riscv64

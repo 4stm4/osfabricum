@@ -1,0 +1,17 @@
+apiVersion: osfabricum/v1
+kind: BoardList
+items:
+  - name: rpi-zero-2w
+    arch: aarch64
+    boot_scheme: rpi-firmware
+    firmware_required: true
+    metadata:
+      soc: bcm2710
+      description: Raspberry Pi Zero 2 W
+
+  - name: qemu-x86_64
+    arch: x86_64
+    boot_scheme: qemu
+    firmware_required: false
+    metadata:
+      description: QEMU x86_64 virtual machine
