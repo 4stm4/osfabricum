@@ -40,6 +40,7 @@ def _register_worker(
     kinds: list[str],
     tags: list[str],
     db_url: str,
+    capabilities: dict[str, object] | None = None,
 ) -> None:
     """Upsert the worker row in the ``workers`` table."""
     try:
@@ -52,6 +53,7 @@ def _register_worker(
                         hostname=hostname,
                         kinds_json=kinds,
                         tags_json=tags,
+                        capabilities_json=capabilities,
                         last_seen_at=now,
                     )
                 )
@@ -59,7 +61,12 @@ def _register_worker(
                 session.execute(
                     update(Worker)
                     .where(Worker.hostname == hostname)
-                    .values(kinds_json=kinds, tags_json=tags, last_seen_at=now)
+                    .values(
+                        kinds_json=kinds,
+                        tags_json=tags,
+                        capabilities_json=capabilities,
+                        last_seen_at=now,
+                    )
                 )
             session.commit()
     except OperationalError:
@@ -118,6 +125,7 @@ def run_worker(
         backend,
         worker_id,
         kind_list or ["*"],
+        worker_tags=tag_list,
         poll_interval_s=poll_interval_s,
         lease_ttl_s=60,
     )

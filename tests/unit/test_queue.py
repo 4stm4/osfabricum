@@ -1,4 +1,4 @@
-"""Tests for the M4 job queue (JobBackend, WorkerLoop, CLI, API)."""
+"""Tests for the M4/M5 job queue (JobBackend, WorkerLoop, CLI, API)."""
 
 from __future__ import annotations
 
@@ -299,3 +299,126 @@ def test_api_metrics_includes_queue_depth(db_url: str) -> None:
         resp = client.get("/metrics")
     assert resp.status_code == 200
     assert 'osf_job_queue_depth{kind="source.fetch"}' in resp.text
+
+
+# ---------------------------------------------------------------------------
+# M5: capability routing (required_tags / worker_tags)
+# ---------------------------------------------------------------------------
+
+
+def test_claim_no_tags_matches_any_worker(backend: JobBackend) -> None:
+    """Job with no required_tags can be claimed by a worker with no tags."""
+    backend.enqueue("source.fetch", required_tags=[])
+    job = backend.claim_next(["source.fetch"], "plain-worker", worker_tags=[])
+    assert job is not None
+
+
+def test_claim_required_tags_match(backend: JobBackend) -> None:
+    backend.enqueue("kernel.build", required_tags=["arch:aarch64", "cap:kernel"])
+    job = backend.claim_next(
+        ["kernel.build"],
+        "rpi-worker",
+        worker_tags=["arch:aarch64", "cap:kernel", "cap:qemu"],
+    )
+    assert job is not None
+
+
+def test_claim_required_tags_no_match(backend: JobBackend) -> None:
+    """Worker without required tags cannot claim the job."""
+    backend.enqueue("kernel.build", required_tags=["arch:aarch64"])
+    job = backend.claim_next(
+        ["kernel.build"],
+        "x86-worker",
+        worker_tags=["arch:x86_64"],
+    )
+    assert job is None
+
+
+def test_claim_cap_qemu_routing(backend: JobBackend) -> None:
+    """Worker with cap:qemu=false (no cap:qemu tag) cannot claim image.test."""
+    backend.enqueue("image.test", required_tags=["cap:qemu"])
+
+    # Worker without cap:qemu cannot claim it
+    no_qemu = backend.claim_next(
+        ["image.test"],
+        "worker-no-qemu",
+        worker_tags=["arch:x86_64"],
+    )
+    assert no_qemu is None
+
+    # Worker with cap:qemu can claim it
+    with_qemu = backend.claim_next(
+        ["image.test"],
+        "worker-with-qemu",
+        worker_tags=["arch:x86_64", "cap:qemu"],
+    )
+    assert with_qemu is not None
+
+
+def test_claim_arch_routing(backend: JobBackend) -> None:
+    """x86_64 worker never receives kernel.build jobs tagged arch:aarch64."""
+    backend.enqueue("kernel.build", required_tags=["arch:aarch64"])
+
+    # x86_64 worker cannot claim it
+    x86_job = backend.claim_next(
+        ["kernel.build"],
+        "worker-x86",
+        worker_tags=["arch:x86_64"],
+    )
+    assert x86_job is None
+
+    # aarch64 worker can claim it
+    arm_job = backend.claim_next(
+        ["kernel.build"],
+        "worker-arm",
+        worker_tags=["arch:aarch64", "cap:kernel"],
+    )
+    assert arm_job is not None
+
+
+def test_claim_skips_mismatched_picks_matching(backend: JobBackend) -> None:
+    """If first queued job requires tags worker lacks, next matching job is claimed."""
+    backend.enqueue("package.build", required_tags=["arch:aarch64"])
+    backend.enqueue("package.build", required_tags=["arch:x86_64"])
+
+    job = backend.claim_next(
+        ["package.build"],
+        "x86-worker",
+        worker_tags=["arch:x86_64"],
+    )
+    assert job is not None
+    assert job.required_tags_json == ["arch:x86_64"]
+
+
+def test_worker_loop_tag_routing(db_url: str) -> None:
+    """WorkerLoop with arch:aarch64 tag cannot claim job requiring arch:x86_64."""
+    backend = JobBackend(db_url)
+    job_id = backend.enqueue("package.build", required_tags=["arch:x86_64"], max_attempts=1)
+
+    executed: list[str] = []
+
+    def handler(job: Job) -> None:
+        executed.append(job.id)
+
+    loop = WorkerLoop(
+        backend,
+        "arm-worker",
+        ["package.build"],
+        worker_tags=["arch:aarch64"],
+        poll_interval_s=0.05,
+    )
+    loop.register("package.build", handler)
+
+    stop = threading.Event()
+    t = threading.Thread(target=loop.run, args=(stop,))
+    t.start()
+    time.sleep(0.3)
+    stop.set()
+    t.join(timeout=2)
+
+    # Job was not executed by the aarch64 worker
+    assert job_id not in executed
+    with sync_session(db_url) as session:
+        j = session.get(Job, job_id)
+        assert j is not None
+        assert j.status == "queued"

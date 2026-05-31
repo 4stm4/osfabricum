@@ -461,8 +461,8 @@ class ReleaseArtifact(Base):
 
 
 class Job(Base):
-    """Generic job queue entry.  Workers claim rows by kind; retry policy and
-    lease expiry are enforced by the backend."""
+    """Generic job queue entry.  Workers claim rows by kind and required tags;
+    retry policy and lease expiry are enforced by the backend."""
 
     __tablename__ = "jobs"
 
@@ -470,6 +470,9 @@ class Job(Base):
     kind: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
     status: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="queued", index=True)
     payload_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    # M5: workers must possess ALL tags in required_tags_json to claim this job.
+    # None / empty list means any worker matching the kind may claim it.
+    required_tags_json: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
     attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=1)
     max_attempts: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=3)
     retry_policy: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="fixed")

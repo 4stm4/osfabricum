@@ -40,15 +40,21 @@ class JobBackend:
         kind: str,
         payload: dict[str, Any] | None = None,
         *,
+        required_tags: list[str] | None = None,
         max_attempts: int = 3,
         lease_ttl_s: int = 60,
         retry_policy: str = "fixed",
     ) -> str:
-        """Create a QUEUED job and return its id."""
+        """Create a QUEUED job and return its id.
+
+        *required_tags* is an optional list of tags that a worker must possess
+        in order to claim this job (M5 capability routing).
+        """
         with sync_session(self._db_url) as session:
             job = Job(
                 kind=kind,
                 payload_json=payload,
+                required_tags_json=required_tags or [],
                 max_attempts=max_attempts,
                 lease_ttl_s=lease_ttl_s,
                 retry_policy=retry_policy,
@@ -67,33 +73,43 @@ class JobBackend:
         kinds: list[str],
         worker_hostname: str,
         *,
+        worker_tags: list[str] | None = None,
         lease_ttl_s: int | None = None,
     ) -> Job | None:
-        """Atomically claim the oldest QUEUED job whose kind is in *kinds*.
+        """Atomically claim the oldest QUEUED job whose kind is in *kinds* and
+        whose required tags are a subset of *worker_tags* (M5 capability routing).
 
         Returns the claimed ``Job`` instance (detached from the session) or
         ``None`` if no matching job is available.
         """
+        tags_set: set[str] = set(worker_tags or [])
         with self._claim_lock:
             with sync_session(self._db_url) as session:
-                stmt = (
+                candidates = session.scalars(
                     select(Job)
                     .where(Job.status == "queued", Job.kind.in_(kinds))
                     .order_by(Job.created_at)
-                    .limit(1)
-                )
-                job = session.scalar(stmt)
-                if job is None:
+                ).all()
+                # Find first candidate whose required tags the worker satisfies
+                target: Job | None = None
+                for candidate in candidates:
+                    required = set(candidate.required_tags_json or [])
+                    if required.issubset(tags_set):
+                        target = candidate
+                        break
+                if target is None:
                     return None
                 now = _now()
                 result = session.execute(
                     update(Job)
-                    .where(Job.id == job.id, Job.status == "queued")
+                    .where(Job.id == target.id, Job.status == "queued")
                     .values(
                         status="claimed",
                         worker_hostname=worker_hostname,
                         claimed_at=now,
-                        lease_ttl_s=(lease_ttl_s if lease_ttl_s is not None else job.lease_ttl_s),
+                        lease_ttl_s=(
+                            lease_ttl_s if lease_ttl_s is not None else target.lease_ttl_s
+                        ),
                         updated_at=now,
                     )
                 )
@@ -101,7 +117,7 @@ class JobBackend:
                 if result.rowcount == 0:  # type: ignore[attr-defined]
                     return None
                 # Fetch fresh state after update
-                claimed = session.get(Job, job.id)
+                claimed = session.get(Job, target.id)
                 if claimed is not None:
                     session.expunge(claimed)
                 return claimed

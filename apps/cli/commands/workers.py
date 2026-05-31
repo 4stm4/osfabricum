@@ -45,12 +45,14 @@ def workers_list(
     except OperationalError:
         Console().print(_DB_NOT_READY)
         raise typer.Exit(code=1) from None
-    tbl = Table("Hostname", "Status", "Kinds", "Tags", "Last seen", title="Workers")
+    tbl = Table("Hostname", "Status", "Kinds", "Tags", "Capabilities", "Last seen", title="Workers")
     for w in rows:
         kinds = ", ".join(w.kinds_json or []) or "-"
         tags = ", ".join(w.tags_json or []) or "-"
         seen = w.last_seen_at.isoformat(timespec="seconds") if w.last_seen_at else "-"
-        tbl.add_row(w.hostname, _status(w), kinds, tags, seen)
+        caps_raw = w.capabilities_json or {}
+        caps = ", ".join(f"{k}={v}" for k, v in caps_raw.items()) if caps_raw else "-"
+        tbl.add_row(w.hostname, _status(w), kinds, tags, caps, seen)
     Console().print(tbl)
 
 
