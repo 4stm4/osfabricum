@@ -15,6 +15,7 @@ import typer
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.store import store_app
+from apps.cli.commands.workers import workers_app
 from osfabricum import __version__
 
 # group name -> (help text, subcommand names)
@@ -27,7 +28,6 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     "kernel": ("Build and inspect kernels", ["build", "list", "show"]),
     "toolchain": ("Manage cross-compilation toolchains", ["add", "fetch", "verify", "list"]),
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
-    "workers": ("Inspect worker inventory", ["list", "show", "disable", "enable"]),
     "flash": ("Flash images to devices", ["list-devices", "image", "verify"]),
     "test": ("Run image tests", ["run", "list-suites"]),
     "releases": ("Manage releases and promotion", ["list", "show", "promote", "publish"]),
@@ -107,6 +107,7 @@ def _register_groups() -> None:
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(artifacts_app, name="artifacts")
     app.add_typer(store_app, name="store")
+    app.add_typer(workers_app, name="workers")
 
 
 _register_groups()
