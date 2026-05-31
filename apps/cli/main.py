@@ -14,6 +14,7 @@ import typer
 
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
+from apps.cli.commands.package import package_app
 from apps.cli.commands.source import source_app
 from apps.cli.commands.store import store_app
 from apps.cli.commands.toolchain import toolchain_app
@@ -26,7 +27,7 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
         "Inspect and manage builds",
         ["list", "show", "logs", "cancel", "reproduce", "diff"],
     ),
-    "package": ("Build and inspect packages", ["build", "list", "show", "verify"]),
+    # "package" is registered as a real app below (M9)
     "kernel": ("Build and inspect kernels", ["build", "list", "show"]),
     # "toolchain" is registered as a real app below (M6)
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
@@ -108,6 +109,7 @@ def _register_groups() -> None:
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(artifacts_app, name="artifacts")
+    app.add_typer(package_app, name="package")
     app.add_typer(source_app, name="source")
     app.add_typer(store_app, name="store")
     app.add_typer(toolchain_app, name="toolchain")
