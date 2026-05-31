@@ -1,0 +1,16 @@
+apiVersion: osfabricum/v1
+kind: KernelList
+items:
+  - name: linux-rpi
+    version: "6.6.y"
+    arch: aarch64
+    board: rpi-zero-2w
+    source_uri: https://github.com/raspberrypi/linux
+    source_ref: stable_20240529
+    metadata:
+      tarball_url: "https://github.com/raspberrypi/linux/archive/stable_20240529.tar.gz"
+      defconfig: bcm2711_defconfig
+      image_path: arch/arm64/boot/Image
+      dtbs:
+        - arch/arm64/boot/dts/broadcom/bcm2710-rpi-zero-2-w.dtb
+      patches: []

@@ -92,6 +92,7 @@ class Kernel(Base):
     )
     source_uri: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     source_ref: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint("name", "version", "arch_id", name="uq_kernels_name_ver_arch"),
