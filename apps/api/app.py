@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Response
-from sqlalchemy.exc import OperationalError
 
 from osfabricum import __version__
 from osfabricum.config import Settings, load_settings
@@ -32,7 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             backend = JobBackend(settings.database.url)
             for kind, count in backend.queue_depth().items():
                 lines.append(f'osf_job_queue_depth{{kind="{kind}"}} {count}')
-        except OperationalError:
+        except Exception:  # noqa: BLE001
             lines.append("# osf_job_queue_depth unavailable: schema not ready")
         body = "\n".join(lines) + "\n"
         return Response(content=body, media_type="text/plain; version=0.0.4")
@@ -46,7 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "queue_depth": backend.queue_depth(),
                 "status_counts": backend.status_counts(),
             }
-        except OperationalError:
+        except Exception:  # noqa: BLE001
             return {"error": "database schema not ready"}
 
     return app

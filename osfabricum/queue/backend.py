@@ -1,35 +1,93 @@
-"""SQL-backed job queue backend."""
+"""Sync façade around pyjobkit Engine + SQL backend (M4/M5).
+
+Architecture:
+  - All public methods are **synchronous** and use ``asyncio.run()`` internally.
+  - Persistence uses pyjobkit's ``SQLBackend`` → ``job_tasks`` table.
+  - M5 required-tag routing: tags are stored in the job payload under the
+    ``__osf_required_tags`` key and checked in ``claim_next`` before claiming.
+  - Retry policy "manual" is stored in payload under ``__osf_retry_policy``
+    and causes ``fail()`` to mark the job FAILED regardless of attempt count.
+  - ``NullPool`` is used so the async SQLAlchemy engine is safe to share
+    across separate ``asyncio.run()`` invocations.
+"""
 
 from __future__ import annotations
 
-import threading
+import asyncio
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.pool import NullPool
 
-from osfabricum.db.models import Job
-from osfabricum.db.session import sync_session
+# Payload keys for OSFabricum extensions stored inside pyjobkit's JSON payload
+OSF_REQUIRED_TAGS_KEY = "__osf_required_tags"
+OSF_RETRY_POLICY_KEY = "__osf_retry_policy"
+OSF_LEASE_TTL_KEY = "__osf_lease_ttl_s"
 
 
-def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+def _async_db_url(db_url: str) -> str:
+    """Return an async-driver URL (adds +aiosqlite for plain SQLite URLs)."""
+    if "://" not in db_url:
+        return db_url
+    if db_url.startswith("sqlite:///") and "+aiosqlite" not in db_url:
+        return db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    return db_url
+
+
+@dataclass
+class JobView:
+    """Lightweight view of a pyjobkit ``job_tasks`` row after claiming.
+
+    Mimics the attribute API of the old ``Job`` ORM model so existing
+    code and tests that reference ``job.id``, ``job.kind``, etc. keep
+    working without changes.
+    """
+
+    id: str
+    kind: str
+    status: str
+    worker_hostname: str | None
+    attempt: int  # = ``attempts`` column value after the claim increment
+    max_attempts: int
+    required_tags_json: list[str] = field(default_factory=list)
 
 
 class JobBackend:
-    """Thread-safe SQL job queue.
+    """Thread-safe sync job queue backed by pyjobkit's SQLBackend.
 
-    Uses an optimistic-lock pattern for claim operations: a SELECT followed by
-    an UPDATE WHERE status='queued' — if another worker wins the race, the
-    claim returns None and the caller retries on the next poll cycle.
+    Each public method spins up a fresh ``asyncio`` event loop via
+    ``asyncio.run()``; the underlying engine uses ``NullPool`` so no
+    connections are shared across loop boundaries.
 
-    A threading.Lock serialises claim attempts within a single process, which
-    avoids redundant contention on SQLite (which serialises writes anyway).
+    M5 capability routing
+    ---------------------
+    Jobs may carry a list of *required tags* in their payload
+    (``__osf_required_tags``).  ``claim_next`` only returns a job when the
+    worker's ``worker_tags`` are a **superset** of the job's required tags.
     """
 
     def __init__(self, db_url: str | None = None) -> None:
-        self._db_url = db_url
-        self._claim_lock = threading.Lock()
+        if db_url is None:
+            from osfabricum.config import load_settings
+
+            db_url = load_settings().database.url
+        self._db_url: str = db_url
+
+        from pyjobkit.backends.sql.backend import SQLBackend as _PjkSQLBackend
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        self._async_engine = create_async_engine(_async_db_url(db_url), poolclass=NullPool)
+        self._sql_backend = _PjkSQLBackend(self._async_engine, lease_ttl_s=60)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _run(self, coro: Any) -> Any:  # noqa: ANN401
+        return asyncio.run(coro)
 
     # ------------------------------------------------------------------
     # Enqueueing
@@ -42,30 +100,29 @@ class JobBackend:
         *,
         required_tags: list[str] | None = None,
         max_attempts: int = 3,
-        lease_ttl_s: int = 60,
+        lease_ttl_s: int = 60,  # stored as backend default; per-job not in pyjobkit
         retry_policy: str = "fixed",
     ) -> str:
-        """Create a QUEUED job and return its id.
+        """Create a QUEUED job and return its id (string-form UUID)."""
+        full_payload: dict[str, Any] = dict(payload or {})
+        if required_tags:
+            full_payload[OSF_REQUIRED_TAGS_KEY] = required_tags
+        if retry_policy != "fixed":
+            full_payload[OSF_RETRY_POLICY_KEY] = retry_policy
+        if lease_ttl_s != 60:
+            full_payload[OSF_LEASE_TTL_KEY] = lease_ttl_s
 
-        *required_tags* is an optional list of tags that a worker must possess
-        in order to claim this job (M5 capability routing).
-        """
-        with sync_session(self._db_url) as session:
-            job = Job(
+        async def _do() -> UUID:
+            return await self._sql_backend.enqueue(
                 kind=kind,
-                payload_json=payload,
-                required_tags_json=required_tags or [],
+                payload=full_payload,
                 max_attempts=max_attempts,
-                lease_ttl_s=lease_ttl_s,
-                retry_policy=retry_policy,
             )
-            session.add(job)
-            session.commit()
-            session.refresh(job)
-            return job.id
+
+        return str(self._run(_do()))
 
     # ------------------------------------------------------------------
-    # Claiming
+    # Claiming  (M5 required-tag subset check lives here)
     # ------------------------------------------------------------------
 
     def claim_next(
@@ -75,144 +132,211 @@ class JobBackend:
         *,
         worker_tags: list[str] | None = None,
         lease_ttl_s: int | None = None,
-    ) -> Job | None:
-        """Atomically claim the oldest QUEUED job whose kind is in *kinds* and
-        whose required tags are a subset of *worker_tags* (M5 capability routing).
+    ) -> JobView | None:
+        """Claim the oldest QUEUED job whose required tags the worker satisfies.
 
-        Returns the claimed ``Job`` instance (detached from the session) or
-        ``None`` if no matching job is available.
+        Returns a :class:`JobView` or ``None`` if no matching job is available.
         """
-        tags_set: set[str] = set(worker_tags or [])
-        with self._claim_lock:
-            with sync_session(self._db_url) as session:
-                candidates = session.scalars(
-                    select(Job)
-                    .where(Job.status == "queued", Job.kind.in_(kinds))
-                    .order_by(Job.created_at)
-                ).all()
-                # Find first candidate whose required tags the worker satisfies
-                target: Job | None = None
-                for candidate in candidates:
-                    required = set(candidate.required_tags_json or [])
-                    if required.issubset(tags_set):
-                        target = candidate
-                        break
-                if target is None:
-                    return None
-                now = _now()
-                result = session.execute(
-                    update(Job)
-                    .where(Job.id == target.id, Job.status == "queued")
-                    .values(
-                        status="claimed",
-                        worker_hostname=worker_hostname,
-                        claimed_at=now,
-                        lease_ttl_s=(
-                            lease_ttl_s if lease_ttl_s is not None else target.lease_ttl_s
-                        ),
-                        updated_at=now,
-                    )
+        return cast(
+            "JobView | None",
+            self._run(
+                self._async_claim_next(
+                    kinds,
+                    worker_hostname,
+                    set(worker_tags or []),
+                    lease_ttl_s or self._sql_backend.lease_ttl_s,
                 )
-                session.commit()
-                if result.rowcount == 0:  # type: ignore[attr-defined]
-                    return None
-                # Fetch fresh state after update
-                claimed = session.get(Job, target.id)
-                if claimed is not None:
-                    session.expunge(claimed)
-                return claimed
+            ),
+        )
+
+    async def _async_claim_next(
+        self,
+        kinds: list[str],
+        worker_hostname: str,
+        tags_set: set[str],
+        lease_ttl_s: int,
+    ) -> JobView | None:
+        from pyjobkit.backends.sql.schema import JobTasks
+
+        now = datetime.now(UTC)
+
+        async with self._sql_backend.sessionmaker() as session:
+            rows = (
+                await session.execute(
+                    select(JobTasks)
+                    .where(JobTasks.c.status == "queued")
+                    .where(JobTasks.c.kind.in_(kinds))
+                    .where(JobTasks.c.scheduled_for <= now)
+                    .order_by(JobTasks.c.priority.asc(), JobTasks.c.created_at.asc())
+                )
+            ).mappings().all()
+
+            target: dict[str, Any] | None = None
+            for row in rows:
+                row_dict = dict(row)
+                req = set((row_dict.get("payload") or {}).get(OSF_REQUIRED_TAGS_KEY) or [])
+                if req.issubset(tags_set):
+                    target = row_dict
+                    break
+
+            if target is None:
+                return None
+
+            # Per-job lease TTL takes precedence over the caller's default
+            payload_ttl = (target.get("payload") or {}).get(OSF_LEASE_TTL_KEY)
+            effective_ttl = int(payload_ttl) if payload_ttl is not None else lease_ttl_s
+            lease_until = now + timedelta(seconds=effective_ttl)
+            result = await session.execute(
+                update(JobTasks)
+                .where(JobTasks.c.id == str(target["id"]))
+                .where(JobTasks.c.version == target["version"])
+                .where(JobTasks.c.status == "queued")
+                .values(
+                    status="running",
+                    leased_by=worker_hostname,
+                    lease_until=lease_until,
+                    started_at=now,
+                    attempts=JobTasks.c.attempts + 1,
+                    version=JobTasks.c.version + 1,
+                )
+            )
+            await session.commit()
+
+            if result.rowcount == 0:  # type: ignore[attr-defined]
+                return None
+
+            payload = target.get("payload") or {}
+            return JobView(
+                id=str(target["id"]),
+                kind=str(target["kind"]),
+                status="running",
+                worker_hostname=worker_hostname,
+                attempt=int(target.get("attempts", 0)) + 1,
+                max_attempts=int(target.get("max_attempts", 3)),
+                required_tags_json=list(payload.get(OSF_REQUIRED_TAGS_KEY) or []),
+            )
 
     # ------------------------------------------------------------------
     # Completing / failing
     # ------------------------------------------------------------------
 
     def complete(self, job_id: str) -> None:
-        """Mark *job_id* as COMPLETED."""
-        with sync_session(self._db_url) as session:
-            session.execute(
-                update(Job).where(Job.id == job_id).values(status="completed", updated_at=_now())
-            )
-            session.commit()
+        """Mark *job_id* as SUCCEEDED."""
+        self._run(self._sql_backend.succeed(UUID(job_id), {}))
 
     def fail(self, job_id: str, error: str = "") -> None:
-        """Mark *job_id* as failed.
+        """Mark *job_id* as failed or requeue it if retries remain.
 
-        If the job has remaining attempts and its retry policy allows it, the
-        job is re-queued with attempt incremented.  Otherwise it transitions to
-        FAILED.
+        Requeue conditions: ``attempts < max_attempts`` AND
+        ``retry_policy != "manual"``.
         """
-        with sync_session(self._db_url) as session:
-            job = session.get(Job, job_id)
-            if job is None:
+        self._run(self._async_fail(job_id, error))
+
+    async def _async_fail(self, job_id: str, error: str) -> None:
+        from pyjobkit.backends.sql.schema import JobTasks
+
+        now = datetime.now(UTC)
+
+        async with self._sql_backend.sessionmaker() as session:
+            row = (
+                await session.execute(select(JobTasks).where(JobTasks.c.id == job_id))
+            ).mappings().first()
+
+            if row is None:
                 return
-            now = _now()
-            if job.attempt < job.max_attempts and job.retry_policy != "manual":
-                session.execute(
-                    update(Job)
-                    .where(Job.id == job_id)
+
+            attempts: int = int(row["attempts"])
+            max_attempts: int = int(row["max_attempts"])
+            retry_policy: str = str((row.get("payload") or {}).get(OSF_RETRY_POLICY_KEY, "fixed"))
+
+            if attempts < max_attempts and retry_policy != "manual":
+                await session.execute(
+                    update(JobTasks)
+                    .where(JobTasks.c.id == job_id)
                     .values(
                         status="queued",
-                        attempt=job.attempt + 1,
-                        worker_hostname=None,
-                        claimed_at=None,
-                        error_message=error,
-                        updated_at=now,
+                        leased_by=None,
+                        lease_until=None,
+                        scheduled_for=now,
+                        result={"error": error},
+                        version=JobTasks.c.version + 1,
                     )
                 )
             else:
-                session.execute(
-                    update(Job)
-                    .where(Job.id == job_id)
-                    .values(status="failed", error_message=error, updated_at=now)
+                await session.execute(
+                    update(JobTasks)
+                    .where(JobTasks.c.id == job_id)
+                    .values(
+                        status="failed",
+                        finished_at=now,
+                        result={"error": error},
+                        version=JobTasks.c.version + 1,
+                    )
                 )
-            session.commit()
+            await session.commit()
 
     # ------------------------------------------------------------------
     # Lease expiry
     # ------------------------------------------------------------------
 
     def expire_leases(self) -> int:
-        """Requeue jobs whose claimed lease has timed out.
+        """Requeue or fail jobs whose lease has expired.
+
+        Jobs with remaining attempts are re-queued; jobs that have
+        exhausted all attempts are marked FAILED.
 
         Returns the number of jobs affected.
         """
-        with sync_session(self._db_url) as session:
-            now = _now()
-            claimed = session.scalars(
-                select(Job).where(Job.status == "claimed", Job.claimed_at.is_not(None))
-            ).all()
+        return cast(int, self._run(self._async_expire_leases()))
+
+    async def _async_expire_leases(self) -> int:
+        from pyjobkit.backends.sql.schema import JobTasks
+
+        now = datetime.now(UTC)
+
+        async with self._sql_backend.sessionmaker() as session:
+            expired = (
+                await session.execute(
+                    select(JobTasks)
+                    .where(JobTasks.c.status == "running")
+                    .where(JobTasks.c.lease_until.is_not(None))
+                    .where(JobTasks.c.lease_until <= now)
+                )
+            ).mappings().all()
+
             count = 0
-            for job in claimed:
-                if job.claimed_at is None:
-                    continue
-                deadline = job.claimed_at + timedelta(seconds=job.lease_ttl_s)
-                if now < deadline:
-                    continue
-                if job.attempt < job.max_attempts:
-                    session.execute(
-                        update(Job)
-                        .where(Job.id == job.id)
+            for row in expired:
+                attempts = int(row["attempts"])
+                max_attempts = int(row["max_attempts"])
+
+                if attempts < max_attempts:
+                    await session.execute(
+                        update(JobTasks)
+                        .where(JobTasks.c.id == str(row["id"]))
+                        .where(JobTasks.c.version == row["version"])
                         .values(
                             status="queued",
-                            attempt=job.attempt + 1,
-                            worker_hostname=None,
-                            claimed_at=None,
-                            error_message="lease expired",
-                            updated_at=now,
+                            leased_by=None,
+                            lease_until=None,
+                            scheduled_for=now,
+                            result={"error": "lease expired"},
+                            version=JobTasks.c.version + 1,
                         )
                     )
                 else:
-                    session.execute(
-                        update(Job)
-                        .where(Job.id == job.id)
+                    await session.execute(
+                        update(JobTasks)
+                        .where(JobTasks.c.id == str(row["id"]))
+                        .where(JobTasks.c.version == row["version"])
                         .values(
                             status="failed",
-                            error_message="lease expired: max attempts exhausted",
-                            updated_at=now,
+                            finished_at=now,
+                            result={"error": "lease expired: max attempts exhausted"},
+                            version=JobTasks.c.version + 1,
                         )
                     )
                 count += 1
-            session.commit()
+            await session.commit()
             return count
 
     # ------------------------------------------------------------------
@@ -221,18 +345,34 @@ class JobBackend:
 
     def queue_depth(self) -> dict[str, int]:
         """Return ``{kind: count}`` for all QUEUED jobs."""
-        with sync_session(self._db_url) as session:
-            rows = session.execute(
-                select(Job.kind, func.count(Job.id))
-                .where(Job.status == "queued")
-                .group_by(Job.kind)
+        return cast("dict[str, int]", self._run(self._async_queue_depth()))
+
+    async def _async_queue_depth(self) -> dict[str, int]:
+        from pyjobkit.backends.sql.schema import JobTasks
+
+        async with self._sql_backend.sessionmaker() as session:
+            rows = (
+                await session.execute(
+                    select(JobTasks.c.kind, func.count(JobTasks.c.id))
+                    .where(JobTasks.c.status == "queued")
+                    .group_by(JobTasks.c.kind)
+                )
             ).all()
-        return {kind: count for kind, count in rows}
+        return {kind: int(count) for kind, count in rows}
 
     def status_counts(self) -> dict[str, int]:
         """Return ``{status: count}`` across all jobs."""
-        with sync_session(self._db_url) as session:
-            rows = session.execute(
-                select(Job.status, func.count(Job.id)).group_by(Job.status)
+        return cast("dict[str, int]", self._run(self._async_status_counts()))
+
+    async def _async_status_counts(self) -> dict[str, int]:
+        from pyjobkit.backends.sql.schema import JobTasks
+
+        async with self._sql_backend.sessionmaker() as session:
+            rows = (
+                await session.execute(
+                    select(JobTasks.c.status, func.count(JobTasks.c.id)).group_by(
+                        JobTasks.c.status
+                    )
+                )
             ).all()
-        return {status: count for status, count in rows}
+        return {status: int(count) for status, count in rows}

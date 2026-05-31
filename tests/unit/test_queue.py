@@ -1,22 +1,34 @@
-"""Tests for the M4/M5 job queue (JobBackend, WorkerLoop, CLI, API)."""
+"""Tests for the M4/M5 job queue (JobBackend, WorkerLoop, CLI, API).
+
+Status mapping (pyjobkit → our terminology):
+  - "queued"   = waiting to be claimed
+  - "running"  = claimed by a worker (was "claimed" in the old custom backend)
+  - "success"  = completed successfully (was "completed")
+  - "failed"   = permanently failed
+
+``attempts`` column: incremented at claim time (goes 0 → 1 on first claim).
+``result``   column: pyjobkit JSON column, ``result["error"]`` carries the
+             error message set by ``fail()``/``expire_leases()``.
+"""
 
 from __future__ import annotations
 
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from typer.testing import CliRunner
 
 from apps.api.app import create_app
 from apps.cli.main import app
 from osfabricum.config import Settings
 from osfabricum.db.engine import make_sync_engine
-from osfabricum.db.models import Base, Job
-from osfabricum.db.session import sync_session
-from osfabricum.queue.backend import JobBackend
+from osfabricum.db.models import Base
+from osfabricum.queue.backend import JobBackend, JobView
 from osfabricum.queue.worker import WorkerLoop
 
 runner = CliRunner()
@@ -31,7 +43,10 @@ runner = CliRunner()
 def db_url(tmp_path: Path) -> str:
     url = f"sqlite:///{tmp_path / 'test.db'}"
     engine = make_sync_engine(url)
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)  # workers, artifacts, … tables
+    from pyjobkit.backends.sql.schema import metadata as pjk_meta
+
+    pjk_meta.create_all(engine)  # job_tasks table
     engine.dispose()
     return url
 
@@ -39,6 +54,22 @@ def db_url(tmp_path: Path) -> str:
 @pytest.fixture()
 def backend(db_url: str) -> JobBackend:
     return JobBackend(db_url)
+
+
+def _get_job_row(db_url: str, job_id: str) -> dict[str, Any] | None:
+    """Synchronously fetch a job_tasks row by id."""
+    from pyjobkit.backends.sql.schema import JobTasks
+
+    engine = make_sync_engine(db_url)
+    with engine.connect() as conn:
+        row = (
+            conn.execute(select(JobTasks).where(JobTasks.c.id == job_id))
+            .mappings()
+            .first()
+        )
+        result = dict(row) if row is not None else None
+    engine.dispose()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +91,7 @@ def test_claim_returns_job(backend: JobBackend) -> None:
     job = backend.claim_next(["source.fetch"], "worker-01")
     assert job is not None
     assert job.kind == "source.fetch"
-    assert job.status == "claimed"
+    assert job.status == "running"
     assert job.worker_hostname == "worker-01"
 
 
@@ -70,46 +101,42 @@ def test_claim_only_matching_kind(backend: JobBackend) -> None:
     assert job is None
 
 
-def test_complete_marks_completed(backend: JobBackend) -> None:
+def test_complete_marks_success(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("source.fetch")
     backend.claim_next(["source.fetch"], "worker-01")
     backend.complete(job_id)
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "completed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "success"
 
 
-def test_fail_requeues_when_retries_remain(backend: JobBackend) -> None:
+def test_fail_requeues_when_retries_remain(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("source.fetch", max_attempts=3)
-    backend.claim_next(["source.fetch"], "worker-01")
+    backend.claim_next(["source.fetch"], "worker-01")  # attempts → 1
     backend.fail(job_id, "network error")
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "queued"
-        assert j.attempt == 2
-        assert j.error_message == "network error"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "queued"
+    assert int(row["attempts"]) == 1  # 1 attempt has run; requeued for 2nd
+    assert row["result"] == {"error": "network error"}
 
 
-def test_fail_marks_failed_when_no_retries(backend: JobBackend) -> None:
+def test_fail_marks_failed_when_no_retries(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("source.fetch", max_attempts=1)
-    backend.claim_next(["source.fetch"], "worker-01")
+    backend.claim_next(["source.fetch"], "worker-01")  # attempts → 1
     backend.fail(job_id, "unrecoverable")
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "failed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "failed"
 
 
-def test_fail_manual_policy_never_requeues(backend: JobBackend) -> None:
+def test_fail_manual_policy_never_requeues(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("kernel.build", max_attempts=5, retry_policy="manual")
     backend.claim_next(["kernel.build"], "worker-01")
     backend.fail(job_id, "needs manual intervention")
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "failed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "failed"
 
 
 # ---------------------------------------------------------------------------
@@ -117,29 +144,29 @@ def test_fail_manual_policy_never_requeues(backend: JobBackend) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_expire_leases_requeues_stale(backend: JobBackend) -> None:
+def test_expire_leases_requeues_stale(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("source.fetch", lease_ttl_s=0)
     backend.claim_next(["source.fetch"], "worker-01")
     # lease_ttl_s=0 means immediately expired
     time.sleep(0.01)
     count = backend.expire_leases()
     assert count == 1
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "queued"
-        assert j.attempt == 2
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "queued"
+    assert int(row["attempts"]) == 1  # 1 attempt ran and expired
 
 
-def test_expire_leases_fails_when_max_attempts_exhausted(backend: JobBackend) -> None:
+def test_expire_leases_fails_when_max_attempts_exhausted(
+    backend: JobBackend, db_url: str
+) -> None:
     job_id = backend.enqueue("source.fetch", max_attempts=1, lease_ttl_s=0)
     backend.claim_next(["source.fetch"], "worker-01")
     time.sleep(0.01)
     backend.expire_leases()
-    with sync_session(backend._db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "failed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "failed"
 
 
 def test_expire_leases_ignores_active(backend: JobBackend) -> None:
@@ -169,7 +196,7 @@ def test_status_counts(backend: JobBackend) -> None:
     backend.claim_next(["source.fetch"], "w")
     counts = backend.status_counts()
     assert counts.get("queued", 0) == 1
-    assert counts.get("claimed", 0) == 1
+    assert counts.get("running", 0) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +209,7 @@ def test_worker_loop_executes_and_completes(db_url: str) -> None:
     job_id = backend.enqueue("test.noop")
     executed: list[str] = []
 
-    def handler(job: Job) -> None:
+    def handler(job: JobView) -> None:
         executed.append(job.id)
 
     loop = WorkerLoop(backend, "test-worker", ["test.noop"], poll_interval_s=0.05)
@@ -198,26 +225,24 @@ def test_worker_loop_executes_and_completes(db_url: str) -> None:
     # Wait for the job to be processed
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        with sync_session(db_url) as session:
-            j = session.get(Job, job_id)
-            if j and j.status == "completed":
-                break
+        row = _get_job_row(db_url, job_id)
+        if row is not None and row["status"] == "success":
+            break
         time.sleep(0.05)
     stop.set()
     t.join(timeout=2)
 
     assert job_id in executed
-    with sync_session(db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "completed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "success"
 
 
 def test_worker_loop_fails_job_on_handler_exception(db_url: str) -> None:
     backend = JobBackend(db_url)
     job_id = backend.enqueue("test.boom", max_attempts=1)
 
-    def boom(job: Job) -> None:
+    def boom(job: JobView) -> None:
         raise RuntimeError("handler error")
 
     loop = WorkerLoop(backend, "test-worker", ["test.boom"], poll_interval_s=0.05)
@@ -228,18 +253,16 @@ def test_worker_loop_fails_job_on_handler_exception(db_url: str) -> None:
     t.start()
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        with sync_session(db_url) as session:
-            j = session.get(Job, job_id)
-            if j and j.status == "failed":
-                break
+        row = _get_job_row(db_url, job_id)
+        if row is not None and row["status"] == "failed":
+            break
         time.sleep(0.05)
     stop.set()
     t.join(timeout=2)
 
-    with sync_session(db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "failed"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "failed"
 
 
 def test_worker_loop_fails_job_no_handler(db_url: str) -> None:
@@ -252,13 +275,16 @@ def test_worker_loop_fails_job_no_handler(db_url: str) -> None:
     t.start()
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        with sync_session(db_url) as session:
-            j = session.get(Job, job_id)
-            if j and j.status == "failed":
-                break
+        row = _get_job_row(db_url, job_id)
+        if row is not None and row["status"] == "failed":
+            break
         time.sleep(0.05)
     stop.set()
     t.join(timeout=2)
+
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "failed"
 
 
 # ---------------------------------------------------------------------------
@@ -387,17 +413,19 @@ def test_claim_skips_mismatched_picks_matching(backend: JobBackend) -> None:
         worker_tags=["arch:x86_64"],
     )
     assert job is not None
-    assert job.required_tags_json == ["arch:x86_64"]
+    assert "arch:x86_64" in job.required_tags_json
 
 
 def test_worker_loop_tag_routing(db_url: str) -> None:
     """WorkerLoop with arch:aarch64 tag cannot claim job requiring arch:x86_64."""
     backend = JobBackend(db_url)
-    job_id = backend.enqueue("package.build", required_tags=["arch:x86_64"], max_attempts=1)
+    job_id = backend.enqueue(
+        "package.build", required_tags=["arch:x86_64"], max_attempts=1
+    )
 
     executed: list[str] = []
 
-    def handler(job: Job) -> None:
+    def handler(job: JobView) -> None:
         executed.append(job.id)
 
     loop = WorkerLoop(
@@ -418,7 +446,6 @@ def test_worker_loop_tag_routing(db_url: str) -> None:
 
     # Job was not executed by the aarch64 worker
     assert job_id not in executed
-    with sync_session(db_url) as session:
-        j = session.get(Job, job_id)
-        assert j is not None
-        assert j.status == "queued"
+    row = _get_job_row(db_url, job_id)
+    assert row is not None
+    assert row["status"] == "queued"

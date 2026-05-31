@@ -455,32 +455,6 @@ class ReleaseArtifact(Base):
     role: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="image")
 
 
-# ---------------------------------------------------------------------------
-# M4 — Job queue (pyjobkit-compatible SQL backend)
-# ---------------------------------------------------------------------------
-
-
-class Job(Base):
-    """Generic job queue entry.  Workers claim rows by kind and required tags;
-    retry policy and lease expiry are enforced by the backend."""
-
-    __tablename__ = "jobs"
-
-    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
-    kind: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="queued", index=True)
-    payload_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
-    # M5: workers must possess ALL tags in required_tags_json to claim this job.
-    # None / empty list means any worker matching the kind may claim it.
-    required_tags_json: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
-    attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=1)
-    max_attempts: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=3)
-    retry_policy: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="fixed")
-    worker_hostname: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
-    claimed_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
-    lease_ttl_s: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=60)
-    error_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
-    updated_at: Mapped[datetime] = mapped_column(
-        sa.DateTime, nullable=False, default=_now, onupdate=_now
-    )
+# M4 — The job queue is managed by pyjobkit's SQLBackend (job_tasks table).
+# The old custom Job model is removed; use pyjobkit.backends.sql.schema.JobTasks
+# for direct SQL access when needed.

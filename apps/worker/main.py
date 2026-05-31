@@ -20,7 +20,7 @@ from osfabricum.config import load_settings
 from osfabricum.db.models import Worker
 from osfabricum.db.session import sync_session
 from osfabricum.logging import configure_logging, get_logger
-from osfabricum.queue import JobBackend, WorkerLoop
+from osfabricum.queue import JobBackend, WorkerLoop  # noqa: F401 – re-exported
 
 log = get_logger("osfabricum.worker")
 
