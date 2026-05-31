@@ -12,7 +12,9 @@ from typing import Annotated
 
 import typer
 
+from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
+from apps.cli.commands.store import store_app
 from osfabricum import __version__
 
 # group name -> (help text, subcommand names)
@@ -24,11 +26,6 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     "package": ("Build and inspect packages", ["build", "list", "show", "verify"]),
     "kernel": ("Build and inspect kernels", ["build", "list", "show"]),
     "toolchain": ("Manage cross-compilation toolchains", ["add", "fetch", "verify", "list"]),
-    "artifacts": (
-        "Browse the artifact store",
-        ["list", "show", "download", "verify", "pin", "unpin"],
-    ),
-    "store": ("Artifact store maintenance", ["stats", "verify", "gc"]),
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
     "workers": ("Inspect worker inventory", ["list", "show", "disable", "enable"]),
     "flash": ("Flash images to devices", ["list-devices", "image", "verify"]),
@@ -108,6 +105,8 @@ def _register_groups() -> None:
             group.command(name=cmd)(_make_stub(f"{name} {cmd}"))
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
+    app.add_typer(artifacts_app, name="artifacts")
+    app.add_typer(store_app, name="store")
 
 
 _register_groups()

@@ -9,7 +9,7 @@ they will be added when query patterns require them.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ def _uuid() -> str:
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
