@@ -1,0 +1,34 @@
+apiVersion: osfabricum/v1
+kind: FirmwareList
+items:
+  - board: rpi-zero-2w
+    filename: start4.elf
+    placement: boot
+    required: true
+    metadata:
+      url: "https://github.com/raspberrypi/firmware/raw/master/boot/start4.elf"
+      description: "VideoCore firmware blob for RPi 4/Zero 2W"
+
+  - board: rpi-zero-2w
+    filename: fixup4.dat
+    placement: boot
+    required: true
+    metadata:
+      url: "https://github.com/raspberrypi/firmware/raw/master/boot/fixup4.dat"
+      description: "Linker file for start4.elf"
+
+  - board: rpi-zero-2w
+    filename: bcm2710-rpi-zero-2-w.dtb
+    placement: boot
+    required: true
+    metadata:
+      url: "https://github.com/raspberrypi/firmware/raw/master/boot/bcm2710-rpi-zero-2-w.dtb"
+      description: "Device tree blob for RPi Zero 2W"
+
+  - board: rpi-zero-2w
+    filename: bootcode.bin
+    placement: boot
+    required: false
+    metadata:
+      url: "https://github.com/raspberrypi/firmware/raw/master/boot/bootcode.bin"
+      description: "Stage 1 bootloader (not needed for Pi 4 / Zero 2W but kept for compatibility)"

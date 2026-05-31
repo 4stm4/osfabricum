@@ -16,6 +16,7 @@ from osfabricum.db.models import (
     Architecture,
     Board,
     Distribution,
+    FirmwareBlob,
     Kernel,
     KernelConfig,
     Source,
@@ -214,6 +215,40 @@ def _import_distributions(items: list[dict[str, Any]], db_url: str | None) -> in
     return count
 
 
+def _import_firmware(items: list[dict[str, Any]], db_url: str | None) -> int:
+    count = 0
+    with sync_session(db_url) as session:
+        for item in items:
+            board_name = item["board"]
+            filename = item["filename"]
+            board = session.scalar(select(Board).where(Board.name == board_name))
+            if board is None:
+                typer.echo(
+                    f"ERROR: board '{board_name}' not found — import boards first.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            existing = session.scalar(
+                select(FirmwareBlob).where(
+                    FirmwareBlob.board_id == board.id,
+                    FirmwareBlob.filename == filename,
+                )
+            )
+            if existing is None:
+                session.add(
+                    FirmwareBlob(
+                        board_id=board.id,
+                        filename=filename,
+                        placement=item.get("placement", "boot"),
+                        required=bool(item.get("required", True)),
+                        metadata_json=item.get("metadata"),
+                    )
+                )
+                count += 1
+        session.commit()
+    return count
+
+
 @catalog_app.command(name="import")
 def catalog_import(
     file: Annotated[Path, typer.Option("--file", "-f", help="YAML catalog file to import")],
@@ -249,6 +284,9 @@ def catalog_import(
         elif kind == "KernelList":
             n = _import_kernels(items, db_url)
             typer.echo(f"Imported {n} kernel(s) from {file.name}")
+        elif kind == "FirmwareList":
+            n = _import_firmware(items, db_url)
+            typer.echo(f"Imported {n} firmware blob(s) from {file.name}")
         else:
             typer.echo(f"ERROR: unknown kind '{kind}'", err=True)
             raise typer.Exit(code=1)

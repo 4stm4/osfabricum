@@ -265,6 +265,7 @@ class FirmwareBlob(Base):
     )
     required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
     placement: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="boot")
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("board_id", "filename", name="uq_firmware_board_file"),)
 

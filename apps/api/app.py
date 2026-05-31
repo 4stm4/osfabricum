@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Response
 
 from osfabricum import __version__
-from osfabricum.config import Settings, load_settings
+from osfabricum.settings import Settings, load_settings
 from osfabricum.queue.backend import JobBackend
 
 

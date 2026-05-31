@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from sqlalchemy.exc import OperationalError
 
-from osfabricum.config import load_settings
+from osfabricum.settings import load_settings
 from osfabricum.store.verify import verify_store
 
 store_app = typer.Typer(help="Artifact store maintenance", no_args_is_help=True)

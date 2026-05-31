@@ -18,7 +18,7 @@ from sqlalchemy import engine_from_config, pool
 
 # Ensure all models are registered on Base.metadata before comparison.
 import osfabricum.db.models  # noqa: F401
-from osfabricum.config import load_settings
+from osfabricum.settings import load_settings
 from osfabricum.db.base import Base
 from osfabricum.db.engine import _sync_url
 

@@ -72,7 +72,7 @@ class JobBackend:
 
     def __init__(self, db_url: str | None = None) -> None:
         if db_url is None:
-            from osfabricum.config import load_settings
+            from osfabricum.settings import load_settings
 
             db_url = load_settings().database.url
         self._db_url: str = db_url

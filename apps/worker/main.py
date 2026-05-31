@@ -16,7 +16,7 @@ import typer
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 
-from osfabricum.config import load_settings
+from osfabricum.settings import load_settings
 from osfabricum.db.models import Worker
 from osfabricum.db.session import sync_session
 from osfabricum.logging import configure_logging, get_logger

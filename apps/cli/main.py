@@ -14,6 +14,7 @@ import typer
 
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
+from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.source import source_app
@@ -30,6 +31,7 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     ),
     # "package" is registered as a real app below (M9)
     # "kernel" is registered as a real app below (M10)
+    # "firmware" is registered as a real app below (M11)
     # "toolchain" is registered as a real app below (M6)
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
     "flash": ("Flash images to devices", ["list-devices", "image", "verify"]),
@@ -110,6 +112,7 @@ def _register_groups() -> None:
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(artifacts_app, name="artifacts")
+    app.add_typer(firmware_app, name="firmware")
     app.add_typer(kernel_app, name="kernel")
     app.add_typer(package_app, name="package")
     app.add_typer(source_app, name="source")

@@ -25,7 +25,7 @@ from typer.testing import CliRunner
 
 from apps.api.app import create_app
 from apps.cli.main import app
-from osfabricum.config import Settings
+from osfabricum.settings import Settings
 from osfabricum.db.engine import make_sync_engine
 from osfabricum.db.models import Base
 from osfabricum.queue.backend import JobBackend, JobView
