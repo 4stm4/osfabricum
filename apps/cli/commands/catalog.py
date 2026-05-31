@@ -12,7 +12,7 @@ from rich.table import Table
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from osfabricum.db.models import Architecture, Board, Distribution, Toolchain
+from osfabricum.db.models import Architecture, Board, Distribution, Source, Toolchain
 from osfabricum.db.session import sync_session
 
 catalog_app = typer.Typer(help="Browse and manage the registry", no_args_is_help=True)
@@ -74,6 +74,27 @@ def _import_boards(items: list[dict[str, Any]], db_url: str | None) -> int:
                         arch_id=arch.id,
                         boot_scheme=item.get("boot_scheme", "unknown"),
                         firmware_required=item.get("firmware_required", False),
+                        metadata_json=item.get("metadata"),
+                    )
+                )
+                count += 1
+        session.commit()
+    return count
+
+
+def _import_sources(items: list[dict[str, Any]], db_url: str | None) -> int:
+    count = 0
+    with sync_session(db_url) as session:
+        for item in items:
+            uri = item["uri"]
+            existing = session.scalar(select(Source).where(Source.uri == uri))
+            if existing is None:
+                session.add(
+                    Source(
+                        uri=uri,
+                        source_type=item.get("source_type", "http"),
+                        ref=item.get("ref"),
+                        expected_hash=item.get("expected_hash"),
                         metadata_json=item.get("metadata"),
                     )
                 )
@@ -160,6 +181,9 @@ def catalog_import(
         elif kind == "ToolchainList":
             n = _import_toolchains(items, db_url)
             typer.echo(f"Imported {n} toolchain(s) from {file.name}")
+        elif kind == "SourceList":
+            n = _import_sources(items, db_url)
+            typer.echo(f"Imported {n} source(s) from {file.name}")
         else:
             typer.echo(f"ERROR: unknown kind '{kind}'", err=True)
             raise typer.Exit(code=1)

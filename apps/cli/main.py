@@ -14,6 +14,7 @@ import typer
 
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
+from apps.cli.commands.source import source_app
 from apps.cli.commands.store import store_app
 from apps.cli.commands.toolchain import toolchain_app
 from apps.cli.commands.workers import workers_app
@@ -107,6 +108,7 @@ def _register_groups() -> None:
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(artifacts_app, name="artifacts")
+    app.add_typer(source_app, name="source")
     app.add_typer(store_app, name="store")
     app.add_typer(toolchain_app, name="toolchain")
     app.add_typer(workers_app, name="workers")
