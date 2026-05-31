@@ -53,6 +53,7 @@ class JobView:
     attempt: int  # = ``attempts`` column value after the claim increment
     max_attempts: int
     required_tags_json: list[str] = field(default_factory=list)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 class JobBackend:
@@ -214,6 +215,7 @@ class JobBackend:
                 attempt=int(target.get("attempts", 0)) + 1,
                 max_attempts=int(target.get("max_attempts", 3)),
                 required_tags_json=list(payload.get(OSF_REQUIRED_TAGS_KEY) or []),
+                payload=dict(payload),
             )
 
     # ------------------------------------------------------------------

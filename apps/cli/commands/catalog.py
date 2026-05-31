@@ -12,7 +12,7 @@ from rich.table import Table
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from osfabricum.db.models import Architecture, Board, Distribution
+from osfabricum.db.models import Architecture, Board, Distribution, Toolchain
 from osfabricum.db.session import sync_session
 
 catalog_app = typer.Typer(help="Browse and manage the registry", no_args_is_help=True)
@@ -82,6 +82,36 @@ def _import_boards(items: list[dict[str, Any]], db_url: str | None) -> int:
     return count
 
 
+def _import_toolchains(items: list[dict[str, Any]], db_url: str | None) -> int:
+    count = 0
+    with sync_session(db_url) as session:
+        for item in items:
+            name = item["name"]
+            arch_name = item["arch"]
+            arch = session.scalar(select(Architecture).where(Architecture.name == arch_name))
+            if arch is None:
+                typer.echo(
+                    f"ERROR: architecture '{arch_name}' not found — import architectures first.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            existing = session.scalar(select(Toolchain).where(Toolchain.name == name))
+            if existing is None:
+                session.add(
+                    Toolchain(
+                        name=name,
+                        arch_id=arch.id,
+                        libc=item.get("libc", "unknown"),
+                        version=str(item.get("version", "unknown")),
+                        source_type=item.get("source_type", "unknown"),
+                        metadata_json=item.get("metadata"),
+                    )
+                )
+                count += 1
+        session.commit()
+    return count
+
+
 def _import_distributions(items: list[dict[str, Any]], db_url: str | None) -> int:
     count = 0
     with sync_session(db_url) as session:
@@ -127,6 +157,9 @@ def catalog_import(
         elif kind == "DistributionList":
             n = _import_distributions(items, db_url)
             typer.echo(f"Imported {n} distribution(s) from {file.name}")
+        elif kind == "ToolchainList":
+            n = _import_toolchains(items, db_url)
+            typer.echo(f"Imported {n} toolchain(s) from {file.name}")
         else:
             typer.echo(f"ERROR: unknown kind '{kind}'", err=True)
             raise typer.Exit(code=1)

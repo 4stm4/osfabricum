@@ -256,6 +256,7 @@ async def _do_claim_next(
             attempt=int(target.get("attempts", 0)) + 1,
             max_attempts=int(target.get("max_attempts", 3)),
             required_tags_json=list(payload.get(OSF_REQUIRED_TAGS_KEY) or []),
+            payload=dict(payload),
         )
 
 
