@@ -8,11 +8,13 @@ implemented yet; they gain behaviour in their respective milestones.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from apps.cli.commands.artifacts import artifacts_app
+from apps.cli.commands.builds import builds_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.compose import compose_app
 from apps.cli.commands.firmware import firmware_app
@@ -29,10 +31,8 @@ from osfabricum import __version__
 
 # group name -> (help text, subcommand names)
 GROUPS: dict[str, tuple[str, list[str]]] = {
-    "builds": (
-        "Inspect and manage builds",
-        ["list", "show", "logs", "cancel", "reproduce", "diff"],
-    ),
+    # "builds" is registered as a real app below (M18)
+
     # "package" is registered as a real app below (M9)
     # "kernel" is registered as a real app below (M10)
     # "firmware" is registered as a real app below (M11)
@@ -84,10 +84,70 @@ def _root(
 @app.command()
 def build(
     target: Annotated[str, typer.Argument(help="<distribution>/<profile>")],
-    board: Annotated[str, typer.Option("--board", help="Target board")],
+    board: Annotated[str, typer.Option("--board", help="Target board name")],
+    store_root: Annotated[
+        Path,
+        typer.Option("--store-root", envvar="OSFABRICUM_STORE_ROOT", help="Artifact store root"),
+    ],
+    db_url: Annotated[
+        str | None,
+        typer.Option("--db-url", envvar="OSFABRICUM_DB_URL", help="DB URL override"),
+    ] = None,
+    skip_image: Annotated[
+        bool,
+        typer.Option("--skip-image", help="Stop after rootfs.compose"),
+    ] = False,
+    init_system: Annotated[
+        str,
+        typer.Option("--init-system", help="Init system: busybox | systemd"),
+    ] = "busybox",
+    jobs: Annotated[
+        int,
+        typer.Option("--jobs", "-j", help="Parallel make jobs for kernel build"),
+    ] = 1,
 ) -> None:
-    """Start a full build pipeline."""
-    _not_implemented(f"build {target} --board {board}")
+    """Start a full build pipeline (plan → rootfs → image)."""
+
+    from rich.console import Console as _Console  # noqa: PLC0415
+
+    from osfabricum.pipeline.coordinator import PipelineSpec, run_pipeline  # noqa: PLC0415
+
+    parts = target.split("/", 1)
+    if len(parts) != 2 or not all(parts):
+        typer.echo("ERROR: target must be <distribution>/<profile>", err=True)
+        raise typer.Exit(code=1)
+    distribution, profile = parts
+
+    spec = PipelineSpec(
+        distribution=distribution,
+        profile=profile,
+        board=board,
+        store_root=store_root,
+        db_url=db_url,
+        skip_image=skip_image,
+        init_system=init_system,
+        jobs=jobs,
+    )
+
+    console = _Console()
+    console.print(
+        f"Building [bold]{distribution}/{profile}[/bold] → [bold]{board}[/bold]"
+    )
+
+    result = run_pipeline(spec)
+
+    for line in result.logs:
+        console.print(f"  {line}")
+
+    if not result.success:
+        typer.echo(f"ERROR: {result.error}", err=True)
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]✓[/green] build_id: {result.build_id or '(no DB)'}")
+    if result.image_artifact_id:
+        console.print(f"  image:   {result.image_artifact_id}")
+    if result.rootfs_artifact_id:
+        console.print(f"  rootfs:  {result.rootfs_artifact_id}")
 
 
 @app.command()
@@ -122,6 +182,7 @@ def _register_groups() -> None:
         for cmd in commands:
             group.command(name=cmd)(_make_stub(f"{name} {cmd}"))
         app.add_typer(group, name=name)
+    app.add_typer(builds_app, name="builds")
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(compose_app, name="compose")
     app.add_typer(image_app, name="image")

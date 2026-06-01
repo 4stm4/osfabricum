@@ -90,6 +90,12 @@ class BuildPlan:
     arch: str
     resolution_hash: str
 
+    # Entity IDs — populated by resolve_plan(), used by the Build Pipeline (M18)
+    distribution_id: str = ""
+    profile_id: str = ""
+    board_id: str = ""
+    arch_id: str = ""
+
     toolchain: ToolchainRef | None = None
     kernel: KernelRef | None = None
     packages: list[PackageRef] = field(default_factory=list)
