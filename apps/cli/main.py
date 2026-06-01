@@ -14,11 +14,12 @@ import typer
 
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
+from apps.cli.commands.compose import compose_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.kernel import kernel_app
-from apps.cli.commands.rootfs import rootfs_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
+from apps.cli.commands.rootfs import rootfs_app
 from apps.cli.commands.source import source_app
 from apps.cli.commands.store import store_app
 from apps.cli.commands.toolchain import toolchain_app
@@ -121,6 +122,7 @@ def _register_groups() -> None:
             group.command(name=cmd)(_make_stub(f"{name} {cmd}"))
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
+    app.add_typer(compose_app, name="compose")
     app.add_typer(artifacts_app, name="artifacts")
     app.add_typer(firmware_app, name="firmware")
     app.add_typer(kernel_app, name="kernel")
