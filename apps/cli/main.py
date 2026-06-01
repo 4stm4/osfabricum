@@ -16,6 +16,7 @@ from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.compose import compose_app
 from apps.cli.commands.firmware import firmware_app
+from apps.cli.commands.image import image_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
@@ -123,6 +124,7 @@ def _register_groups() -> None:
         app.add_typer(group, name=name)
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(compose_app, name="compose")
+    app.add_typer(image_app, name="image")
     app.add_typer(artifacts_app, name="artifacts")
     app.add_typer(firmware_app, name="firmware")
     app.add_typer(kernel_app, name="kernel")
