@@ -28,6 +28,7 @@ from pathlib import Path
 
 from osfabricum.composer.rootfs import RootfsComposeSpec, compose_rootfs
 from osfabricum.image.composer import ImageSpec, compose_image
+from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
     create_build_job,
@@ -113,12 +114,16 @@ def _run_step(
     logs: list[str],
     db_url: str | None,
 ):
-    """Run *fn()*, record a BuildJob, return its result or raise."""
+    """Run *fn()*, record a BuildJob + BuildLog lines, return result or raise."""
     job_id = create_build_job(build_id, step_kind, db_url=db_url)
     log_build_event(build_id, "step.start", {"step": step_kind}, job_id=job_id, db_url=db_url)
     logs.append(f"[pipeline] step: {step_kind}")
     try:
         result = fn()
+        # Persist any logs the step produced (M19)
+        step_logs: list[str] = getattr(result, "logs", [])
+        if step_logs:
+            write_build_logs(build_id, step_logs, job_id=job_id, db_url=db_url)
         update_build_job(job_id, "success", db_url=db_url)
         log_build_event(build_id, "step.done", {"step": step_kind}, job_id=job_id, db_url=db_url)
         return result

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Response
 
+from apps.api.routes.builds import router as builds_router
 from osfabricum import __version__
 from osfabricum.queue.backend import JobBackend
 from osfabricum.security.auth import TokenAuthMiddleware
@@ -18,6 +19,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # M14: token auth middleware (disabled by default)
     if settings.auth.enabled:
         app.add_middleware(TokenAuthMiddleware, settings=settings)
+
+    # M19: build history API
+    app.include_router(builds_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

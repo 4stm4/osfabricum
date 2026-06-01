@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError
 
 from osfabricum.db.models import Board, Distribution, Profile
 from osfabricum.db.session import sync_session
+from osfabricum.pipeline.log import get_build_logs, search_builds
 from osfabricum.pipeline.record import get_build, list_build_events, list_build_jobs, list_builds
 
 builds_app = typer.Typer(help="Inspect and manage builds", no_args_is_help=True)
@@ -37,14 +38,28 @@ def _resolve_names(build, db_url: str | None) -> tuple[str, str, str]:
 @builds_app.command("list")
 def builds_list(
     limit: Annotated[int, typer.Option("--limit", help="Max rows to show")] = 20,
+    status: Annotated[
+        str | None, typer.Option("--status", help="Filter: success|failed|running")
+    ] = None,
+    distribution: Annotated[
+        str | None, typer.Option("--distribution", "-d", help="Filter by distribution name")
+    ] = None,
     db_url: Annotated[
         str | None,
         typer.Option("--db-url", envvar="OSFABRICUM_DB_URL"),
     ] = None,
 ) -> None:
-    """List recent builds."""
+    """List recent builds (with optional filters)."""
     try:
-        builds = list_builds(limit=limit, db_url=db_url)
+        if status is not None or distribution is not None:
+            builds = search_builds(
+                distribution_name=distribution,
+                status=status,
+                limit=limit,
+                db_url=db_url,
+            )
+        else:
+            builds = list_builds(limit=limit, db_url=db_url)
     except OperationalError:
         Console().print(_DB_NOT_READY)
         raise typer.Exit(code=1) from None
@@ -76,12 +91,18 @@ def builds_list(
 @builds_app.command("show")
 def builds_show(
     build_id: Annotated[str, typer.Argument(help="Build ID (full or 8-char prefix)")],
+    show_logs: Annotated[
+        bool, typer.Option("--logs", help="Also print captured log lines")
+    ] = False,
+    log_limit: Annotated[
+        int, typer.Option("--log-limit", help="Max log lines to show")
+    ] = 100,
     db_url: Annotated[
         str | None,
         typer.Option("--db-url", envvar="OSFABRICUM_DB_URL"),
     ] = None,
 ) -> None:
-    """Show details and jobs for a build."""
+    """Show details, jobs, and optionally log lines for a build."""
     try:
         build = get_build(build_id, db_url=db_url)
         if build is None:
@@ -128,6 +149,17 @@ def builds_show(
                 color = "yellow"
             tbl.add_row(j.id[:8], j.step_kind, f"[{color}]{j.status}[/{color}]")
         console.print(tbl)
+
+    # Optionally print BuildLog lines
+    if show_logs:
+        log_lines = get_build_logs(build.id, limit=log_limit, db_url=db_url)
+        if log_lines:
+            console.print(f"\n[bold]Log lines[/bold] (showing up to {log_limit}):")
+            for ln in log_lines:
+                ts_str = ln.ts.strftime("%H:%M:%S") if ln.ts else ""
+                console.print(f"  [{ts_str}] {ln.message}")
+        else:
+            console.print("\n[dim]No log lines recorded.[/dim]")
 
 
 @builds_app.command("logs")
