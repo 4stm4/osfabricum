@@ -5,14 +5,19 @@ from __future__ import annotations
 from fastapi import FastAPI, Response
 
 from osfabricum import __version__
-from osfabricum.settings import Settings, load_settings
 from osfabricum.queue.backend import JobBackend
+from osfabricum.security.auth import TokenAuthMiddleware
+from osfabricum.settings import Settings, load_settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     app = FastAPI(title="OSFabricum API", version=__version__)
     app.state.settings = settings
+
+    # M14: token auth middleware (disabled by default)
+    if settings.auth.enabled:
+        app.add_middleware(TokenAuthMiddleware, settings=settings)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
