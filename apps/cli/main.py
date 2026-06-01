@@ -17,6 +17,7 @@ from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
+from apps.cli.commands.plan import run_plan
 from apps.cli.commands.source import source_app
 from apps.cli.commands.store import store_app
 from apps.cli.commands.toolchain import toolchain_app
@@ -89,10 +90,18 @@ def build(
 @app.command()
 def plan(
     target: Annotated[str, typer.Argument(help="<distribution>/<profile>")],
-    board: Annotated[str, typer.Option("--board", help="Target board")],
+    board: Annotated[str, typer.Option("--board", help="Target board name")],
+    db_url: Annotated[
+        str | None,
+        typer.Option("--db-url", envvar="OSFABRICUM_DB_URL", help="DB URL override"),
+    ] = None,
+    output: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Output format: table | json"),
+    ] = "table",
 ) -> None:
     """Resolve and display a build plan without building."""
-    _not_implemented(f"plan {target} --board {board}")
+    run_plan(target, board, db_url, output)  # M12
 
 
 @app.command()

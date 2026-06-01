@@ -18,10 +18,10 @@ def test_version() -> None:
     assert "osfabricumctl" in result.output
 
 
-def test_stub_command_reports_not_implemented() -> None:
+def test_plan_command_exits_nonzero_without_db() -> None:
+    # plan is a real command (M12); without a valid DB it exits non-zero
     result = runner.invoke(app, ["plan", "tinywifi/default", "--board", "rpi-zero-2w"])
-    assert result.exit_code == 1
-    assert "not implemented" in result.output
+    assert result.exit_code != 0
 
 
 def test_group_help_lists_subcommands() -> None:
