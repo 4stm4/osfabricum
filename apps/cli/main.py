@@ -16,6 +16,7 @@ from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.kernel import kernel_app
+from apps.cli.commands.rootfs import rootfs_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
 from apps.cli.commands.source import source_app
@@ -123,6 +124,7 @@ def _register_groups() -> None:
     app.add_typer(artifacts_app, name="artifacts")
     app.add_typer(firmware_app, name="firmware")
     app.add_typer(kernel_app, name="kernel")
+    app.add_typer(rootfs_app, name="rootfs")
     app.add_typer(package_app, name="package")
     app.add_typer(source_app, name="source")
     app.add_typer(store_app, name="store")
