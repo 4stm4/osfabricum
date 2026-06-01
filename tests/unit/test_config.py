@@ -230,11 +230,22 @@ def test_build_overlay_second_call_updates_artifact(
     assert row.artifact_id == art2.id
 
 
-def test_build_overlay_without_db(tmp_path: Path, store_root: Path) -> None:
-    """build_overlay without db_url should still return an Artifact."""
+def test_build_overlay_no_overlay_row_without_distribution(
+    tmp_path: Path, db_url: str, store_root: Path
+) -> None:
+    """build_overlay with no distribution_id / profile_id still creates an Artifact."""
     src = _make_overlay_src(tmp_path)
-    art = build_overlay(name="nodb-overlay", src_dir=src, store_root=store_root, db_url=None)
+    art = build_overlay(
+        name="bare-overlay",
+        src_dir=src,
+        store_root=store_root,
+        db_url=db_url,
+        distribution_id=None,
+        profile_id=None,
+        board_id=None,
+    )
     assert art.id is not None
+    assert art.kind == "overlay"
 
 
 def test_apply_overlay_extracts_files(

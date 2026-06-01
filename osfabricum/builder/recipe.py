@@ -26,6 +26,8 @@ from sqlalchemy import select
 from osfabricum.builder.context import BuildContext
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
+from osfabricum.repro.chain import InputManifest, compute_input_hash, make_repro_record
+from osfabricum.repro.env import BuildEnvSpec, compute_env_hash
 from osfabricum.store.ingest import ingest_blob
 
 # ---------------------------------------------------------------------------
@@ -265,6 +267,22 @@ def run_recipe(
             tar.add(str(destdir), arcname="destdir")
     data = buf.getvalue()
 
+    # --- reproducibility chain (M13) ---
+    import hashlib as _hashlib  # noqa: PLC0415
+
+    _env_spec = BuildEnvSpec(
+        toolchain_id=toolchain_id,
+    )
+    _env_hash = compute_env_hash(_env_spec)
+    _manifest = InputManifest(
+        step_kind="package.build",
+        source_hash=source_hash or "",
+        config_hash=recipe_hash,
+        env_hash=_env_hash,
+    )
+    _input_hash = compute_input_hash(_manifest)
+    _repro_rec = make_repro_record(_manifest, _hashlib.sha256(data).hexdigest())
+
     artifact = ingest_blob(
         data=data,
         store_root=store_root,
@@ -275,6 +293,8 @@ def run_recipe(
         media_type="application/x-gzip",
         db_url=db_url,
         retention_class="cache-hot",
+        input_hash=_input_hash,
+        repro_record=_repro_rec,
     )
 
     # --- clean up on success ---

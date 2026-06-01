@@ -330,6 +330,7 @@ class Artifact(Base):
     retention_class: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="staging")
     pinned: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     producer_build_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    input_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True, index=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 

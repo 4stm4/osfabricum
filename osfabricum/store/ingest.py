@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.layout import blob_path, compute_sha256, ref_path
+
+if TYPE_CHECKING:
+    from osfabricum.repro.chain import ReproRecord
 
 
 def ingest_blob(
@@ -23,6 +27,8 @@ def ingest_blob(
     db_url: str | None = None,
     retention_class: str = "staging",
     media_type: str | None = None,
+    input_hash: str | None = None,
+    repro_record: ReproRecord | None = None,
 ) -> Artifact:
     """Write *data* into the store and create an Artifact metadata row.
 
@@ -32,6 +38,16 @@ def ingest_blob(
     If a blob with the same sha256 already exists it is not written again
     (content-dedup). If an Artifact row already exists for *store_key* it is
     returned unchanged.
+
+    Parameters
+    ----------
+    input_hash:
+        SHA-256 hex of the :class:`~osfabricum.repro.chain.InputManifest`
+        that produced this blob.  Stored in ``Artifact.input_hash`` for
+        traceability (M13).
+    repro_record:
+        Full :class:`~osfabricum.repro.chain.ReproRecord`.  When provided
+        it is serialized and merged into ``Artifact.metadata_json["repro"]``.
     """
     actual_sha256 = compute_sha256(data)
     if expected_sha256 is not None and expected_sha256 != actual_sha256:
@@ -50,6 +66,10 @@ def ingest_blob(
         ref.unlink()
     ref.symlink_to(dest)
 
+    metadata: dict | None = None
+    if repro_record is not None:
+        metadata = {"repro": repro_record.to_dict()}
+
     with sync_session(db_url) as session:
         existing = session.scalar(select(Artifact).where(Artifact.store_key == store_key))
         if existing is not None:
@@ -64,6 +84,8 @@ def ingest_blob(
             size_bytes=len(data),
             media_type=media_type,
             retention_class=retention_class,
+            input_hash=input_hash,
+            metadata_json=metadata,
         )
         session.add(artifact)
         session.commit()

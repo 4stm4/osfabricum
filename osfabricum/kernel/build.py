@@ -33,6 +33,8 @@ from sqlalchemy import select
 
 from osfabricum.db.models import Architecture, Artifact, Board, Kernel, KernelConfig
 from osfabricum.db.session import sync_session
+from osfabricum.repro.chain import InputManifest, compute_input_hash, make_repro_record
+from osfabricum.repro.env import BuildEnvSpec, compute_env_hash
 from osfabricum.store.ingest import ingest_blob
 
 # ---------------------------------------------------------------------------
@@ -322,6 +324,22 @@ def build_kernel(
         config_data = defconfig.encode() if defconfig else b""
     config_hash = _compute_config_hash(config_data)
 
+    # --- reproducibility hash chain (M13) ---
+    env_spec = BuildEnvSpec(
+        arch=arch,
+        cross_compile_prefix=cross_compile,
+        toolchain_version=None,  # enriched later if toolchain_root provided
+    )
+    env_hash = compute_env_hash(env_spec)
+    input_manifest = InputManifest(
+        step_kind="kernel.build",
+        source_hash=source_hash,
+        config_hash=config_hash,
+        env_hash=env_hash,
+        extra={"kernel_id": kernel.id},
+    )
+    _input_hash = compute_input_hash(input_manifest)
+
     # --- cache check ---
     cache_prefix = f"kernel/{kernel.id}/{source_hash}/{config_hash}"
     image_key = f"{cache_prefix}/image"
@@ -388,6 +406,7 @@ def build_kernel(
             raise FileNotFoundError(f"kernel image not found: {image_path}")
 
         image_data = image_path.read_bytes()
+        _repro_rec = make_repro_record(input_manifest, hashlib.sha256(image_data).hexdigest())
         image_artifact = ingest_blob(
             data=image_data,
             store_root=store_root,
@@ -398,6 +417,8 @@ def build_kernel(
             media_type="application/octet-stream",
             db_url=db_url,
             retention_class="permanent",
+            input_hash=_input_hash,
+            repro_record=_repro_rec,
         )
 
         # --- ingest modules ---
