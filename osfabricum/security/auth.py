@@ -28,8 +28,11 @@ from starlette.types import ASGIApp
 
 #: Paths that skip authentication regardless of the auth setting.
 _PUBLIC_PATHS: frozenset[str] = frozenset(
-    {"/healthz", "/readyz", "/metrics", "/docs", "/openapi.json", "/redoc"}
+    {"/", "/healthz", "/readyz", "/metrics", "/docs", "/openapi.json", "/redoc"}
 )
+
+#: Path prefixes that skip authentication (e.g. static dashboard assets).
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/static/",)
 
 
 def _get_expected_token(settings: object) -> str | None:
@@ -61,8 +64,9 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         self._settings = settings
 
     async def dispatch(self, request: Request, call_next: object) -> Response:
-        # Exempt public paths
-        if request.url.path in _PUBLIC_PATHS:
+        # Exempt public paths and static asset prefixes
+        path = request.url.path
+        if path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES):
             return await call_next(request)  # type: ignore[operator]
 
         expected = _get_expected_token(self._settings)

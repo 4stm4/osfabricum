@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uvicorn
 
-from osfabricum.settings import load_settings
 from osfabricum.logging import configure_logging
+from osfabricum.settings import load_settings
 
 
 def main() -> None:

@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from osfabricum.pipeline.log import build_summary, get_build_logs, search_builds
@@ -149,6 +150,53 @@ def get_build_events_api(build_id: str, request: Request) -> list[EventItem]:
         )
         for ev in events
     ]
+
+
+@router.get("/{build_id}/events/stream")
+def stream_build_events_api(build_id: str, request: Request) -> StreamingResponse:
+    """Stream build events as Server-Sent Events (SSE).
+
+    Emits each event as ``data: {json}\\n\\n``.  Polls the database every
+    second and emits new events until the build reaches a terminal state
+    (``success`` / ``failed`` / ``cancelled``) or the client disconnects.
+    """
+    import asyncio  # noqa: PLC0415
+    import json as _json  # noqa: PLC0415
+
+    db_url = _get_db_url(request)
+    build = get_build(build_id, db_url=db_url)
+    if build is None:
+        raise HTTPException(status_code=404, detail=f"Build {build_id!r} not found")
+
+    _terminal = {"success", "failed", "cancelled"}
+
+    async def _event_gen():
+        seen: set[str] = set()
+        # Bound the stream so a hung build cannot keep the connection open
+        # forever; ~5 minutes at 1 s polling.
+        for _ in range(300):
+            if await request.is_disconnected():
+                break
+            events = list_build_events(build_id, db_url=db_url)
+            for ev in events:
+                if ev.id in seen:
+                    continue
+                seen.add(ev.id)
+                payload = {
+                    "id": ev.id,
+                    "event_type": ev.event_type,
+                    "ts": ev.ts.isoformat() if ev.ts else None,
+                    "payload": ev.payload_json or {},
+                }
+                yield f"data: {_json.dumps(payload)}\n\n"
+
+            current = get_build(build_id, db_url=db_url)
+            if current is not None and current.status in _terminal:
+                yield f"event: end\ndata: {_json.dumps({'status': current.status})}\n\n"
+                break
+            await asyncio.sleep(1.0)
+
+    return StreamingResponse(_event_gen(), media_type="text/event-stream")
 
 
 @router.get("/{build_id}/logs", response_model=list[LogLineItem])
