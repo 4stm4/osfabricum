@@ -18,13 +18,15 @@ from sqlalchemy import engine_from_config, pool
 
 # Ensure all models are registered on Base.metadata before comparison.
 import osfabricum.db.models  # noqa: F401
-from osfabricum.settings import load_settings
 from osfabricum.db.base import Base
 from osfabricum.db.engine import _sync_url
+from osfabricum.settings import load_settings
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: running migrations in-process (CLI, tests,
+    # programmatic upgrade) must not silence the application's loggers.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

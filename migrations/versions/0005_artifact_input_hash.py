@@ -18,8 +18,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("artifacts", sa.Column("input_hash", sa.String(128), nullable=True))
-    op.create_index("ix_artifacts_input_hash", "artifacts", ["input_hash"])
+    # Guard: already present (fresh install via create_all or previous run).
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if "input_hash" not in {c["name"] for c in insp.get_columns("artifacts")}:
+        op.add_column("artifacts", sa.Column("input_hash", sa.String(128), nullable=True))
+    if "ix_artifacts_input_hash" not in {ix["name"] for ix in insp.get_indexes("artifacts")}:
+        op.create_index("ix_artifacts_input_hash", "artifacts", ["input_hash"])
 
 
 def downgrade() -> None:

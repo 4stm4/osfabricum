@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
+from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import router as plan_router
 from apps.api.routes.workers_api import router as workers_router
 from osfabricum import __version__
@@ -37,6 +38,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(artifacts_router)
     app.include_router(workers_router)
     app.include_router(plan_router)
+    # M25: universal OS builder model (distribution classes)
+    app.include_router(model_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

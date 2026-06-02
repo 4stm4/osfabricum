@@ -59,6 +59,10 @@ class Distribution(Base):
     name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     default_channel: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="dev")
+    # Universal OS Builder Model (M25): default distribution class.
+    class_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distribution_classes.id"), nullable=True
+    )
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
 
@@ -74,6 +78,49 @@ class Profile(Base):
         sa.String(36), sa.ForeignKey("profiles.id"), nullable=True
     )
     inputs_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    # --- Universal OS Builder Model (M25): profile-level selections. ---
+    # All nullable: a profile may pin any of these, or leave it to inheritance /
+    # the resolver (M27 wires them into resolution; M25 only models them).
+    class_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distribution_classes.id"), nullable=True
+    )
+    board_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=True
+    )
+    kernel_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=True
+    )
+    toolchain_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("toolchains.id"), nullable=True
+    )
+    package_set_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_sets.id"), nullable=True
+    )
+    boot_scheme_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_schemes.id"), nullable=True
+    )
+    image_recipe_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("image_recipes.id"), nullable=True
+    )
+    branding_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=True
+    )
+    graphical_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("graphical_profiles.id"), nullable=True
+    )
+    network_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("network_profiles.id"), nullable=True
+    )
+    security_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("security_profiles.id"), nullable=True
+    )
+    update_strategy_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("update_strategies.id"), nullable=True
+    )
+    validation_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("validation_profiles.id"), nullable=True
+    )
 
     __table_args__ = (sa.UniqueConstraint("distribution_id", "name", name="uq_profiles_dist_name"),)
 
@@ -461,3 +508,222 @@ class ReleaseArtifact(Base):
 # M4 — The job queue is managed by pyjobkit's SQLBackend (job_tasks table).
 # The old custom Job model is removed; use pyjobkit.backends.sql.schema.JobTasks
 # for direct SQL access when needed.
+
+
+# ---------------------------------------------------------------------------
+# Universal OS Builder Model (M25)
+#
+# These entities make OSFabricum able to express any OS class as data.  M25
+# creates the tables and the profile/distribution reference columns; the
+# designer milestones (M33/M34/M39/M40/M45/M47/M49/M52) flesh out the rich
+# fields, and M27/M35/M55 wire them into the resolver.  ``distribution_id`` is
+# nullable on the reusable entities: NULL means a global/shared definition
+# usable across distributions; a value scopes it to one distribution.
+# ---------------------------------------------------------------------------
+
+
+class DistributionClass(Base):
+    """A class of OS product (embedded, router, server, desktop, …)."""
+
+    __tablename__ = "distribution_classes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class PackageGroup(Base):
+    """A named, reusable bundle of packages (M35 adds kinds/layers/variants)."""
+
+    __tablename__ = "package_groups"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_package_groups_dist_name"),
+    )
+
+
+class PackageGroupMember(Base):
+    __tablename__ = "package_group_members"
+
+    group_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_groups.id"), primary_key=True
+    )
+    package_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("packages.id"), primary_key=True
+    )
+    version_constraint: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+
+
+class PackageSet(Base):
+    """A selection of groups and/or packages attachable to a profile."""
+
+    __tablename__ = "package_sets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_package_sets_dist_name"),
+    )
+
+
+class PackageSetMember(Base):
+    __tablename__ = "package_set_members"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    set_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_sets.id"), nullable=False
+    )
+    member_kind: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # group | package
+    group_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_groups.id"), nullable=True
+    )
+    package_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("packages.id"), nullable=True
+    )
+
+
+class BootScheme(Base):
+    """A boot strategy (direct-kernel, u-boot, grub, …); M31 adds full chains."""
+
+    __tablename__ = "boot_schemes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class ImageRecipe(Base):
+    """An output image definition; M34 adds formats/filesystems/layouts."""
+
+    __tablename__ = "image_recipes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    output_format: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="raw")
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_image_recipes_dist_name"),
+    )
+
+
+class BrandingProfile(Base):
+    """A branding/identity definition; M39 adds targets/assets."""
+
+    __tablename__ = "branding_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_branding_profiles_dist_name"),
+    )
+
+
+class GraphicalProfile(Base):
+    """A graphical-shell stack; M40 adds components/sessions."""
+
+    __tablename__ = "graphical_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    mode: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="no-gui")
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_graphical_profiles_dist_name"),
+    )
+
+
+class NetworkProfile(Base):
+    """A networking definition; M45 adds interfaces/firewall/wifi."""
+
+    __tablename__ = "network_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_network_profiles_dist_name"),
+    )
+
+
+class SecurityProfile(Base):
+    """A hardening definition; M47 adds rules/sysctl/gates."""
+
+    __tablename__ = "security_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_security_profiles_dist_name"),
+    )
+
+
+class UpdateStrategy(Base):
+    """An update/OTA strategy; M49 adds manifests/rollback/recovery."""
+
+    __tablename__ = "update_strategies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    strategy: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="full-image")
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_update_strategies_dist_name"),
+    )
+
+
+class ValidationProfile(Base):
+    """A QA/validation definition; M52 adds checks/results/gates."""
+
+    __tablename__ = "validation_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_validation_profiles_dist_name"),
+    )

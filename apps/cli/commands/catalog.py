@@ -16,6 +16,7 @@ from osfabricum.db.models import (
     Architecture,
     Board,
     Distribution,
+    DistributionClass,
     FirmwareBlob,
     Kernel,
     KernelConfig,
@@ -324,11 +325,22 @@ def _list_boards(db_url: str | None) -> None:
     Console().print(tbl)
 
 
+def _list_distribution_classes(db_url: str | None) -> None:
+    with sync_session(db_url) as session:
+        rows = session.scalars(select(DistributionClass).order_by(DistributionClass.name)).all()
+    tbl = Table("Class", "Description", title="Distribution classes")
+    for r in rows:
+        tbl.add_row(r.name, r.description or "")
+    Console().print(tbl)
+
+
 @catalog_app.command("list")
 def catalog_list(
     what: Annotated[
         str,
-        typer.Argument(help="What to list: distributions | boards | profiles | packages"),
+        typer.Argument(
+            help="What to list: distributions | distribution-classes | boards | profiles | packages"
+        ),
     ],
     db_url: Annotated[
         str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL", help="DB URL override")
@@ -338,6 +350,8 @@ def catalog_list(
     try:
         if what == "distributions":
             _list_distributions(db_url)
+        elif what in ("distribution-classes", "classes"):
+            _list_distribution_classes(db_url)
         elif what == "boards":
             _list_boards(db_url)
         else:
