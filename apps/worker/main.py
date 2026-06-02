@@ -16,11 +16,11 @@ import typer
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 
-from osfabricum.settings import load_settings
 from osfabricum.db.models import Worker
 from osfabricum.db.session import sync_session
 from osfabricum.logging import configure_logging, get_logger
 from osfabricum.queue import JobBackend, WorkerLoop  # noqa: F401 – re-exported
+from osfabricum.settings import load_settings
 
 log = get_logger("osfabricum.worker")
 

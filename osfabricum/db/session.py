@@ -8,8 +8,8 @@ from contextlib import contextmanager
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from osfabricum.settings import load_settings
 from osfabricum.db.engine import make_sync_engine
+from osfabricum.settings import load_settings
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:
