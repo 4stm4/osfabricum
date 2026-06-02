@@ -26,15 +26,23 @@ It IS:
 
 Key architectural decision:
 
-  NetOS is not a backend.
-  NetOS is a distribution managed by OSFabricum.
+  No distribution is a backend.
+  Every distribution is a set of records managed by OSFabricum.
 
-  distributions:
-    - tinywifi   ← first native MVP
-    - netos      ← second target
-    - ocultum    ← third target
+  OSFabricum builds many classes of OS from one data-driven core:
+  embedded, router, server, desktop, kiosk, appliance,
+  mobile/handheld, recovery, firmware, container-host, hypervisor-host.
 
-All three are records in the database, not code paths.
+  Reference distributions (validation profiles, not architecture):
+    - tinywifi   ← router/embedded reference distribution
+    - netos      ← infrastructure/SDN reference distribution
+    - ocultum    ← mobile/handheld reference distribution
+
+All distributions — reference or product — are records in the database,
+never code paths. The core MUST stay distribution-agnostic: no build
+pipeline may contain `if distribution == tinywifi/netos/ocultum`
+special branches. See **Current Implementation Status** below and
+`docs/IMPLEMENTATION_AUDIT.md` for the verified state of the core.
 
 ---
 
@@ -349,6 +357,61 @@ worker-x86:
     qemu: true
     flash_sd: false
 
+## Current Implementation Status
+
+The full vertical audit of M0–M23 (DB → migration → service → API → CLI → UI →
+worker job → tests → artifact → end-to-end → distribution-agnosticism) lives in
+**[`docs/IMPLEMENTATION_AUDIT.md`](IMPLEMENTATION_AUDIT.md)**. The consolidated
+gap register is **[`docs/GAPS.md`](GAPS.md)** and the prioritized work queue is
+**[`docs/NEXT_ACTIONS.md`](NEXT_ACTIONS.md)**.
+
+Summary of M0–M23 (status vocabulary: `done` / `partial` / `missing` /
+`implemented-but-not-tested` / `documented-only` / `needs-redesign` /
+`needs-hardening`):
+
+| Milestone | Status | Headline gap (if any) |
+|-----------|--------|------------------------|
+| M0 Scope | `done` | wording was TinyWifi-centric (fixed here) |
+| M1 Application Skeleton | `done` | — |
+| M2 Database Registry | `done` / `needs-hardening` | migration `0001` uses `metadata.create_all`, not DDL |
+| M3 Artifact Store | `done` | single-node FS store only |
+| M4 Job Runtime | `partial` | pyjobkit not used by the build pipeline |
+| M5 Worker Capability Model | `done` | offline-transition under-tested |
+| M6 Toolchain Model | `done` | toolchain hash not exposed for cache keys |
+| M7 Source Fetcher | `partial` | no prefetch-from-plan command/API |
+| M8 Build System / Recipes | `done` / `needs-hardening` | PATH/sandbox isolation not enforced |
+| M9 Package Model / .ofpkg | `done` / `needs-redesign` | no taxonomy/layers/groups/sets/variants |
+| M10 Kernel Model | `done` (build) / `needs-redesign` (config) | kernel config is an opaque blob, not Kconfig |
+| M11 Config / Overlay / Firmware | `done` | services are thin rows (no order/health) |
+| M12 Resolver / Build Plan | `partial` / `needs-redesign` | **profile inputs computed then discarded** |
+| M13 Reproducibility Model | `partial` | `builds diff` / `reproduce` not implemented |
+| M14 Security Baseline | `partial` / `needs-hardening` | auth not enforced; no secrets model |
+| M15 Base RootFS Builder | `done` | single busybox/musl base shape |
+| M16 RootFS Composer | `done` | install order not dependency-resolved |
+| M17 Partition / Image Composer | `done` (raw) / `partial` (formats) | raw `.img` only; hardcoded sizes |
+| M18 Build Pipeline | `partial` | **in-process, not a job graph; no `build` verb/API** |
+| M19 Build History / Logs | `done` | read side complete |
+| M20 API + Web UI v1 | `partial` | **read-only API + read-only dashboard** |
+| M21 Flash Utility | `done` | — |
+| M22 Test Runner | `done` (unit) / not e2e | `integration/`, `e2e/` are empty |
+| M23 Store GC / Retention | `done` | release reference-protection untestable (no releases) |
+
+**Verified core property:** zero `if distribution == …` branches and zero
+hardcoded package/kernel/firmware lists in `osfabricum/` and `apps/` (one
+docstring mention only). The data-driven foundation is real.
+
+**Three structural gaps gate everything from M24 onward** (see GAPS.md
+G-01/G-02/G-03):
+
+1. **Write API does not exist** — the API is a read-only catalog + build
+   monitor (`POST /v1/builds/{id}/cancel` is the only mutation).
+2. **The resolver ignores the profile** — `resolve_plan()` discards merged
+   profile inputs; selection is arch-driven, so profiles are decorative.
+3. **The pipeline runs in-process** — not a pyjobkit job graph; no
+   `osfabricumctl build`; `package.build` is skipped.
+
+M24–M29 close these three before the designer milestones (M30+) land.
+
 ## 8. Milestones
 ### Phase 0 — Foundation
 | # | Milestone | Goal | Effort |
@@ -390,15 +453,117 @@ worker-x86:
 | --- | --- | --- | --- |
 | M22 | Test Runner | QEMU boot test, SSH, service healthcheck | M |
 | M23 | Store GC / Retention | Retention classes, GC policy, quota alerts | S |
-### Phase 4 — Distributions
+### Phase 4 — Universal OS Builder Expansion
+
+OSFabricum becomes a universal OS Builder / OS Factory. All new work starts at
+M24 and **does not restart M0–M23** — it extends the existing primitives with a
+universal data model, designers that produce that data, a write API + job
+graph, and the competitive feature set. Detailed acceptance criteria for every
+milestone below are in **section 18b — Universal OS Builder Milestones (M24+)**.
+
+**4.0 — Foundation of "create" (close structural gaps)**
+
 | # | Milestone | Goal | Effort |
 | --- | --- | --- | --- |
-| M24 | TinyWifi Native Build | First end-to-end native build for rpi-zero-2w | XL |
-| M25 | NetOS Native Distribution | netos as DB records: nervum/testum/ovsdb | XL |
-| M26 | Ocultum Distribution | ocultum: communicator/minimal/dev | XL |
+| M24 | Implementation Audit & Gap Matrix | Sync docs with code; AUDIT/GAPS/NEXT_ACTIONS | M |
+| M25 | Universal OS Builder Model | distribution_class + universal entities | L |
+| M26 | Distribution Designer | CRUD/clone/import/export distributions | L |
+| M27 | Profile Designer | Full profile fields; resolver consumes profile | L |
+| M28 | Universal Build Wizard | 25-step, any-OS, draft→plan→build | XL |
+| M29 | Plan API & Build API | Universal write API + pyjobkit job graph | L |
+
+**4.1 — Hardware, boot, image**
+
+| # | Milestone | Goal | Effort |
+| --- | --- | --- | --- |
+| M30 | Board / Machine / BSP Designer | Boards as BSPs, not just arch | L |
+| M31 | Boot Chain Designer | U-Boot/GRUB/EFI/RPi/PXE boot artifacts | L |
+| M32 | Initramfs / Early Boot Designer | initramfs profiles + early modules | M |
+| M33 | Kernel / Driver Designer | Kconfig index, fragments, driver bundles, ext modules | XL |
+| M34 | Filesystem / Image Recipe Designer | Multi-format images, A/B, size policy | L |
+
+**4.2 — Packages, branding, shell, applications**
+
+| # | Milestone | Goal | Effort |
+| --- | --- | --- | --- |
+| M35 | Package Workspace / Manager | Taxonomy, layers, groups, sets, cache | XL |
+| M36 | Package Feature / Variant Manager | Build options → variant hash | L |
+| M37 | Package Feed / Repository Publisher | Signed, scoped feeds | L |
+| M38 | Runtime Package Policy | Immutable/runtime-install policy + backends | M |
+| M39 | Branding / Identity Designer | os-release, splash, login, desktop branding | L |
+| M40 | Graphical Shell Designer | no-gui…GNOME/KDE/kiosk GUI stacks | L |
+| M41 | Application Catalog Designer | Apps ≠ packages; .desktop/MIME/icons | L |
+| M42 | Default Apps / Desktop Integration | mimeapps.list, default handlers, autostart | M |
+| M43 | Theme / Icon / Font Designer | Themes/fonts as first-class assets | M |
+
+**4.3 — System concerns**
+
+| # | Milestone | Goal | Effort |
+| --- | --- | --- | --- |
+| M44 | Users / Groups / Credentials / Secrets | Secrets separated, masked, injected | L |
+| M45 | Network Designer | Static/DHCP/bridge/VLAN/Wi-Fi/NAT/VPN | L |
+| M46 | Service / Init / Device Manager Designer | Order, deps, healthchecks, udev/mdev | L |
+| M47 | Security / Hardening Designer | RO-rootfs, sysctl, LSM, secure boot, gate | L |
+| M48 | License / SBOM / Vuln / Source Compliance | SPDX/CycloneDX, gates, source bundles | L |
+| M49 | Update / OTA / Recovery Designer | full/A-B/delta/recovery/rollback, signed | L |
+| M50 | SDK / Dev Shell / Tooling Export | Cross SDK, sysroot, debug symbols, dev shell | M |
+| M51 | Cache / Mirrors / Offline Build Designer | Mirror priority, offline report, pinning | M |
+| M52 | QA / Validation Designer | Validation profiles gate promotion | L |
+| M53 | Hardware Probe / Import Designer | Probe bundle → board/driver/config draft | L |
+
+**4.4 — Competitive layer (layers, overrides, explain, diff, lockfiles…)**
+
+| # | Milestone | Goal | Effort |
+| --- | --- | --- | --- |
+| M54 | Layer / Extension Manager | Git-imported layers w/ priority | L |
+| M55 | Priority / Override / Masking Engine | override/append/remove/mask/conflict | M |
+| M56 | Patch Queue / Source Patch Manager | Ordered patch sets w/ results | M |
+| M57 | Dependency Graph Viewer | package/build/runtime/kernel/service graphs | M |
+| M58 | Explain / Why Engine | Per-plan-item explain trace | L |
+| M59 | Build / Profile / Release Diff | package/kernel/SBOM/size/hash diff | M |
+| M60 | System Generations / Rollback Designer | Generations + rollback targets | M |
+| M61 | Attended Upgrade / Rebuild Service | Rebuild preserving package set | L |
+| M62 | Manifest / Lockfile System | `osfabricum.lock` reproducible plan | M |
+| M63 | Importers from Competitors | Buildroot/OpenWrt/Yocto/Debian/Alpine/Nix | L |
+| M64 | Build Analysis Dashboard | Time/size/critical-path/cache reports | M |
+| M65 | Size / Footprint Optimizer | Budgets, largest files, pruning, diff | M |
+| M66 | Boot / Performance Profiler | Boot timeline, slow services, regression | M |
+| M67 | Distributed Build Farm / Worker Pools | Labels, affinity, remote cache, quotas | L |
+| M68 | Build Isolation / Sandbox Policy | chroot/bwrap/nspawn/podman/VM policy | L |
+| M69 | Public Artifact Repository / Publishing | Signed repo index + channels | L |
+| M70 | Documentation Update | All designer docs match code direction | M |
+
+### Phase 5 — Reference Distributions
+
+Reference distributions are **validation profiles** for OSFabricum, not
+architecture boundaries. They exercise distribution classes end-to-end over the
+universal model and **must not introduce special-case build logic**.
+
+| Reference distribution | Class exercised | Profiles (examples) |
+|------------------------|-----------------|----------------------|
+| **TinyWifi** | router / embedded | default (rpi-zero-2w) |
+| **NetOS** | infrastructure / SDN (server) | nervum, testum, ovsdb |
+| **Ocultum** | mobile / handheld | communicator, minimal, dev |
+
+> **Distribution-agnostic mandate.** OSFabricum core MUST be
+> distribution-agnostic. No build pipeline may contain
+> `if distribution == tinywifi/netos/ocultum` special branches. Reference
+> distributions are test data and product profiles, not architecture
+> boundaries. A reference distribution that cannot be expressed as data over
+> the universal model is a model bug, not a reason for a code path.
+
 ## 9. MVP Definition
-The MVP is not "build an image at any cost."
-The MVP is a verifiable, traceable, reproducible build of TinyWifi.
+
+> **Historical (M0–M23 bootstrap).** This section documents the original
+> bootstrap MVP that proved the primitives end-to-end. It is retained as the
+> historical basis. TinyWifi here is the **router/embedded reference
+> distribution** used to exercise the core — not the centre of the product. The
+> universal direction (M24+) generalizes this MVP to any distribution class; see
+> *Current Implementation Status* and Phase 4/5.
+
+The bootstrap MVP is not "build an image at any cost."
+It is a verifiable, traceable, reproducible build of a reference distribution
+(TinyWifi) that proves every primitive in the vertical works.
 
 ### MVP Acceptance Criteria
 
@@ -435,7 +600,13 @@ osfabricumctl builds list
 osfabricumctl builds logs <build_id>
 osfabricumctl artifacts list --distribution tinywifi
 
-## 10. First Native Target: TinyWifi
+## 10. Reference Distribution Worked Example: TinyWifi
+
+> **Reference distribution, not a code path.** Everything below is expressed as
+> database records over the universal model. It is the router/embedded
+> validation profile (Phase 5). No value here justifies a
+> `if distribution == "tinywifi"` branch anywhere in the code.
+
 ### Distribution Definition
 
 distribution: tinywifi
@@ -1030,7 +1201,11 @@ Items not yet decided. Must be resolved before the relevant milestone.
 ✓ Invalid board/profile combination fails before any job is enqueued
 ✓ Missing toolchain reported in plan output, not as a runtime error
 
-### M24 — TinyWifi Native Build
+### Phase 5 Reference — TinyWifi Native Build (validation profile)
+
+> Formerly numbered "M24". Renumbered: M24 is now *Implementation Audit & Gap
+> Matrix*. TinyWifi is the router/embedded reference distribution; these are its
+> Phase 5 validation criteria, met purely through data over the universal model.
 
 ✓ osfabricumctl build tinywifi/default --board rpi-zero-2w completes
 ✓ tinywifi-rpi-zero-2w.img.zst exists in artifact store
@@ -1308,7 +1483,10 @@ p2: ext4  rest  /
 ✓ GC never deletes pinned artifacts
 ✓ GC never deletes artifacts referenced by a release record
 
-### M25 — NetOS Native Distribution
+### Phase 5 Reference — NetOS Native Distribution (validation profile)
+
+> Formerly numbered "M25". Renumbered: M25 is now *Universal OS Builder Model*.
+> NetOS is the infrastructure/SDN (server-class) reference distribution.
 
 ✓ distribution: netos exists in DB
 ✓ Profiles defined: nervum, testum, ovsdb
@@ -1321,7 +1499,10 @@ p2: ext4  rest  /
 ✓ SBOM generated for netos image
 ✓ NetOS packages built and stored as .ofpkg artifacts
 
-### M26 — Ocultum Distribution
+### Phase 5 Reference — Ocultum Distribution (validation profile)
+
+> Formerly numbered "M26". Renumbered: M26 is now *Distribution Designer*.
+> Ocultum is the mobile/handheld reference distribution.
 
 ✓ distribution: ocultum exists in DB
 ✓ Profiles defined: communicator, minimal, dev
@@ -1331,6 +1512,961 @@ p2: ext4  rest  /
 ✓ SBOM generated
 
 ---
+
+## 18b. Universal OS Builder Milestones (M24+)
+
+Each milestone is specified as a full vertical: **DB model · API · CLI · UI ·
+worker jobs · artifacts · tests · acceptance criteria**. No milestone is "done"
+until that vertical exists. None of these milestones restart M0–M23; they extend
+the existing primitives. Companion design docs:
+[`OS_BUILDER_WIZARD`](OS_BUILDER_WIZARD.md),
+[`PACKAGE_WORKSPACE`](PACKAGE_WORKSPACE.md),
+[`KERNEL_DRIVER_DESIGNER`](KERNEL_DRIVER_DESIGNER.md),
+[`BRANDING_DESIGNER`](BRANDING_DESIGNER.md),
+[`GRAPHICAL_SHELL_DESIGNER`](GRAPHICAL_SHELL_DESIGNER.md),
+[`LAYER_MODEL`](LAYER_MODEL.md), [`EXPLAIN_ENGINE`](EXPLAIN_ENGINE.md),
+[`LOCKFILE`](LOCKFILE.md), [`BUILD_ANALYSIS`](BUILD_ANALYSIS.md).
+
+---
+
+### M24 — Implementation Audit & Gap Matrix
+
+**Goal:** Synchronize documentation with the actual state of the code.
+**Deliverables:** `docs/IMPLEMENTATION_AUDIT.md`, `docs/GAPS.md`,
+`docs/NEXT_ACTIONS.md`, plus this *Current Implementation Status* section.
+**DB/API/CLI/UI/Jobs/Artifacts:** n/a (documentation milestone).
+**Tests:** doc-lint only (links resolve; status vocabulary used consistently).
+**Acceptance:**
+- M0–M23 verified across the full vertical; every milestone has a status.
+- Every `partial`/`missing` item has a *next action*.
+- No "done" claim without code **and** tests.
+- Read-only API gaps, UI gaps, pipeline gaps, and hardcoded-distribution risks
+  are explicitly called out.
+
+### M25 — Universal OS Builder Model
+
+**Goal:** A universal data model that can express any OS class as records.
+**DB (new/extended):** `distribution`, `distribution_class`, `profile`,
+`board`, `architecture`, `toolchain`, `kernel`, `kernel_config`, `package_set`,
+`package_group`, `boot_scheme`, `image_recipe`, `branding_profile`,
+`graphical_profile`, `network_profile`, `security_profile`, `update_strategy`,
+`validation_profile`. Migration uses **explicit DDL** (retires the
+`metadata.create_all` baseline for new tables; closes G-23).
+**`distribution_class` values:** embedded, router, server, desktop, kiosk,
+appliance, mobile-handheld, recovery, firmware, container-host,
+hypervisor-host.
+**API:** `GET /v1/distribution-classes`; class field on distribution/profile
+read+write endpoints (M26/M27).
+**CLI:** `osfabricumctl catalog list distribution-classes`.
+**UI:** class selectors surfaced in M26/M27 designers.
+**Jobs/Artifacts:** none new (modelling milestone).
+**Tests:** model unit tests; a distribution + profile of **each** class can be
+created and resolved (no reference distribution required).
+**Acceptance:**
+- A distribution can be created with no tie to any reference distribution.
+- A profile can be created for any distribution and can select class, board,
+  kernel, packages, branding, graphical profile, services, image layout.
+- The build plan is assembled from data, not a hardcoded scenario.
+
+### M26 — Distribution Designer
+
+**Goal:** Create and manage OS products through API + UI.
+**DB:** `distribution` (extended: class, default_channel, metadata),
+`distribution_export` snapshots.
+**API:** `GET /v1/distributions`, `POST /v1/distributions`,
+`GET /v1/distributions/{id}`, `PATCH /v1/distributions/{id}`,
+`DELETE /v1/distributions/{id}`, `POST /v1/distributions/{id}/clone`,
+`POST /v1/distributions/import`, `GET /v1/distributions/{id}/export`.
+**CLI:** `osfabricumctl distribution create|show|edit|clone|delete`,
+`osfabricumctl distribution import --file x.yaml`,
+`osfabricumctl distribution export <id> > x.yaml`.
+**UI:** `/distributions`, `/distributions/new`, `/distributions/{id}`,
+`/distributions/{id}/{profiles,layers,branding,releases}`.
+**Jobs:** `distribution.import`, `distribution.export` (validation + render).
+**Artifacts:** distribution YAML export bundle (`kind=distribution-export`).
+**Tests:** create/clone/import/export round-trip; import is validated, not
+trusted blindly.
+**Acceptance:** create a new OS from the UI; import/export distribution YAML;
+clone; assign class + default channel; **no special code path for reference
+distributions** (clone of TinyWifi is data only).
+
+### M27 — Profile Designer
+
+**Goal:** Full, versioned, diffable profiles that the resolver actually
+consumes (closes G-02).
+**DB:** `profile` (fields below), `profile_version`, `profile_package_set`,
+`profile_service_set`. **Profile fields:** distribution, name, inherits,
+board constraints, architecture constraints, libc policy, init system, device
+manager, default kernel policy, default toolchain policy, package sets, service
+sets, config values, scripts, overlays, branding profile, graphical profile,
+network profile, security profile, image recipe, update strategy, validation
+profile.
+**API:** `GET/POST /v1/profiles`, `GET/PATCH /v1/profiles/{id}`,
+`POST /v1/profiles/{id}/clone`, `GET /v1/profiles/{id}/versions`,
+`POST /v1/profiles/{id}/diff`, `GET /v1/profiles/{id}/export`,
+`POST /v1/profiles/import`.
+**CLI:** `osfabricumctl profile create|edit|clone|version|diff|export|import`.
+**UI:** `/profiles`, `/profiles/new`, `/profiles/{id}`, `/profiles/{id}/edit`,
+`/profiles/{id}/diff`, `/profiles/{id}/versions`.
+**Jobs:** `profile.resolve-preview` (dry resolve without build).
+**Artifacts:** profile snapshot/export.
+**Tests:** create without building; clone; version; diff; export/import;
+inheritance merge; **resolver uses profile inputs** (two profiles → two package
+sets).
+**Acceptance:** all of the above; the resolver wires `_merged_inputs` into
+selection.
+
+### M28 — Universal Build Wizard
+
+**Goal:** One wizard builds any OS class. See
+[`OS_BUILDER_WIZARD.md`](OS_BUILDER_WIZARD.md).
+**UI entry:** `/build/new` (25 steps: distribution → profile → class → board →
+arch/libc → toolchain → boot chain → kernel source → kernel options/drivers →
+base rootfs → package layers/groups/packages → package features → services/init/
+device manager → network → users/groups/secrets → graphical shell → applications/
+default apps → branding/themes/fonts → filesystem/image layout → updates/recovery
+→ security/hardening → compliance/SBOM/license → validation/tests → review plan →
+prefetch/build/test/sign/publish).
+**API:** wizard persists drafts via `POST /v1/build-drafts`,
+`PATCH /v1/build-drafts/{id}`; submits via M29 (`POST /v1/plan`,
+`POST /v1/builds`). **No build logic in the UI** — it only calls the API.
+**CLI:** `osfabricumctl build new --from <distribution|profile|build|image>`.
+**Jobs:** delegates to M29 job graph.
+**Artifacts:** build draft; build plan artifact.
+**Tests:** integration/e2e — wizard → plan → build for a **non-reference**
+distribution (first real e2e; closes G-18).
+**Acceptance:** wizard is not tied to one OS; can start from distribution,
+profile, previous build, or imported image; can save a draft; can build a plan
+without building; can create a build; shows missing artifacts, cache
+hits/misses, and **explain** for packages/kernel options/jobs.
+
+### M29 — Plan API & Build API
+
+**Goal:** Universal write API + real pyjobkit job graph (closes G-01, G-03).
+**API:** `POST /v1/plan`, `POST /v1/plan/validate`, `POST /v1/plan/diff`,
+`POST /v1/prefetch`, `POST /v1/builds`, `GET /v1/builds`, `GET /v1/builds/{id}`,
+`GET /v1/builds/{id}/events`, `GET /v1/builds/{id}/logs`,
+`GET /v1/builds/{id}/artifacts`, `POST /v1/builds/{id}/cancel`,
+`POST /v1/builds/{id}/rebuild`, `POST /v1/builds/{id}/clone-as-profile`.
+`POST /v1/plan` accepts `distribution_id`, `profile_id`, `board_id`, and
+`overrides`: kernel, kernel_options, driver_bundles, package_groups,
+package_set, package_features, boot_chain, image_recipe, branding,
+graphical_profile, network_profile, security_profile, update_strategy,
+validation_profile. **Auth enforced on all write endpoints** (closes G-24).
+**CLI:** `osfabricumctl plan` (now POST-capable with `--override`),
+`osfabricumctl prefetch`, `osfabricumctl build`, `... rebuild`,
+`... clone-as-profile`.
+**DB:** `build_draft`, `build_plan_artifact` ref on `builds`.
+**Jobs (pyjobkit graph):** `resolve.plan` → (`source.fetch`/`toolchain.fetch`
+∥ `kernel.build`/`package.build×N`) → `rootfs.compose` → `image.compose` →
+`image.test`/`artifact.sign`/`artifact.attest` → `release.publish`.
+**Artifacts:** build plan JSON (`kind=build-plan`), per-step logs/events.
+**Tests:** plan-with-overrides; build-from-plan; cancel; rebuild;
+clone-as-profile; `package.build` runs as a job.
+**Acceptance:** Plan API does **not** start a build; Build API starts a job
+graph; Build accepts a saved profile, a saved plan, or a wizard request;
+creates a build record + plan artifact + pyjobkit jobs; status flows via
+events/logs; cancel works.
+
+### M30 — Board / Machine / BSP Designer
+
+**Goal:** Hardware targets as boards/machines/BSPs, not bare arch.
+**DB:** `boards` (extended), `board_revisions`, `soc_families`, `boot_schemes`,
+`board_firmware`, `board_device_trees`, `board_default_kernels`,
+`board_default_toolchains`, `board_supported_layouts`, `board_flash_methods`,
+`board_test_methods`, `board_probe_profiles`.
+**API:** `GET/POST /v1/boards`, `GET/PATCH/DELETE /v1/boards/{id}`,
+`.../firmware`, `.../device-trees`, `.../boot`, `.../layouts`, `.../flash`,
+`.../test`, `POST /v1/boards/{id}/clone`.
+**CLI:** `osfabricumctl board create|show|edit|clone`, `board firmware add`,
+`board dtb add`, `board boot set`, `board test add`.
+**UI:** `/boards`, `/boards/new`, `/boards/{id}`, `/boards/{id}/{firmware,
+device-tree,boot,test}`.
+**Jobs:** `board.firmware.fetch`, `board.dtb.fetch`, `board.validate`.
+**Artifacts:** firmware blobs, DTB/DTBO, board manifest.
+**Tests:** create custom board + revision; attach boot scheme/firmware/DTB/
+layouts/flash/test methods.
+**Acceptance:** all of the above resolvable into a build plan per board
+revision.
+
+### M31 — Boot Chain Designer
+
+**Goal:** Boot chain is a first-class, selectable, templated part of the plan.
+**Support:** direct kernel boot, Raspberry Pi firmware boot, U-Boot, GRUB,
+systemd-boot, EFI, PXE/netboot, custom vendor boot.
+**DB:** `boot_chains`, `boot_chain_templates`, `boot_chain_files`,
+`boot_chain_bindings` (board/profile).
+**API:** `GET/POST /v1/boot-chains`, `POST /v1/boot-chains/{id}/render`,
+`POST /v1/boot-chains/{id}/validate`.
+**CLI:** `osfabricumctl boot-chain create|render|validate|bind`.
+**UI:** boot chain selector in M28 step 7; `/boot-chains`.
+**Jobs:** `boot.render`, `boot.validate`.
+**Artifacts:** boot manifest, boot partition files, `grub.cfg`,
+`extlinux.conf`, `u-boot.env`, `cmdline.txt`, `config.txt`, initramfs
+reference, DTB/DTBO placement.
+**Tests:** boot files generated from templates per board/profile; validation
+catches missing kernel/initramfs/DTB.
+**Acceptance:** boot chain is part of the build plan; files are artifacts;
+selectable per board/profile; validatable.
+
+### M32 — Initramfs / Early Boot Designer
+
+**Goal:** Model early boot.
+**Support:** no initramfs, minimal, recovery, encrypted-root unlock, network
+boot, debug shell, factory reset.
+**DB:** `initramfs_profiles`, `initramfs_packages`, `initramfs_scripts`,
+`initramfs_hooks`, `initramfs_artifacts`.
+**API:** `GET/POST /v1/initramfs-profiles`,
+`POST /v1/initramfs-profiles/{id}/build`.
+**CLI:** `osfabricumctl initramfs create|build|attach`.
+**UI:** initramfs selector in M28 step 9–10; `/initramfs`.
+**Jobs:** `initramfs.resolve`, `initramfs.build`.
+**Artifacts:** initramfs image (`kind=initramfs`), included-modules manifest.
+**Tests:** packages/scripts resolved; early-boot kernel modules included;
+artifact generated; boot chain references it.
+**Acceptance:** selectable in profile; resolved; built; referenced by boot
+chain.
+
+### M33 — Kernel / Driver Designer
+
+**Goal:** A real kernel and driver designer where options come from the
+selected kernel **source tree + Kconfig** for the selected arch/version — never
+a flat checkbox list. See [`KERNEL_DRIVER_DESIGNER.md`](KERNEL_DRIVER_DESIGNER.md).
+**DB:** `kernel_kconfig_indexes`, `kernel_option_symbols`,
+`kernel_option_dependencies`, `kernel_option_choices`, `kernel_config_presets`,
+`kernel_config_fragments`, `kernel_config_values`, `kernel_config_layers`,
+`kernel_config_validations`, `driver_bundles`, `driver_bundle_kernel_options`,
+`driver_bundle_modules`, `driver_bundle_firmware`, `driver_bundle_dt_overlays`,
+`external_kernel_modules`, `external_kernel_module_recipes`.
+**API:** `GET /v1/kernels/{id}/options`, `.../options/search`,
+`.../options/{symbol}`, `POST /v1/kernel-configs/resolve|validate|render|diff|
+save-preset`, `POST /v1/driver-bundles`, `POST /v1/external-modules`.
+**CLI:** `osfabricumctl kernel options search|show`, `kernel-config
+resolve|validate|render|diff|save-preset`, `driver-bundle create`,
+`external-module add|build`.
+**UI:** Kernel Source · Base Config · Feature Bundles · Hardware Drivers · Raw
+Kconfig Search · Config Fragments · Validation · Final Diff.
+**Jobs:** `kernel.kconfig.index`, `kernel.config.resolve`,
+`kernel.config.validate`, `kernel.config.render`, `kernel.build`,
+`kernel.modules.install`, `external-module.fetch`, `external-module.build`,
+`external-module.package`, `driver-bundle.resolve`.
+**Artifacts:** Kconfig index, final `.config`, config fragments, `modules.alias`,
+`modules.dep`, `modules.builtin`, external `.ofpkg` kernel-module packages.
+**Tests:** Kconfig index per source/version/arch; symbol search; dependency
+display; hidden symbols not treated as checkboxes; options resolved **through**
+Kconfig; config hash enters `resolution_hash`; in-tree drivers y/m; external
+modules built against the **exact** kernel build tree/config/toolchain; firmware
++ DT overlays attach to bundles.
+**Acceptance:** all of the above; `modules.*` captured as artifacts.
+
+### M34 — Filesystem / Image Recipe Designer
+
+**Goal:** Image recipes are data, not hardcoded (closes G-06).
+**Output formats:** raw image, qcow2, vmdk, iso, tarball rootfs, update bundle,
+sdcard image, usb image, netboot image, container rootfs, VM image.
+**Filesystems:** ext4, squashfs, erofs, btrfs, xfs, vfat, overlayfs, tmpfs
+mounts, read-only rootfs, A/B partitions, recovery partition, data partition.
+**DB:** `image_recipes`, `image_outputs`, `filesystem_profiles`,
+`partition_layouts` (extended), `mount_policies`, `overlay_policies`,
+`size_policies`.
+**API:** `GET/POST /v1/image-recipes`, `POST /v1/image-recipes/{id}/estimate`.
+**CLI:** `osfabricumctl image-recipe create|show|estimate`.
+**UI:** `/image-recipes`; layout + size estimate shown in M28 step 19.
+**Jobs:** `image.compose` (extended, multi-format), `image.estimate`.
+**Artifacts:** one or more image outputs per build; size report.
+**Tests:** multiple output formats per build; filesystem choice changes the
+plan; layout + size estimates rendered.
+**Acceptance:** image recipe selectable; no hardcoded sizes/formats in the
+pipeline.
+
+### M35 — Package Workspace / Package Manager
+
+**Goal:** Central manager of packages, groups, layers, variants, and cache.
+See [`PACKAGE_WORKSPACE.md`](PACKAGE_WORKSPACE.md). Closes G-04, G-28.
+**Taxonomy (`package_kinds`):** system, boot, kernel-module, driver, firmware,
+runtime, library, service, desktop, application, theme, branding, development,
+debug, test, documentation, locale, meta.
+**Layers (`package_layers`):** base, hardware, boot, kernel, system, runtime,
+services, desktop, applications, branding, development, debug, test.
+**DB:** `package_kinds`, `package_layers`, `package_groups`,
+`package_group_members`, `package_sets`, `package_set_members`,
+`package_variants`, `package_variant_features`, `package_cache_entries`,
+`package_compatibility`, `package_locks`, `package_feeds`,
+`package_feed_indexes`, `package_promotions`, `package_install_plans`.
+**Cache key includes:** package name, version, source hash, recipe hash,
+feature hash, arch, libc, toolchain hash, ABI hash, **and** kernel
+release/config hash for kernel-bound packages.
+**API:** `GET/POST /v1/package-groups`, `.../package-sets`, `.../variants`,
+`GET /v1/packages/cache`, `GET /v1/packages/cache/{key}/explain`,
+`GET/POST /v1/package-feeds`, `GET/POST /v1/package-locks`.
+**CLI:** `osfabricumctl package group|set|variant|cache|feed|lock …`.
+**UI:** `/packages`, `/packages/{catalog,groups,sets,cache,feeds,variants,
+locks}`; workspace sections: Catalog · Selected for Profile · Groups · Layers ·
+Feeds · Build Variants · Cache · Locks · Conflicts · Updates.
+**Jobs:** `package.cache.index`, `package.install-plan`, `package.promote`.
+**Artifacts:** install plan (`kind=install-plan`), cache index.
+**Tests:** group membership; group reuse across distributions; set attached to
+profile; system vs application separation; cache namespacing; **cache
+hit/miss explained**; kernel-module packages never reused across incompatible
+kernel/config/toolchain; install plan artifact.
+**Acceptance:** all of the above.
+
+### M36 — Package Feature / Variant Manager
+
+**Goal:** Manage package build options.
+**Examples:** busybox applets, cargo features, cmake/meson options, autotools
+configure flags, ssl backend, dbus support, init backend (systemd/openrc/
+busybox), static/dynamic, plugins.
+**DB:** `package_feature_options`, `package_feature_values`,
+`package_build_variants`, `package_variant_artifacts`.
+**API:** `GET/POST /v1/packages/{id}/features`,
+`POST /v1/package-variants/resolve`.
+**CLI:** `osfabricumctl package features edit|show`.
+**UI:** feature editor in M28 step 12 and `/packages/variants`.
+**Jobs:** `package.variant.resolve`, `package.build` (variant-aware).
+**Artifacts:** variant artifacts keyed by feature hash.
+**Tests:** variant hash includes feature values; resolver knows
+feature-dependent deps; variant rebuild on feature change; feature diff visible
+in build diff.
+**Acceptance:** all of the above.
+
+### M37 — Package Feed / Repository Publisher
+
+**Goal:** Publish signed package feeds for runtime policy and remote devices.
+**DB:** `package_feeds`, `feed_indexes`, `feed_signatures`, `feed_channels`,
+`feed_publish_jobs`.
+**API:** `POST /v1/package-feeds/{id}/publish`, `GET /v1/package-feeds/{id}`.
+**CLI:** `osfabricumctl feed publish|show`.
+**UI:** `/packages/feeds` shows feed contents.
+**Jobs:** `feed.index`, `feed.sign`, `feed.publish`.
+**Artifacts:** package index, signatures, package files, kernel-module feed,
+firmware feed, application feed, release metadata.
+**Tests:** feed generated from promoted artifacts; signed; scoped by
+distribution/channel/arch/libc/kernel.
+**Acceptance:** runtime package policy can point at a feed; UI shows contents.
+
+### M38 — Runtime Package Policy
+
+**Goal:** Decide whether packages may be installed inside the built OS.
+**Policies:** immutable image only, build-time packages only, runtime install
+allowed, signed packages only, feed enabled/disabled, writable overlay rootfs,
+offline packages only.
+**Backends modelled:** none, osf-pkg, opkg-compatible, apk-compatible,
+dpkg-compatible, rpm-compatible.
+**DB:** `runtime_package_policies`, `runtime_package_backends`.
+**API:** policy fields on profile; `GET /v1/runtime-package-backends`.
+**CLI:** `osfabricumctl profile runtime-policy set`.
+**UI:** policy in M28 step 11/20.
+**Jobs:** `runtime-policy.render` (writes package-manager config into rootfs).
+**Artifacts:** package-manager config files in the image.
+**Tests:** backend choice is profile-level; image receives correct config;
+signed-package policy enforced.
+**Acceptance:** all of the above.
+
+### M39 — Branding / Identity Designer
+
+**Goal:** Branding as a first-class subsystem (not "just a wallpaper"). See
+[`BRANDING_DESIGNER.md`](BRANDING_DESIGNER.md).
+**DB:** `branding_profiles`, `branding_assets`, `branding_targets`,
+`theme_packages`, `wallpaper_sets`, `boot_splash_themes`,
+`login_screen_themes`, `os_release_templates`, `motd_templates`.
+**Targets:** bootloader, kernel cmdline splash, initramfs, plymouth, login
+manager, desktop session, wallpaper, icon theme, application menu, about dialog,
+web UI, terminal motd, `/etc/os-release`, release manifest, installer.
+**API:** `GET/POST /v1/branding-profiles`,
+`POST /v1/branding-profiles/{id}/render`.
+**CLI:** `osfabricumctl branding create|render|attach`.
+**UI:** `/branding`; M28 step 18.
+**Jobs:** `branding.render`.
+**Artifacts:** branding assets, generated `/etc/os-release`, splash/login/
+desktop assets, motd.
+**Tests:** create; assets are artifacts; attach to distribution/profile;
+os-release generated; wallpaper/icon/theme selected; boot/login/desktop branding
+targeted separately; branding package belongs to the branding layer.
+**Acceptance:** all of the above.
+
+### M40 — Graphical Shell Designer
+
+**Goal:** Manage the GUI stack as a stack, not a checkbox. See
+[`GRAPHICAL_SHELL_DESIGNER.md`](GRAPHICAL_SHELL_DESIGNER.md).
+**Modes:** no-gui, kiosk, minimal-wayland, weston, labwc, sway, xfce, lxqt,
+gnome, kde-plasma, custom-compositor, custom-launcher.
+**Fields:** display server, compositor, display manager, greeter, session,
+autologin, kiosk app, panel/launcher, notification daemon, settings daemon,
+power manager, file manager, terminal, input method, screen lock, accessibility.
+**DB:** `graphical_profiles`, `graphical_profile_components`,
+`graphical_sessions`.
+**API:** `GET/POST /v1/graphical-profiles`,
+`POST /v1/graphical-profiles/{id}/expand` (→ package set).
+**CLI:** `osfabricumctl graphical create|expand|attach`.
+**UI:** `/graphical`; M28 step 16.
+**Jobs:** `graphical.expand`, `graphical.render` (session/DM config).
+**Artifacts:** session files, display-manager config, autologin config.
+**Tests:** attach to profile; stack expands to desktop/runtime packages;
+session files generated; autologin configurable; kiosk launches one app; DM
+config generated.
+**Acceptance:** all of the above.
+
+### M41 — Application Catalog Designer
+
+**Goal:** Manage programs as applications, not only packages.
+**DB:** `applications`, `application_versions`, `application_packages`,
+`application_desktop_entries`, `application_icons`, `application_mime_handlers`,
+`application_autostart`, `application_permissions`, `application_categories`,
+`application_defaults`.
+**Categories:** browser, terminal, file-manager, editor, office, media-player,
+image-viewer, camera, settings, network-tools, development, virtualization,
+monitoring, security, kiosk-app, custom-app.
+**API:** `GET/POST /v1/applications`, `.../{id}/packages`, `.../{id}/desktop`.
+**CLI:** `osfabricumctl application create|map-package|set-default`.
+**UI:** `/applications`; M28 step 17.
+**Jobs:** `application.resolve`, `application.render-desktop`.
+**Artifacts:** `.desktop` entries, icons, MIME handler maps.
+**Tests:** app maps to multiple packages; installs `.desktop`; provides icons;
+sets MIME handlers; selectable as default; **application package is separate
+from system package**.
+**Acceptance:** all of the above.
+
+### M42 — Default Applications / Desktop Integration Designer
+
+**Goal:** Manage desktop integration.
+**Fields:** default browser/terminal/file-manager/editor/image-viewer/
+video-player/PDF-viewer/mail-client, URL handlers, MIME handlers, autostart apps.
+**DB:** `desktop_integration_profiles`, `default_handlers`, `autostart_entries`.
+**API:** `GET/POST /v1/desktop-integration`,
+`POST /v1/desktop-integration/{id}/render`.
+**CLI:** `osfabricumctl desktop defaults set|render`.
+**UI:** M28 step 17.
+**Jobs:** `desktop.render`.
+**Artifacts:** `.desktop` files, `mimeapps.list`, icon cache, app-menu
+metadata, autostart entries.
+**Tests:** defaults saved in profile; entries generated/installed; MIME handlers
+generated; icons/themes linked; menu works in the selected shell.
+**Acceptance:** all of the above.
+
+### M43 — Theme / Icon / Font Designer
+
+**Goal:** Themes and fonts are first-class packages/assets.
+**DB:** `theme_profiles`, `icon_themes`, `cursor_themes`, `gtk_themes`,
+`qt_themes`, `font_sets`, `sound_themes`, `wallpaper_sets`.
+**API:** `GET/POST /v1/theme-profiles`.
+**CLI:** `osfabricumctl theme create|attach`.
+**UI:** M28 step 18; `/themes`.
+**Jobs:** `theme.resolve`.
+**Artifacts:** theme/font packages and asset bundles.
+**Tests:** themes are packages/artifacts; theme profile attaches to graphical
+profile; font set selectable; theme package belongs to the theme layer; cache
+key includes asset hashes.
+**Acceptance:** all of the above.
+
+### M44 — Users / Groups / Credentials / Secrets Designer
+
+**Goal:** Manage users and secrets correctly (closes G-09, G-26).
+**DB:** `os_users`, `os_groups`, `os_user_groups`, `ssh_authorized_keys`,
+`password_policies`, `service_accounts`, `secret_variables`,
+`secret_injection_policies`.
+**Support:** root locked/unlocked, password login disabled/enabled, SSH keys,
+sudo/doas policy, service users, generated host keys, first-boot secret
+generation.
+**API:** `GET/POST /v1/os-users`, `.../os-groups`, `.../secrets` (write-only
+values; never returned in plaintext).
+**CLI:** `osfabricumctl user|group|secret …`.
+**UI:** M28 step 15 (secrets masked).
+**Jobs:** `users.render`, `secrets.inject`, `hostkeys.generate`.
+**Artifacts:** `/etc/passwd|group|shadow`, SSH key files, first-boot secret
+scripts.
+**Tests:** secrets are **not** stored as normal config values; secrets masked
+in logs; injected at build or first boot; user/group files generated; SSH keys
+installed; service users created.
+**Acceptance:** all of the above.
+
+### M45 — Network Designer
+
+**Goal:** Model networking for any class.
+**DB:** `network_interfaces`, `network_bridges`, `network_vlans`,
+`network_zones`, `firewall_rules`, `dhcp_pools`, `dns_config`, `wifi_profiles`,
+`vpn_profiles`.
+**Support:** static IP, DHCP client/server, bridge, VLAN, bonding, Wi-Fi
+client/AP, firewall, NAT, VPN, DNS, mDNS, IPv6.
+**API:** `GET/POST /v1/network-profiles`,
+`POST /v1/network-profiles/{id}/render`.
+**CLI:** `osfabricumctl network create|render|attach`.
+**UI:** M28 step 14; `/network`.
+**Jobs:** `network.render`, `network.validate`.
+**Artifacts:** init/network-backend-specific config; firewall/NAT rules; Wi-Fi
+profiles.
+**Tests:** attached to system profile; generator matches selected init/network
+backend; firewall/NAT generated; Wi-Fi AP/client generated; validation catches
+conflicts.
+**Acceptance:** all of the above.
+
+### M46 — Service / Init / Device Manager Designer
+
+**Goal:** Services are not just packages (closes the M11 service-thinness gap).
+**Init systems:** busybox init, sysvinit, openrc, runit, s6, systemd, custom.
+**Device managers:** static dev, mdev, eudev, systemd-udevd, custom hotplug.
+**DB:** `init_systems`, `service_units`, `service_enablement`,
+`service_ordering`, `service_healthchecks`, `device_manager_profiles`,
+`udev_rules`, `mdev_rules`, `hotplug_scripts`.
+**API:** `GET/POST /v1/services`, `.../{id}/order`, `.../{id}/healthcheck`,
+`GET/POST /v1/device-managers`.
+**CLI:** `osfabricumctl service add|enable|order|healthcheck`,
+`device-manager set`.
+**UI:** M28 step 13.
+**Jobs:** `service.render`, `device-manager.render`.
+**Artifacts:** unit/init files, udev/mdev rules, hotplug scripts.
+**Tests:** services have enablement state, order/deps, healthchecks; device
+manager selected per profile.
+**Acceptance:** all of the above.
+
+### M47 — Security / Hardening Designer
+
+**Goal:** Security profile that can enforce and gate.
+**Support:** read-only rootfs, no root login, ssh password auth disabled,
+firewall default deny, kernel hardening options, sysctl hardening, mount flags
+(noexec,nosuid,nodev), service sandboxing, capabilities, seccomp,
+apparmor/selinux, audit, secure boot, signed updates.
+**DB:** `security_profiles`, `security_rules`, `sysctl_rules`,
+`mount_flag_rules`, `security_gates`.
+**API:** `GET/POST /v1/security-profiles`,
+`POST /v1/security-profiles/{id}/evaluate`.
+**CLI:** `osfabricumctl security create|evaluate|attach`.
+**UI:** M28 step 21.
+**Jobs:** `security.evaluate`, `security.gate`.
+**Artifacts:** hardening configs, evaluation report.
+**Tests:** attached to profile; can enforce kernel options/sysctl/package
+choices; can block insecure configs; **gate runs before release promotion**.
+**Acceptance:** all of the above.
+
+### M48 — License / SBOM / Vulnerability / Source Compliance Designer
+
+**Goal:** Compliance is enforceable and gatable.
+**DB:** `license_policies`, `license_allowlist`, `license_blocklist`,
+`sbom_documents`, `vulnerability_reports`, `source_release_bundles`,
+`patch_manifests`, `compliance_gates`.
+**Formats:** SPDX, CycloneDX.
+**API:** `GET/POST /v1/compliance/policies`, `GET /v1/builds/{id}/sbom`,
+`GET /v1/builds/{id}/vulns`, `GET /v1/builds/{id}/source-bundle`.
+**CLI:** `osfabricumctl compliance policy|sbom|vulns|source-bundle`.
+**UI:** M28 step 22.
+**Jobs:** `sbom.generate`, `vuln.scan`, `source.bundle`, `compliance.gate`.
+**Artifacts:** SBOM (packages/rootfs/image), source archive, patch list, vuln
+report.
+**Tests:** SBOM generated; licenses collected; source archive export; patch
+list export; vuln result attached; **release blocked by gate**.
+**Acceptance:** all of the above.
+
+### M49 — Update / OTA / Recovery Designer
+
+**Goal:** Update strategies and recovery as data.
+**Support:** full image update, package update, A/B update, delta update,
+recovery image, factory reset, rollback, signed update manifest, channels.
+**DB:** `update_strategies`, `update_manifests`, `rollback_policies`,
+`recovery_images`, `ota_channels`.
+**API:** `GET/POST /v1/update-strategies`,
+`POST /v1/builds/{id}/update-bundle`.
+**CLI:** `osfabricumctl update strategy|bundle|recovery`.
+**UI:** M28 step 20.
+**Jobs:** `update.bundle`, `recovery.build`, `update.sign`.
+**Artifacts:** update bundle, signed update manifest, recovery image.
+**Tests:** strategy selectable; A/B integrates with image recipe; recovery image
+generated; rollback policy stored; manifests signed.
+**Acceptance:** all of the above.
+
+### M50 — SDK / Dev Shell / Tooling Export
+
+**Goal:** Export a usable SDK from a build plan (closes G-20).
+**Outputs:** cross SDK, sysroot, headers, pkg-config files, toolchain env
+script, containerized dev shell, debug symbols, gdb config.
+**DB:** `sdk_bundles`, `sdk_outputs`.
+**API:** `POST /v1/builds/{id}/sdk`, `GET /v1/sdk/{id}`.
+**CLI:** `osfabricumctl sdk export|show`.
+**UI:** SDK download on the build detail page.
+**Jobs:** `sdk.export`, `debug.split`.
+**Artifacts:** SDK bundle, sysroot, separated debug symbols.
+**Tests:** SDK generated from build plan; sysroot downloadable; debug symbols
+separated; dev shell reproduces a package build; SDK hash tied to inputs.
+**Acceptance:** all of the above.
+
+### M51 — Cache / Mirrors / Offline Build Designer
+
+**Goal:** Mirrors, offline readiness, pinning (closes G-21).
+**Support:** source/package/toolchain mirror, artifact cache, offline mode,
+cache warming, cache pinning, mirror priority, checksum verification.
+**DB:** `mirrors`, `mirror_priorities`, `cache_pins`, `offline_reports`.
+**API:** `GET/POST /v1/mirrors`, `POST /v1/offline-report`,
+`POST /v1/cache/warm`, `POST /v1/cache/pin`.
+**CLI:** `osfabricumctl mirror add|priority`, `cache warm|pin|report`.
+**UI:** `/cache`, `/mirrors`.
+**Jobs:** `cache.warm`, `offline.report`, `cache.verify`.
+**Artifacts:** offline-readiness report.
+**Tests:** offline report works; prefetch plan knows all sources/artifacts;
+mirror priority honoured; GC respects pinned artifacts; source cache verifies
+checksums.
+**Acceptance:** all of the above.
+
+### M52 — QA / Validation Designer
+
+**Goal:** Validation profiles gate promotion (closes G-18 partly, M22 gap).
+**Test profiles:** boot test, service health, network test, filesystem test,
+package manifest test, security policy test, license gate, SBOM gate,
+reproducibility gate, hardware smoke test, serial console capture.
+**DB:** `validation_profiles`, `validation_checks`, `validation_results`.
+**API:** `GET/POST /v1/validation-profiles`,
+`POST /v1/builds/{id}/validate`.
+**CLI:** `osfabricumctl validation create|run|attach`.
+**UI:** M28 step 23.
+**Jobs:** `image.test` (extended), `validation.run`, `serial.capture`.
+**Artifacts:** test report (`kind=validation-report`), serial logs.
+**Tests:** profile attaches to profile; QEMU + hardware supported; **required
+tests block promotion**; report artifact generated.
+**Acceptance:** all of the above.
+
+### M53 — Hardware Probe / Import Designer
+
+**Goal:** Turn a probe of real hardware into a board/driver/config draft
+(closes G-22).
+**Inputs:** `lspci -nn`, `lsusb`, `lsmod`, `modinfo`, `dmesg`,
+`/proc/cpuinfo`, `/proc/device-tree`, `/sys/devices/*/modalias`, current
+`.config`, `lsblk`, `fstab`.
+**DB:** `probe_bundles`, `probe_devices`, `probe_mappings`.
+**API:** `POST /v1/probe-bundles`, `GET /v1/probe-bundles/{id}/draft`.
+**CLI:** `osfabricumctl probe upload|draft`.
+**UI:** `/probe`.
+**Jobs:** `probe.parse`, `probe.map-drivers`, `probe.draft-board`,
+`probe.draft-config`.
+**Artifacts:** board draft, kernel config fragments, suggested driver bundles.
+**Tests:** upload bundle; detect devices; map devices→drivers→CONFIG symbols;
+map firmware; generate board draft + config fragments.
+**Acceptance:** all of the above.
+
+### M54 — Layer / Extension Manager
+
+**Goal:** Yocto/OE-style layers with priority. See
+[`LAYER_MODEL.md`](LAYER_MODEL.md).
+**Layer types:** core, board/BSP, vendor, distribution, application, branding,
+security, local override, private.
+**DB:** `layers`, `layer_revisions`, `layer_sources`, `layer_priorities`,
+`layer_imports`, `layer_metadata`.
+**API:** `GET/POST /v1/layers`, `POST /v1/layers/import`,
+`POST /v1/layers/{id}/sync`.
+**CLI:** `osfabricumctl layer add|import|sync|priority`.
+**UI:** `/layers`, `/distributions/{id}/layers`.
+**Jobs:** `layer.import`, `layer.sync`, `layer.index`.
+**Artifacts:** layer metadata index; layer revision pin.
+**Tests:** Git import; layer holds packages/recipes/configs/profiles/branding/
+patches; priority; **layer revision enters the lockfile**; profile uses multiple
+layers.
+**Acceptance:** all of the above.
+
+### M55 — Priority / Override / Masking Engine
+
+**Goal:** Deterministic override resolution across layers.
+**Operations:** priority, override, append, remove, replace, mask, conflict
+resolution.
+**DB:** `override_rules`, `mask_rules`, `override_results`.
+**API:** `POST /v1/overrides/resolve`, `GET /v1/overrides/explain`.
+**CLI:** `osfabricumctl override resolve|explain`.
+**UI:** override view in `/layers` + explain integration.
+**Jobs:** `override.resolve`.
+**Artifacts:** resolved-override report.
+**Tests:** higher-priority layer overrides lower; masked package/recipe
+unavailable; **overrides visible in the explain engine**; conflicts reported
+before build.
+**Acceptance:** all of the above.
+
+### M56 — Patch Queue / Source Patch Manager
+
+**Goal:** Ordered, recorded source patches.
+**DB:** `patch_sets`, `patches`, `patch_targets`, `patch_application_results`.
+**Targets:** kernel, package source, branding, config template, build recipe.
+**API:** `GET/POST /v1/patch-sets`, `POST /v1/patch-sets/{id}/apply`.
+**CLI:** `osfabricumctl patch-set create|apply|show`.
+**UI:** `/patches`.
+**Jobs:** `patch.apply`.
+**Artifacts:** patch application result; failure artifacts.
+**Tests:** patch sets ordered; application result stored; failures are
+artifacts; applied patches appear in the build plan; source release includes
+patches.
+**Acceptance:** all of the above.
+
+### M57 — Dependency Graph Viewer
+
+**Goal:** Visualize dependency graphs.
+**Graphs:** package, build, runtime, kernel, service, image, layer deps.
+**DB:** derived from existing relations (`package_dependencies`,
+`artifact_relations`, service ordering, layer priorities).
+**API:** `GET /v1/graphs/{kind}?root=…`, `GET /v1/graphs/{kind}/reverse?node=…`.
+**CLI:** `osfabricumctl graph show|why|reverse`.
+**UI:** `/graphs`; embedded on build/profile pages.
+**Jobs:** `graph.compute`.
+**Artifacts:** graph JSON.
+**Tests:** graph render; "what depends on this?"; "why included?"; conflicts
+shown.
+**Acceptance:** all of the above.
+
+### M58 — Explain / Why Engine
+
+**Goal:** Every plan item is explainable. See
+[`EXPLAIN_ENGINE.md`](EXPLAIN_ENGINE.md). Closes G-19.
+**Questions:** why package included? why CONFIG enabled? why firmware/driver
+included? why cache miss? why package rebuild? why worker selected? why build
+blocked? why release promotion denied?
+**DB:** `explain_traces` (or computed + cached per build plan).
+**API:** `GET /v1/plan/explain`, `GET /v1/builds/{id}/explain`.
+**CLI:** `osfabricumctl explain <item>`.
+**UI:** explain popovers throughout the wizard and build detail.
+**Jobs:** explain trace emitted during `resolve.plan`.
+**Artifacts:** explain trace attached to the build plan.
+**Tests:** each plan item has a trace; trace records the source
+(manual/profile/group/dependency/driver/security/layer); exposed in UI and CLI.
+**Acceptance:** all of the above.
+
+### M59 — Build / Profile / Release Diff
+
+**Goal:** Diff anything (closes G-15).
+**Diff types:** package, kernel config, driver, service, filesystem, image
+layout, SBOM, vulnerability, artifact hash, size.
+**DB:** computed from snapshots; `diff_reports` cache.
+**API:** `POST /v1/diff` (profiles | builds | releases).
+**CLI:** `osfabricumctl diff profiles|builds|releases <a> <b>`,
+`osfabricumctl builds diff <a> <b>` (implements the documented-but-missing
+command).
+**UI:** `/diff`; profile/build/release compare views.
+**Jobs:** `diff.compute`.
+**Artifacts:** exportable diff report.
+**Tests:** compare two profiles/builds/releases; visible in UI/CLI; exportable.
+**Acceptance:** all of the above.
+
+### M60 — System Generations / Rollback Designer
+
+**Goal:** Releases create retained generations with known rollback targets.
+**DB:** `generations`, `generation_artifacts`, `rollback_targets`,
+`migration_scripts`, `rollback_scripts`.
+**API:** `GET /v1/generations`, `POST /v1/generations/{id}/rollback-plan`.
+**CLI:** `osfabricumctl generation list|rollback-plan`.
+**UI:** `/generations`.
+**Jobs:** `generation.create`, `rollback.plan`.
+**Artifacts:** generation manifest, rollback plan.
+**Tests:** release creates a generation; previous retained; rollback target
+known; A/B links to generation; healthcheck failure can trigger a rollback plan.
+**Acceptance:** all of the above.
+
+### M61 — Attended Upgrade / Rebuild Service
+
+**Goal:** Rebuild for an existing device/profile while preserving the selected
+package set and user choices.
+**Inputs:** current generation, target channel/version, current package set,
+local overrides, hardware profile, update strategy.
+**DB:** `upgrade_requests`, `upgrade_results`.
+**API:** `POST /v1/upgrades`, `GET /v1/upgrades/{id}`.
+**CLI:** `osfabricumctl upgrade plan|run`.
+**UI:** upgrade flow from a generation/device.
+**Jobs:** `upgrade.plan`, `upgrade.build`, `upgrade.bundle`.
+**Artifacts:** new image, update bundle, diff report, rollback plan.
+**Tests:** existing profile rebuilt for a new version; selected packages
+preserved; missing/incompatible packages reported; upgrade bundle generated.
+**Acceptance:** all of the above.
+
+### M62 — Manifest / Lockfile System
+
+**Goal:** A committable, reproducible `osfabricum.lock`. See
+[`LOCKFILE.md`](LOCKFILE.md).
+**Lockfile includes:** distribution version, profile version, layer revisions,
+package versions, source hashes, toolchain hashes, kernel hashes, config
+hashes, artifact refs, build-env hash.
+**DB:** `lockfiles`, `lockfile_entries`.
+**API:** `POST /v1/plan/lock`, `POST /v1/lock/diff`,
+`POST /v1/builds/from-lock`.
+**CLI:** `osfabricumctl lock generate|diff|build`.
+**UI:** lockfile view on build/profile.
+**Jobs:** `lock.generate`, `lock.verify`.
+**Artifacts:** `osfabricum.lock`.
+**Tests:** generated from build plan; can reproduce the plan; diff works; can
+be committed to Git.
+**Acceptance:** all of the above.
+
+### M63 — Importers from Competitors / Existing Systems
+
+**Goal:** Bootstrap drafts from existing systems.
+**Importers:** Buildroot `.config`, OpenWrt `.config`, Yocto layer metadata,
+Debian package list, Alpine package list, NixOS configuration, existing rootfs,
+existing image, existing kernel `.config`.
+**DB:** `import_jobs`, `import_reports`.
+**API:** `POST /v1/imports/{kind}`, `GET /v1/imports/{id}/report`.
+**CLI:** `osfabricumctl import buildroot|openwrt|yocto|debian|alpine|nixos|
+rootfs|image|kconfig`.
+**UI:** `/imports`.
+**Jobs:** `import.parse`, `import.map`, `import.draft`.
+**Artifacts:** draft distribution/profile, import report.
+**Tests:** import creates a draft; imported data is **not trusted blindly**;
+report shows mapped vs unknown; user can edit the imported profile.
+**Acceptance:** all of the above.
+
+### M64 — Build Analysis Dashboard
+
+**Goal:** Analyze build performance and size. See
+[`BUILD_ANALYSIS.md`](BUILD_ANALYSIS.md).
+**Reports:** build time, task duration, critical path, package size, image
+size, layer usage, recipe usage, warnings/errors, dependency tree, cache
+hit/miss.
+**DB:** derived from `build_events`/`build_jobs`/artifacts; `build_analyses`
+cache.
+**API:** `GET /v1/builds/{id}/analysis`.
+**CLI:** `osfabricumctl builds analysis <id>`.
+**UI:** analysis tab on the build detail page.
+**Jobs:** `build.analyze`.
+**Artifacts:** analysis report.
+**Tests:** slowest jobs visible; largest packages/files visible; cache
+efficiency visible; critical path visible.
+**Acceptance:** all of the above.
+
+### M65 — Size / Footprint Optimizer
+
+**Goal:** Budgets and footprint reduction.
+**Features:** image/rootfs size budgets, largest packages/files, unused
+libraries, debug-symbol stripping, locale pruning, docs pruning, static-vs-
+dynamic comparison, compression comparison.
+**DB:** `size_budgets`, `size_reports`.
+**API:** `GET /v1/builds/{id}/size`, `POST /v1/profiles/{id}/size-budget`.
+**CLI:** `osfabricumctl size report|budget|suggest`.
+**UI:** size tab; budget editor in M28 step 19.
+**Jobs:** `size.analyze`, `size.suggest`.
+**Artifacts:** size report, suggestions.
+**Tests:** budget per profile; build warns/fails on exceed; optimizer suggests
+removable packages/files; size diff between builds.
+**Acceptance:** all of the above.
+
+### M66 — Boot / Performance Profiler
+
+**Goal:** Profile boot and startup.
+**Reports:** boot time, service startup timeline, kernel init timing, userspace
+timing, critical path, slow services.
+**DB:** `boot_profiles`, `boot_samples`.
+**API:** `GET /v1/builds/{id}/boot-profile`.
+**CLI:** `osfabricumctl boot-profile <id>`.
+**UI:** boot timeline on the build detail page.
+**Jobs:** `boot.profile` (QEMU timing / serial capture).
+**Artifacts:** boot profile, serial logs.
+**Tests:** QEMU boot collects timing; hardware boot collects serial; service
+startup report; boot regression visible between builds.
+**Acceptance:** all of the above.
+
+### M67 — Distributed Build Farm / Worker Pools
+
+**Goal:** Route jobs to worker pools (extends M5).
+**Pools:** local, remote, trusted, untrusted, signing-only, hardware-lab,
+qemu-test.
+**Features:** worker labels, job affinity, job locality, artifact locality,
+remote cache, quotas, parallelism limits.
+**DB:** `worker_pools`, `worker_pool_members`, `job_affinities`, `quotas`.
+**API:** `GET/POST /v1/worker-pools`, `GET /v1/worker-pools/{id}`.
+**CLI:** `osfabricumctl worker-pool create|assign|status`.
+**UI:** `/worker-pools`.
+**Jobs:** pool-aware routing in the job dispatcher.
+**Artifacts:** none new.
+**Tests:** jobs target pools; **signing jobs only on trusted/signing**;
+hardware tests only on hardware-lab; pool status visible.
+**Acceptance:** all of the above.
+
+### M68 — Build Isolation / Sandbox Policy
+
+**Goal:** Declared, enforced build isolation (closes G-25).
+**Modes:** none, chroot, bubblewrap, systemd-nspawn, podman/docker, firecracker,
+VM.
+**Policy fields:** network allowed, write access, cache ro/rw, secret access,
+privileged build, allowed mounts, allowed devices.
+**DB:** `isolation_policies`, `recipe_isolation_requirements`.
+**API:** `GET/POST /v1/isolation-policies`; isolation shown in plan.
+**CLI:** `osfabricumctl isolation policy set|show`.
+**UI:** isolation shown on recipe/build plan.
+**Jobs:** sandbox enforcement wraps `package.build`/`kernel.build`.
+**Artifacts:** none new.
+**Tests:** recipe declares isolation; **untrusted recipes cannot access
+secrets**; network disable for reproducible builds; sandbox policy visible in
+the build plan.
+**Acceptance:** all of the above.
+
+### M69 — Public Artifact Repository / Release Publishing
+
+**Goal:** Signed public repository + channels (closes G-11, G-27).
+**Contents:** images, packages, kernel artifacts, firmware, SBOM, attestations,
+release manifests, checksums, signatures.
+**DB:** `repositories`, `repository_indexes`, `release` + `release_artifacts`
+(wired with CLI/job at last).
+**API:** `POST /v1/releases`, `POST /v1/releases/{id}/publish`,
+`GET /v1/repositories/{id}`.
+**CLI:** `osfabricumctl releases list|show|promote|publish` (implements the
+documented-but-missing commands).
+**UI:** `/releases`, `/distributions/{id}/releases`, `/repositories`.
+**Jobs:** `release.publish`, `repo.index`, `artifact.sign`, `artifact.attest`.
+**Artifacts:** repository index, signed manifests, checksums, attached SBOM.
+**Tests:** publish creates an index; artifacts signed; checksums published;
+SBOM attached; channels supported.
+**Acceptance:** all of the above.
+
+### M70 — Documentation Update
+
+**Goal:** Keep docs aligned with the code direction.
+**Update or create:** `docs/IMPLEMENTATION_AUDIT.md`, `docs/GAPS.md`,
+`docs/NEXT_ACTIONS.md`, `docs/ROADMAP.md`, `docs/OS_BUILDER_WIZARD.md`,
+`docs/PACKAGE_WORKSPACE.md`, `docs/KERNEL_DRIVER_DESIGNER.md`,
+`docs/BRANDING_DESIGNER.md`, `docs/GRAPHICAL_SHELL_DESIGNER.md`,
+`docs/LAYER_MODEL.md`, `docs/EXPLAIN_ENGINE.md`, `docs/LOCKFILE.md`,
+`docs/BUILD_ANALYSIS.md`.
+**Acceptance:** docs match code direction; no TinyWifi-centric wording;
+reference distributions clearly separated from core architecture; every designer
+lists DB/API/CLI/UI/jobs/artifacts/tests.
+
+---
+
+## 18c. Core Invariants & Anti-Patterns
+
+These are **forbidden** and must be caught in review/CI. They are the guardrails
+that keep OSFabricum a universal OS factory rather than a single-OS builder.
+
+| # | Anti-pattern | Why it is forbidden |
+|---|--------------|---------------------|
+| 1 | `if distribution == "tinywifi"` | Distributions are data, not code paths. |
+| 2 | `if distribution == "netos"` | Same. |
+| 3 | `if distribution == "ocultum"` | Same. |
+| 4 | Hardcoded package list in the build pipeline | Packages come from profile/package-sets. |
+| 5 | Hardcoded kernel config in the build pipeline | Config comes from the Kconfig-resolved fragments. |
+| 6 | Hardcoded board firmware in the build pipeline | Firmware comes from the board/BSP model. |
+| 7 | Build logic inside the Web UI | UI is a client; it builds nothing. |
+| 8 | Package cache key = `name + version + arch` | Must bind source/recipe/feature/libc/toolchain/ABI hashes. |
+| 9 | Kernel-module cache without `kernel_release + kernel_config_hash + toolchain_hash` | Modules are ABI-bound to the exact kernel build. |
+| 10 | Secret values in logs | Secrets are masked at the worker. |
+| 11 | Pretending a documented-only feature is implemented | Status must reflect code + tests. |
+| 12 | Mixing system and application packages without taxonomy | Use `package_kinds`/`package_layers`. |
+| 13 | Treating branding as only a wallpaper | Branding is a multi-target subsystem. |
+| 14 | Treating the graphical shell as a package checkbox | It is a resolved stack. |
+| 15 | Treating Kconfig as a static global option list | Kconfig is a typed dependency graph. |
+
+**Current state:** zero distribution-name branches exist in `osfabricum/` and
+`apps/` today (verified in `docs/IMPLEMENTATION_AUDIT.md`). This table exists to
+keep it that way as the designers land. A CI grep gate for items 1–3 is part of
+M24/M25.
+
+## 18d. Tests to Add (M24+)
+
+No test may depend on a reference distribution being the **only** valid
+distribution. Coverage to add as the milestones land:
+
+- distribution creation; profile creation; profile inheritance (M25–M27).
+- plan generation **with overrides**; build creation from a plan (M29).
+- package group resolution; package cache-key generation; kernel-config-hash
+  inclusion; driver-bundle resolution (M33, M35, M36).
+- branding-profile resolution; graphical-profile package expansion;
+  application-default generation (M39–M42).
+- layer-override priority; explain-trace generation (M54, M55, M58).
+- lockfile generation; build diff generation (M62, M59).
+
+**Test style:** unit tests for the resolver and models; integration tests for
+API endpoints; CLI tests for key flows; UI tests where the framework allows.
+The first **integration/e2e** suite (closing the empty `tests/integration/` and
+`tests/e2e/`) lands with M28 and proves a **non-reference** distribution
+end-to-end.
 
 ## 20. CLI Reference
 
