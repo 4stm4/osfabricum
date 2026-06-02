@@ -20,6 +20,7 @@ from apps.cli.commands.compose import compose_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.flash import flash_app
 from apps.cli.commands.image import image_app
+from apps.cli.commands.imagetest import test_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
@@ -40,7 +41,7 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     # "toolchain" is registered as a real app below (M6)
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
     # "flash" is registered as a real app below (M21)
-    "test": ("Run image tests", ["run", "list-suites"]),
+    # "test" is registered as a real app below (M22)
     "releases": ("Manage releases and promotion", ["list", "show", "promote", "publish"]),
 }
 
@@ -188,6 +189,7 @@ def _register_groups() -> None:
     app.add_typer(compose_app, name="compose")
     app.add_typer(image_app, name="image")
     app.add_typer(flash_app, name="flash")
+    app.add_typer(test_app, name="test")
     app.add_typer(artifacts_app, name="artifacts")
     app.add_typer(firmware_app, name="firmware")
     app.add_typer(kernel_app, name="kernel")
