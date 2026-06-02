@@ -25,6 +25,7 @@ from apps.cli.commands.imagetest import test_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
+from apps.cli.commands.profile import profile_app
 from apps.cli.commands.rootfs import rootfs_app
 from apps.cli.commands.source import source_app
 from apps.cli.commands.store import store_app
@@ -185,6 +186,7 @@ def _register_groups() -> None:
     app.add_typer(builds_app, name="builds")
     app.add_typer(catalog_app, name="catalog")
     app.add_typer(distribution_app, name="distribution")
+    app.add_typer(profile_app, name="profile")
     app.add_typer(compose_app, name="compose")
     app.add_typer(image_app, name="image")
     app.add_typer(flash_app, name="flash")

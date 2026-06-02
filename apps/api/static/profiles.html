@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Profile Designer</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --red: #f85149; --green: #3fb950;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg); }
+    header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: var(--accent); text-decoration: none; font-size: 13px; margin-left: auto; }
+    main { padding: 24px; max-width: 1000px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); text-transform: uppercase; font-size: 11px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; }
+    form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+    label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+    input, select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--fg);
+      padding: 6px 8px; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    button { background: var(--panel); border: 1px solid var(--border); color: var(--fg);
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+    .empty { color: var(--muted); padding: 16px; }
+    .msg { font-size: 13px; min-height: 18px; margin: 8px 0; }
+    .msg.err { color: var(--red); } .msg.ok { color: var(--green); }
+    .row-acts { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚙ Profile Designer</h1>
+    <a href="/">← Dashboard</a>
+  </header>
+  <main>
+    <div class="panel">
+      <label style="max-width:280px">Distribution
+        <select id="dist" onchange="onDist()"><option value="">— select —</option></select>
+      </label>
+    </div>
+
+    <div class="panel" id="create-panel" style="display:none">
+      <h2>New profile</h2>
+      <form id="create-form">
+        <label>Name<input id="f-name" required placeholder="default"></label>
+        <label>Inherits<input id="f-inherits" placeholder="optional parent"></label>
+        <label>Class<select id="f-class"><option value="">—</option></select></label>
+        <label>Inputs (JSON)<input id="f-inputs" placeholder='{"hostname":"x"}'></label>
+        <button class="primary" type="submit">Create</button>
+      </form>
+      <div class="msg" id="create-msg"></div>
+    </div>
+
+    <div class="panel" id="list-panel" style="display:none">
+      <h2>Profiles</h2>
+      <div class="msg" id="list-msg"></div>
+      <div id="list"><div class="empty">—</div></div>
+    </div>
+  </main>
+
+  <script>
+    // Pure client of the M27 write API; no logic lives here.
+    async function api(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) { let d = `${r.status}`; try { d = (await r.json()).detail || d; } catch {} throw new Error(d); }
+      return r.status === 204 ? null : r.json();
+    }
+    function msg(id, text, ok) {
+      const el = document.getElementById(id); el.textContent = text || "";
+      el.className = "msg " + (text ? (ok ? "ok" : "err") : "");
+    }
+    function dist() { return document.getElementById("dist").value; }
+
+    async function init() {
+      try {
+        for (const d of await api("/v1/distributions"))
+          document.getElementById("dist").add(new Option(d.name, d.name));
+        for (const c of await api("/v1/distribution-classes"))
+          document.getElementById("f-class").add(new Option(c.name, c.name));
+      } catch (e) {}
+    }
+
+    function onDist() {
+      const show = dist() ? "block" : "none";
+      document.getElementById("create-panel").style.display = show;
+      document.getElementById("list-panel").style.display = show;
+      if (dist()) loadList();
+    }
+
+    async function loadList() {
+      const box = document.getElementById("list");
+      try {
+        const rows = await api(`/v1/profiles?distribution=${encodeURIComponent(dist())}`);
+        if (!rows.length) { box.innerHTML = `<div class="empty">No profiles yet.</div>`; return; }
+        box.innerHTML = `<table><thead><tr>
+          <th>Name</th><th>Inherits</th><th>Class</th><th>Package set</th><th></th></tr></thead><tbody>` +
+          rows.map(p => `<tr>
+            <td><strong>${p.name}</strong></td><td>${p.inherits || "—"}</td>
+            <td>${p.class || "—"}</td><td>${p.package_set || "—"}</td>
+            <td><div class="row-acts">
+              <button onclick="snap('${p.name}')">Version</button>
+              <button onclick="cloneP('${p.name}')">Clone</button>
+              <button onclick="delP('${p.name}')">Delete</button>
+            </div></td></tr>`).join("") + `</tbody></table>`;
+      } catch (e) { box.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+    }
+
+    document.getElementById("create-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      let inputs = null;
+      const raw = document.getElementById("f-inputs").value.trim();
+      if (raw) { try { inputs = JSON.parse(raw); } catch { return msg("create-msg", "inputs must be JSON", false); } }
+      const refs = {};
+      const cls = document.getElementById("f-class").value;
+      if (cls) refs.class = cls;
+      const body = {
+        distribution: dist(),
+        name: document.getElementById("f-name").value.trim(),
+        inherits: document.getElementById("f-inherits").value.trim() || null,
+        refs, inputs,
+      };
+      try {
+        await api("/v1/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        msg("create-msg", `Created '${body.name}'`, true);
+        document.getElementById("create-form").reset();
+        loadList();
+      } catch (e) { msg("create-msg", e.message, false); }
+    });
+
+    async function snap(name) {
+      try { const o = await api(`/v1/profiles/${encodeURIComponent(dist())}/${encodeURIComponent(name)}/versions`, { method: "POST" });
+        msg("list-msg", `Snapshotted '${name}' as v${o.version}`, true); }
+      catch (e) { msg("list-msg", e.message, false); }
+    }
+    async function cloneP(name) {
+      const nn = prompt(`Clone '${name}' as:`); if (!nn) return;
+      try { await api(`/v1/profiles/${encodeURIComponent(dist())}/${encodeURIComponent(name)}/clone`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nn }) });
+        msg("list-msg", `Cloned → '${nn}'`, true); loadList(); }
+      catch (e) { msg("list-msg", e.message, false); }
+    }
+    async function delP(name) {
+      if (!confirm(`Delete profile '${name}'?`)) return;
+      try { await api(`/v1/profiles/${encodeURIComponent(dist())}/${encodeURIComponent(name)}`, { method: "DELETE" });
+        msg("list-msg", `Deleted '${name}'`, true); loadList(); }
+      catch (e) { msg("list-msg", e.message, false); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

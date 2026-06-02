@@ -14,6 +14,7 @@ from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import router as plan_router
+from apps.api.routes.profiles_api import router as profiles_router
 from apps.api.routes.workers_api import router as workers_router
 from osfabricum import __version__
 from osfabricum.queue.backend import JobBackend
@@ -43,6 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(model_router)
     # M26: distribution designer (write API)
     app.include_router(distributions_router)
+    # M27: profile designer (write API)
+    app.include_router(profiles_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -89,6 +92,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/distributions", include_in_schema=False)
         def distributions_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "distributions.html"))
+
+        # M27: Profile Designer page (client of the write API)
+        @app.get("/profiles", include_in_schema=False)
+        def profiles_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "profiles.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

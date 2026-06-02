@@ -114,7 +114,8 @@
       },
       async distributions() {
         const data = await api("/v1/distributions");
-        const link = `<p><a href="/distributions" style="color:var(--accent)">→ Open Distribution Designer</a></p>`;
+        const link = `<p><a href="/distributions" style="color:var(--accent)">→ Distribution Designer</a>
+          &nbsp;·&nbsp; <a href="/profiles" style="color:var(--accent)">Profile Designer</a></p>`;
         return link + table(
           [{label:"Name"},{label:"Class"},{label:"Channel"},{label:"Profiles"}],
           data.map(d => [d.name, d.class || "—", d.default_channel, d.profile_count])

@@ -66,19 +66,22 @@ def test_upgrade_then_downgrade_roundtrip(tmp_path: Path, monkeypatch) -> None: 
     cfg = _cfg(db_url)
 
     command.upgrade(cfg, "head")
-    command.downgrade(cfg, "-1")  # 0006 -> 0005
+    command.downgrade(cfg, "0005")  # undo every universal-model migration (M25+)
 
     engine = sa.create_engine(db_url)
     try:
         tables = set(sa.inspect(engine).get_table_names())
         assert "distribution_classes" not in tables
         assert "package_sets" not in tables
+        assert "profile_versions" not in tables
     finally:
         engine.dispose()
 
     command.upgrade(cfg, "head")  # back up cleanly
     engine = sa.create_engine(db_url)
     try:
-        assert "distribution_classes" in set(sa.inspect(engine).get_table_names())
+        tables = set(sa.inspect(engine).get_table_names())
+        assert "distribution_classes" in tables
+        assert "profile_versions" in tables
     finally:
         engine.dispose()

@@ -55,6 +55,9 @@ from osfabricum.db.models import (
     Kernel,
     KernelConfig,
     Overlay,
+    Package,
+    PackageGroupMember,
+    PackageSetMember,
     PackageVersion,
     PartitionLayout,
     Profile,
@@ -82,9 +85,7 @@ _MAX_INHERIT_DEPTH = 32  # guard against inheritance cycles
 # ---------------------------------------------------------------------------
 
 
-def _resolve_profile_chain(
-    profile: Profile, session: Any
-) -> list[Profile]:
+def _resolve_profile_chain(profile: Profile, session: Any) -> list[Profile]:
     """Return the profile chain from *profile* up to the root ancestor.
 
     The first element is *profile*; subsequent elements are its ancestors.
@@ -96,9 +97,7 @@ def _resolve_profile_chain(
         if current.inherits_id is None:
             break
         if current.inherits_id in visited:
-            raise ValueError(
-                f"profile inheritance cycle detected at id={current.inherits_id!r}"
-            )
+            raise ValueError(f"profile inheritance cycle detected at id={current.inherits_id!r}")
         parent: Profile | None = session.scalar(
             select(Profile).where(Profile.id == current.inherits_id)
         )
@@ -123,6 +122,46 @@ def _compute_resolution_hash(payload: dict[str, Any]) -> str:
     data = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
+
+
+def _packages_from_set(session: Any, set_id: str, arch_id: str) -> list[PackageVersion]:
+    """Expand a package set (direct packages + group members) → arch versions."""
+    package_ids: set[str] = set()
+    for member in session.scalars(
+        select(PackageSetMember).where(PackageSetMember.set_id == set_id)
+    ).all():
+        if member.member_kind == "package" and member.package_id:
+            package_ids.add(member.package_id)
+        elif member.member_kind == "group" and member.group_id:
+            for gm in session.scalars(
+                select(PackageGroupMember).where(PackageGroupMember.group_id == member.group_id)
+            ).all():
+                package_ids.add(gm.package_id)
+    if not package_ids:
+        return []
+    return list(
+        session.scalars(
+            select(PackageVersion).where(
+                PackageVersion.package_id.in_(package_ids),
+                PackageVersion.arch_id == arch_id,
+            )
+        ).all()
+    )
+
+
+def _packages_by_name(session: Any, names: list[str], arch_id: str) -> list[PackageVersion]:
+    """Select arch package versions for the named packages (from profile inputs)."""
+    pkg_ids = [p.id for p in session.scalars(select(Package).where(Package.name.in_(names))).all()]
+    if not pkg_ids:
+        return []
+    return list(
+        session.scalars(
+            select(PackageVersion).where(
+                PackageVersion.package_id.in_(pkg_ids),
+                PackageVersion.arch_id == arch_id,
+            )
+        ).all()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +200,6 @@ def resolve_plan(
         If any of the three required entities are not found in the database.
     """
     with sync_session(db_url) as session:
-
         # --- distribution ---
         dist: Distribution | None = session.scalar(
             select(Distribution).where(Distribution.name == distribution_name)
@@ -178,16 +216,21 @@ def resolve_plan(
         )
         if profile is None:
             raise ValueError(
-                f"profile not found: {profile_name!r} "
-                f"(distribution={distribution_name!r})"
+                f"profile not found: {profile_name!r} (distribution={distribution_name!r})"
             )
         profile_chain = _resolve_profile_chain(profile, session)
-        _merged_inputs = _merge_inputs(profile_chain)
+        merged_inputs = _merge_inputs(profile_chain)
+
+        def _pick(attr: str) -> str | None:
+            """Leaf-wins value of a profile column across the inheritance chain."""
+            for chain_profile in profile_chain:
+                value = getattr(chain_profile, attr, None)
+                if value:
+                    return str(value)
+            return None
 
         # --- board & arch ---
-        board: Board | None = session.scalar(
-            select(Board).where(Board.name == board_name)
-        )
+        board: Board | None = session.scalar(select(Board).where(Board.name == board_name))
         if board is None:
             raise ValueError(f"board not found: {board_name!r}")
 
@@ -201,9 +244,12 @@ def resolve_plan(
         # --- toolchain ---
         toolchain_ref: ToolchainRef | None = None
         toolchain_id: str | None = None
-        tc: Toolchain | None = session.scalar(
-            select(Toolchain).where(Toolchain.arch_id == arch.id)
-        )
+        pinned_toolchain = _pick("toolchain_id")
+        tc: Toolchain | None = None
+        if pinned_toolchain:
+            tc = session.get(Toolchain, pinned_toolchain)
+        if tc is None:
+            tc = session.scalar(select(Toolchain).where(Toolchain.arch_id == arch.id))
         if tc is not None:
             toolchain_id = tc.id
             # Prefer the most-recent verified artifact
@@ -223,17 +269,20 @@ def resolve_plan(
         # --- kernel ---
         kernel_ref: KernelRef | None = None
         kernel_id: str | None = None
-        kernel: Kernel | None = session.scalar(
-            select(Kernel).where(
-                Kernel.arch_id == arch.id,
-                Kernel.board_id == board.id,
+        pinned_kernel = _pick("kernel_id")
+        kernel: Kernel | None = None
+        if pinned_kernel:
+            kernel = session.get(Kernel, pinned_kernel)
+        if kernel is None:
+            kernel = session.scalar(
+                select(Kernel).where(
+                    Kernel.arch_id == arch.id,
+                    Kernel.board_id == board.id,
+                )
             )
-        )
         if kernel is None:
             # Fall back: any kernel for this arch
-            kernel = session.scalar(
-                select(Kernel).where(Kernel.arch_id == arch.id)
-            )
+            kernel = session.scalar(select(Kernel).where(Kernel.arch_id == arch.id))
         if kernel is not None:
             kernel_id = kernel.id
             kc: KernelConfig | None = session.scalar(
@@ -250,17 +299,26 @@ def resolve_plan(
             )
 
         # --- packages ---
+        # Package selection is profile-driven (M27, closes G-02):
+        #   1. an explicit profile package_set  → expand its members
+        #   2. a "packages" list in merged profile inputs → those packages
+        #   3. otherwise every package version for the arch (legacy default)
         package_refs: list[PackageRef] = []
         pkg_ver_ids: list[str] = []
-        pvs = session.scalars(
-            select(PackageVersion).where(PackageVersion.arch_id == arch.id)
-        ).all()
-        from osfabricum.db.models import Package  # noqa: PLC0415
+        pinned_set = _pick("package_set_id")
+        inputs_packages = merged_inputs.get("packages")
+        if pinned_set:
+            pvs = _packages_from_set(session, pinned_set, arch.id)
+        elif isinstance(inputs_packages, list):
+            pvs = _packages_by_name(session, [str(n) for n in inputs_packages], arch.id)
+        else:
+            pvs = list(
+                session.scalars(
+                    select(PackageVersion).where(PackageVersion.arch_id == arch.id)
+                ).all()
+            )
 
-        pkg_map: dict[str, str] = {
-            p.id: p.name
-            for p in session.scalars(select(Package)).all()
-        }
+        pkg_map: dict[str, str] = {p.id: p.name for p in session.scalars(select(Package)).all()}
         for pv in pvs:
             pkg_name = pkg_map.get(pv.package_id, pv.package_id)
             status = pv.status if pv.artifact_id else "missing"
@@ -340,11 +398,10 @@ def resolve_plan(
         "toolchain_id": toolchain_id,
         "kernel_id": kernel_id,
         "package_version_ids": sorted(pkg_ver_ids),
-        "firmware_blob_ids": sorted(
-            fw.artifact_id or "" for fw in firmware_refs
-        ),
+        "firmware_blob_ids": sorted(fw.artifact_id or "" for fw in firmware_refs),
         "overlay_ids": sorted(overlay_ids),
         "script_ids": sorted(script_ids),
+        "profile_inputs": merged_inputs,
     }
     resolution_hash = _compute_resolution_hash(hash_payload)
 
@@ -357,9 +414,9 @@ def resolve_plan(
     for pkg in package_refs:
         if pkg.artifact_id is None:
             missing.append(f"package:{pkg.name}:{pkg.version}:{pkg.arch}")
-    for fw in firmware_refs:
-        if fw.required and fw.artifact_id is None:
-            missing.append(f"firmware:{fw.filename}")
+    for fw_ref in firmware_refs:
+        if fw_ref.required and fw_ref.artifact_id is None:
+            missing.append(f"firmware:{fw_ref.filename}")
 
     # --- required jobs ---
     required_jobs: list[str] = []

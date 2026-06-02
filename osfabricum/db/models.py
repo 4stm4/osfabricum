@@ -727,3 +727,19 @@ class ValidationProfile(Base):
     __table_args__ = (
         sa.UniqueConstraint("distribution_id", "name", name="uq_validation_profiles_dist_name"),
     )
+
+
+class ProfileVersion(Base):
+    """An immutable snapshot of a profile's full state (M27 versioning)."""
+
+    __tablename__ = "profile_versions"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("profiles.id"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (sa.UniqueConstraint("profile_id", "version", name="uq_profile_versions_pv"),)
