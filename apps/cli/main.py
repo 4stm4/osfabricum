@@ -17,6 +17,7 @@ from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.builds import builds_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.compose import compose_app
+from apps.cli.commands.distribution import distribution_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.flash import flash_app
 from apps.cli.commands.image import image_app
@@ -34,7 +35,6 @@ from osfabricum import __version__
 # group name -> (help text, subcommand names)
 GROUPS: dict[str, tuple[str, list[str]]] = {
     # "builds" is registered as a real app below (M18)
-
     # "package" is registered as a real app below (M9)
     # "kernel" is registered as a real app below (M10)
     # "firmware" is registered as a real app below (M11)
@@ -132,9 +132,7 @@ def build(
     )
 
     console = _Console()
-    console.print(
-        f"Building [bold]{distribution}/{profile}[/bold] → [bold]{board}[/bold]"
-    )
+    console.print(f"Building [bold]{distribution}/{profile}[/bold] → [bold]{board}[/bold]")
 
     result = run_pipeline(spec)
 
@@ -186,6 +184,7 @@ def _register_groups() -> None:
         app.add_typer(group, name=name)
     app.add_typer(builds_app, name="builds")
     app.add_typer(catalog_app, name="catalog")
+    app.add_typer(distribution_app, name="distribution")
     app.add_typer(compose_app, name="compose")
     app.add_typer(image_app, name="image")
     app.add_typer(flash_app, name="flash")

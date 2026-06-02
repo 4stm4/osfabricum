@@ -113,10 +113,11 @@
         );
       },
       async distributions() {
-        const data = await api("/v1/catalog/distributions");
-        return table(
-          [{label:"Name"},{label:"Description"},{label:"Channel"}],
-          data.map(d => [d.name, d.description || "—", d.default_channel])
+        const data = await api("/v1/distributions");
+        const link = `<p><a href="/distributions" style="color:var(--accent)">→ Open Distribution Designer</a></p>`;
+        return link + table(
+          [{label:"Name"},{label:"Class"},{label:"Channel"},{label:"Profiles"}],
+          data.map(d => [d.name, d.class || "—", d.default_channel, d.profile_count])
         );
       },
       async boards() {

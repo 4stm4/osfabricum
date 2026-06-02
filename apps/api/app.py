@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
+from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import router as plan_router
 from apps.api.routes.workers_api import router as workers_router
@@ -40,6 +41,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(plan_router)
     # M25: universal OS builder model (distribution classes)
     app.include_router(model_router)
+    # M26: distribution designer (write API)
+    app.include_router(distributions_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -81,6 +84,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/", include_in_schema=False)
         def dashboard() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "index.html"))
+
+        # M26: Distribution Designer page (client of the write API)
+        @app.get("/distributions", include_in_schema=False)
+        def distributions_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "distributions.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

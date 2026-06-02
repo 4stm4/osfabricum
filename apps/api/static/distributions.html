@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Distribution Designer</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg);
+    }
+    header {
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    header a { color: var(--accent); text-decoration: none; font-size: 13px; margin-left: auto; }
+    main { padding: 24px; max-width: 1000px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; }
+    .empty { color: var(--muted); padding: 24px; text-align: center; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; margin-bottom: 24px;
+    }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; }
+    form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+    label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+    input, select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--fg);
+      padding: 6px 8px; border-radius: 6px; font-size: 13px;
+    }
+    button {
+      background: var(--panel); border: 1px solid var(--border); color: var(--fg);
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+    button.danger:hover { border-color: var(--red); color: var(--red); }
+    .msg { margin: 8px 0; font-size: 13px; min-height: 18px; }
+    .msg.err { color: var(--red); }
+    .msg.ok { color: var(--green); }
+    td .row-acts { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚙ Distribution Designer</h1>
+    <a href="/">← Dashboard</a>
+  </header>
+  <main>
+    <div class="panel">
+      <h2>New distribution</h2>
+      <form id="create-form">
+        <label>Name<input id="f-name" required placeholder="my-os"></label>
+        <label>Description<input id="f-desc" placeholder="optional"></label>
+        <label>Channel<input id="f-channel" value="dev"></label>
+        <label>Class<select id="f-class"><option value="">—</option></select></label>
+        <button class="primary" type="submit">Create</button>
+      </form>
+      <div class="msg" id="create-msg"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Distributions</h2>
+      <div class="msg" id="list-msg"></div>
+      <div id="list"><div class="empty">Loading…</div></div>
+    </div>
+  </main>
+
+  <script>
+    // The UI is a pure client: it only calls the M26 write API. No build or
+    // distribution logic lives here.
+    async function api(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) {
+        let detail = `${r.status}`;
+        try { detail = (await r.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      return r.status === 204 ? null : r.json();
+    }
+
+    function msg(id, text, ok) {
+      const el = document.getElementById(id);
+      el.textContent = text || "";
+      el.className = "msg " + (text ? (ok ? "ok" : "err") : "");
+    }
+
+    async function loadClasses() {
+      try {
+        const classes = await api("/v1/distribution-classes");
+        const sel = document.getElementById("f-class");
+        for (const c of classes) {
+          const opt = document.createElement("option");
+          opt.value = opt.textContent = c.name;
+          sel.appendChild(opt);
+        }
+      } catch (e) { /* classes optional */ }
+    }
+
+    async function loadList() {
+      const box = document.getElementById("list");
+      try {
+        const rows = await api("/v1/distributions");
+        if (!rows.length) { box.innerHTML = `<div class="empty">No distributions yet.</div>`; return; }
+        const body = rows.map(d => `
+          <tr>
+            <td><strong>${d.name}</strong></td>
+            <td>${d.class || "—"}</td>
+            <td>${d.default_channel}</td>
+            <td>${d.profile_count}</td>
+            <td><div class="row-acts">
+              <button onclick="cloneDist('${d.name}')">Clone</button>
+              <button onclick="exportDist('${d.name}')">Export</button>
+              <button class="danger" onclick="deleteDist('${d.name}')">Delete</button>
+            </div></td>
+          </tr>`).join("");
+        box.innerHTML = `<table><thead><tr>
+          <th>Name</th><th>Class</th><th>Channel</th><th>Profiles</th><th></th>
+        </tr></thead><tbody>${body}</tbody></table>`;
+      } catch (e) {
+        box.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+      }
+    }
+
+    document.getElementById("create-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const body = {
+        name: document.getElementById("f-name").value.trim(),
+        description: document.getElementById("f-desc").value.trim() || null,
+        default_channel: document.getElementById("f-channel").value.trim() || "dev",
+        class: document.getElementById("f-class").value || null,
+      };
+      try {
+        await api("/v1/distributions", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        msg("create-msg", `Created '${body.name}'`, true);
+        document.getElementById("create-form").reset();
+        document.getElementById("f-channel").value = "dev";
+        loadList();
+      } catch (e) { msg("create-msg", e.message, false); }
+    });
+
+    async function cloneDist(name) {
+      const newName = prompt(`Clone '${name}' as:`);
+      if (!newName) return;
+      try {
+        await api(`/v1/distributions/${encodeURIComponent(name)}/clone`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newName }),
+        });
+        msg("list-msg", `Cloned '${name}' → '${newName}'`, true);
+        loadList();
+      } catch (e) { msg("list-msg", e.message, false); }
+    }
+
+    async function deleteDist(name) {
+      if (!confirm(`Delete distribution '${name}'?`)) return;
+      try {
+        await api(`/v1/distributions/${encodeURIComponent(name)}`, { method: "DELETE" });
+        msg("list-msg", `Deleted '${name}'`, true);
+        loadList();
+      } catch (e) { msg("list-msg", e.message, false); }
+    }
+
+    async function exportDist(name) {
+      try {
+        const doc = await api(`/v1/distributions/${encodeURIComponent(name)}/export`);
+        const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `${name}.json`; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { msg("list-msg", e.message, false); }
+    }
+
+    loadClasses();
+    loadList();
+  </script>
+</body>
+</html>
