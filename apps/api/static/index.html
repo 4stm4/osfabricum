@@ -96,10 +96,13 @@
         const data = await api("/v1/builds?limit=50");
         const link = `<p><a href="/build/new" style="color:var(--accent)">→ New Build (Wizard)</a></p>`;
         return link + table(
-          [{label:"ID",mono:true},{label:"Status"},{label:"Hash",mono:true},{label:"Created"}],
+          [{label:"Build"},{label:"Board"},{label:"Arch"},{label:"Status"},{label:"Hash",mono:true},{label:"Created"}],
           data.map(b => [
-            b.id.slice(0, 8), badge(b.status),
-            (b.resolution_hash || "").slice(0, 24), b.created_at || "",
+            `<b>${b.distribution || "?"}/${b.profile || "?"}</b>` +
+              ` <span style="color:var(--muted)">${b.id.slice(0, 8)}</span>`,
+            b.board || "—", b.arch || "—", badge(b.status),
+            (b.resolution_hash || "").replace("sha256:", "").slice(0, 12) || "—",
+            fmtDate(b.created_at),
           ])
         );
       },
@@ -146,6 +149,10 @@
       if (n < 1024) return n + " B";
       if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
       return (n / 1048576).toFixed(1) + " MB";
+    }
+
+    function fmtDate(iso) {
+      return iso ? iso.replace("T", " ").slice(0, 19) : "—";
     }
 
     async function loadCurrent() {

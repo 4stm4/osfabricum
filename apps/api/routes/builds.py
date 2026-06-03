@@ -53,6 +53,11 @@ class BuildListItem(BaseModel):
     distribution_id: str
     profile_id: str
     board_id: str
+    distribution: str | None = None
+    profile: str | None = None
+    board: str | None = None
+    arch: str | None = None
+    resolution_hash: str | None = None
     status: str
     created_at: str | None
 
@@ -100,7 +105,12 @@ def list_builds_api(
     board_id: Annotated[str | None, Query(description="Filter by board UUID")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[BuildListItem]:
-    """List builds with optional filters."""
+    """List builds with optional filters (resolved to readable names)."""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from osfabricum.db.models import Architecture, Board, Distribution, Profile  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
     db_url = _get_db_url(request)
     builds = search_builds(
         distribution_name=distribution,
@@ -109,17 +119,31 @@ def list_builds_api(
         limit=limit,
         db_url=db_url,
     )
-    return [
-        BuildListItem(
-            id=b.id,
-            distribution_id=b.distribution_id,
-            profile_id=b.profile_id,
-            board_id=b.board_id,
-            status=b.status,
-            created_at=b.created_at.isoformat() if b.created_at else None,
+    with sync_session(db_url) as s:
+        dist_names = {d.id: d.name for d in s.scalars(select(Distribution)).all()}
+        prof_names = {p.id: p.name for p in s.scalars(select(Profile)).all()}
+        boards = {b.id: b for b in s.scalars(select(Board)).all()}
+        arch_names = {a.id: a.name for a in s.scalars(select(Architecture)).all()}
+
+    items: list[BuildListItem] = []
+    for b in builds:
+        board = boards.get(b.board_id)
+        items.append(
+            BuildListItem(
+                id=b.id,
+                distribution_id=b.distribution_id,
+                profile_id=b.profile_id,
+                board_id=b.board_id,
+                distribution=dist_names.get(b.distribution_id),
+                profile=prof_names.get(b.profile_id),
+                board=board.name if board is not None else None,
+                arch=arch_names.get(board.arch_id) if board is not None else None,
+                resolution_hash=b.resolution_hash,
+                status=b.status,
+                created_at=b.created_at.isoformat() if b.created_at else None,
+            )
         )
-        for b in builds
-    ]
+    return items
 
 
 @router.get("/{build_id}", response_model=BuildSummaryResponse)
