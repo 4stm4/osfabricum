@@ -729,6 +729,29 @@ class ValidationProfile(Base):
     )
 
 
+class BuildDraft(Base):
+    """A saved, resumable Build Wizard session (M28).
+
+    Carries the same shape as a ``POST /v1/plan`` request, so a draft is simply
+    a plan request not yet submitted as a build.
+    """
+
+    __tablename__ = "build_drafts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    source_kind: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="new")
+    distribution: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    profile: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    board: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    overrides_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    status: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="draft")
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+
 class ProfileVersion(Base):
     """An immutable snapshot of a profile's full state (M27 versioning)."""
 

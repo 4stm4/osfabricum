@@ -94,7 +94,8 @@
     const renderers = {
       async builds() {
         const data = await api("/v1/builds?limit=50");
-        return table(
+        const link = `<p><a href="/build/new" style="color:var(--accent)">→ New Build (Wizard)</a></p>`;
+        return link + table(
           [{label:"ID",mono:true},{label:"Status"},{label:"Hash",mono:true},{label:"Created"}],
           data.map(b => [
             b.id.slice(0, 8), badge(b.status),

@@ -12,6 +12,7 @@ from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
+from apps.api.routes.drafts_api import router as drafts_router
 from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
@@ -49,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(distributions_router)
     # M27: profile designer (write API)
     app.include_router(profiles_router)
+    # M28: build wizard drafts
+    app.include_router(drafts_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -100,6 +103,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/profiles", include_in_schema=False)
         def profiles_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "profiles.html"))
+
+        # M28: Universal Build Wizard (client of the plan/build write API)
+        @app.get("/build/new", include_in_schema=False)
+        def build_wizard_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "build_new.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

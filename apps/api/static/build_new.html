@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Build Wizard</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --red: #f85149; --green: #3fb950;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg); }
+    header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: var(--accent); text-decoration: none; font-size: 13px; margin-left: auto; }
+    main { padding: 24px; max-width: 900px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .panel h2 { margin: 0 0 12px; font-size: 13px; color: var(--muted); text-transform: uppercase; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    input, select { width: 100%; max-width: 360px; display: block; margin-top: 4px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { background: var(--panel); border: 1px solid var(--border); color: var(--fg);
+      padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .msg { font-size: 13px; min-height: 18px; margin: 8px 0; }
+    .msg.err { color: var(--red); } .msg.ok { color: var(--green); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+    .kv { color: var(--muted); } .kv b { color: var(--fg); font-weight: 600; }
+    .missing { color: var(--red); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚙ Build Wizard</h1>
+    <a href="/">← Dashboard</a>
+  </header>
+  <main>
+    <div class="panel">
+      <h2>1 · Target</h2>
+      <label>Distribution
+        <select id="dist" onchange="onDist()"><option value="">— select —</option></select>
+      </label>
+      <label>Profile
+        <select id="profile"><option value="">— select distribution first —</option></select>
+      </label>
+      <label>Board
+        <select id="board"><option value="">— select —</option></select>
+      </label>
+    </div>
+
+    <div class="panel">
+      <h2>2 · Overrides (optional)</h2>
+      <label>Package set <input id="ov-package-set" placeholder="leave blank for profile default"></label>
+      <label>Kernel <input id="ov-kernel" placeholder="optional kernel name"></label>
+    </div>
+
+    <div class="panel">
+      <h2>3 · Review plan</h2>
+      <div class="actions">
+        <button onclick="preview()">Preview plan</button>
+        <span class="msg" id="plan-msg"></span>
+      </div>
+      <div id="plan"></div>
+    </div>
+
+    <div class="panel">
+      <h2>4 · Actions</h2>
+      <div class="actions">
+        <button onclick="saveDraft()">Save draft</button>
+        <button class="primary" onclick="build()">Build</button>
+        <span class="msg" id="action-msg"></span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Pure client of the M28/M29 write API. No build logic in the UI.
+    let draftId = new URLSearchParams(location.search).get("draft");
+
+    async function api(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) { let d = `${r.status}`; try { d = (await r.json()).detail || d; } catch {} throw new Error(d); }
+      return r.status === 204 ? null : r.json();
+    }
+    function msg(id, text, ok) { const el = document.getElementById(id); el.textContent = text || ""; el.className = "msg " + (text ? (ok ? "ok" : "err") : ""); }
+    const $ = (id) => document.getElementById(id);
+
+    function request() {
+      const overrides = {};
+      if ($("ov-package-set").value.trim()) overrides.package_set = $("ov-package-set").value.trim();
+      if ($("ov-kernel").value.trim()) overrides.kernel = $("ov-kernel").value.trim();
+      return {
+        distribution: $("dist").value, profile: $("profile").value, board: $("board").value,
+        overrides: Object.keys(overrides).length ? overrides : null,
+      };
+    }
+
+    async function init() {
+      try {
+        for (const d of await api("/v1/distributions")) $("dist").add(new Option(d.name, d.name));
+        for (const b of await api("/v1/catalog/boards")) $("board").add(new Option(b.name, b.name));
+      } catch (e) {}
+      if (draftId) {
+        try {
+          const d = await api(`/v1/build-drafts/${draftId}`);
+          $("dist").value = d.distribution || ""; await onDist();
+          $("profile").value = d.profile || ""; $("board").value = d.board || "";
+          if (d.overrides) { $("ov-package-set").value = d.overrides.package_set || ""; $("ov-kernel").value = d.overrides.kernel || ""; }
+          msg("action-msg", `Loaded draft ${draftId.slice(0,8)}`, true);
+        } catch (e) {}
+      }
+    }
+
+    async function onDist() {
+      const sel = $("profile");
+      sel.innerHTML = `<option value="">— select —</option>`;
+      if (!$("dist").value) return;
+      try {
+        for (const p of await api(`/v1/profiles?distribution=${encodeURIComponent($("dist").value)}`))
+          sel.add(new Option(p.name, p.name));
+      } catch (e) {}
+    }
+
+    async function preview() {
+      msg("plan-msg", "resolving…");
+      try {
+        const plan = await api("/v1/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request()) });
+        const pkgs = plan.packages.map(p => `${p.name} ${p.version} <span class="${p.status === 'missing' ? 'missing' : ''}">(${p.status})</span>`).join("<br>") || "—";
+        const missing = (plan.missing_artifacts || []).length;
+        $("plan").innerHTML = `
+          <p class="kv">hash: <b>${(plan.resolution_hash||'').slice(0,28)}</b> ·
+             arch: <b>${plan.arch}</b> ·
+             kernel: <b>${plan.kernel ? plan.kernel.name : '—'}</b> ·
+             toolchain: <b>${plan.toolchain ? plan.toolchain.name : '—'}</b></p>
+          <p class="kv">packages:</p><p>${pkgs}</p>
+          <p class="${missing ? 'missing' : 'kv'}">missing artifacts: <b>${missing}</b>
+             ${missing ? '— ' + plan.missing_artifacts.join(', ') : ''}</p>`;
+        msg("plan-msg", "resolved", true);
+      } catch (e) { msg("plan-msg", e.message, false); $("plan").innerHTML = ""; }
+    }
+
+    async function saveDraft() {
+      try {
+        const body = { ...request(), source_kind: "new" };
+        if (draftId) { await api(`/v1/build-drafts/${draftId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
+        else {
+          const d = await api("/v1/build-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          draftId = d.id; history.replaceState(null, "", `/build/new?draft=${draftId}`);
+        }
+        msg("action-msg", `Draft saved (${draftId.slice(0,8)})`, true);
+      } catch (e) { msg("action-msg", e.message, false); }
+    }
+
+    async function build() {
+      if (!$("dist").value || !$("profile").value || !$("board").value)
+        return msg("action-msg", "select distribution, profile and board", false);
+      try {
+        const out = await api("/v1/builds", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request()) });
+        if (draftId) await api(`/v1/build-drafts/${draftId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "built" }) }).catch(() => {});
+        msg("action-msg", `Build ${out.build_id.slice(0,8)} queued (hash ${out.resolution_hash.slice(0,16)})`, true);
+      } catch (e) { msg("action-msg", e.message, false); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

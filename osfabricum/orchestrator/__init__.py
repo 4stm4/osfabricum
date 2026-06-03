@@ -17,17 +17,29 @@ from osfabricum.orchestrator.build import (
     register_build_handler,
     run_queued_build,
 )
+from osfabricum.orchestrator.draft import (
+    create_draft,
+    delete_draft,
+    get_draft,
+    list_drafts,
+    update_draft,
+)
 from osfabricum.orchestrator.plan import diff_plans, resolve_plan_request, validate_plan
 
 __all__ = [
     "BUILD_JOB_KIND",
     "clone_build_as_profile",
     "create_build",
+    "create_draft",
+    "delete_draft",
     "diff_plans",
+    "get_draft",
+    "list_drafts",
     "prefetch_report",
     "rebuild",
     "register_build_handler",
     "resolve_plan_request",
     "run_queued_build",
+    "update_draft",
     "validate_plan",
 ]
