@@ -250,3 +250,90 @@ def cancel_build_api(build_id: str, request: Request) -> dict[str, str]:
         )
     update_build_status(build_id, "cancelled", db_url=db_url)
     return {"id": build_id, "status": "cancelled"}
+
+
+# ---------------------------------------------------------------------------
+# Write API (M29) — create / rebuild / clone-as-profile / artifacts
+# ---------------------------------------------------------------------------
+
+
+class CreateBuildRequest(BaseModel):
+    distribution: str
+    profile: str
+    board: str
+    store_root: str | None = None
+    overrides: dict[str, Any] | None = None
+
+
+class CloneAsProfileRequest(BaseModel):
+    name: str
+
+
+def _build_guard(exc: ValueError) -> HTTPException:
+    status = 404 if "not found" in str(exc) else 400
+    return HTTPException(status_code=status, detail=str(exc))
+
+
+@router.post("", status_code=201)
+def create_build_api(body: CreateBuildRequest, request: Request) -> dict[str, Any]:
+    """Create a build: resolve plan, record it, enqueue a build.run job."""
+    from osfabricum import orchestrator  # noqa: PLC0415
+
+    try:
+        return orchestrator.create_build(
+            distribution=body.distribution,
+            profile=body.profile,
+            board=body.board,
+            store_root=body.store_root,
+            overrides=body.overrides,
+            db_url=_get_db_url(request),
+        )
+    except ValueError as exc:
+        raise _build_guard(exc) from exc
+
+
+@router.post("/{build_id}/rebuild", status_code=201)
+def rebuild_api(build_id: str, request: Request) -> dict[str, Any]:
+    from osfabricum import orchestrator  # noqa: PLC0415
+
+    try:
+        return orchestrator.rebuild(build_id, db_url=_get_db_url(request))
+    except ValueError as exc:
+        raise _build_guard(exc) from exc
+
+
+@router.post("/{build_id}/clone-as-profile", status_code=201)
+def clone_as_profile_api(
+    build_id: str, body: CloneAsProfileRequest, request: Request
+) -> dict[str, Any]:
+    from osfabricum import orchestrator  # noqa: PLC0415
+
+    try:
+        return orchestrator.clone_build_as_profile(build_id, body.name, db_url=_get_db_url(request))
+    except ValueError as exc:
+        raise _build_guard(exc) from exc
+
+
+@router.get("/{build_id}/artifacts")
+def build_artifacts_api(build_id: str, request: Request) -> list[dict[str, Any]]:
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from osfabricum.db.models import Artifact  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    db_url = _get_db_url(request)
+    if get_build(build_id, db_url=db_url) is None:
+        raise HTTPException(status_code=404, detail=f"Build {build_id!r} not found")
+    with sync_session(db_url) as s:
+        rows = s.scalars(select(Artifact).where(Artifact.producer_build_id == build_id)).all()
+        return [
+            {
+                "id": a.id,
+                "kind": a.kind,
+                "name": a.name,
+                "arch": a.arch,
+                "blob_sha256": a.blob_sha256,
+                "size_bytes": a.size_bytes,
+            }
+            for a in rows
+        ]

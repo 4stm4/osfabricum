@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from osfabricum.composer.rootfs import RootfsComposeSpec, compose_rootfs
 from osfabricum.image.composer import ImageSpec, compose_image
@@ -83,6 +84,11 @@ class PipelineSpec:
     hostname: str = "osfabricum"
     kernel_src_dir: Path | None = None
     extra_boot_files: dict[str, bytes] = field(default_factory=dict)
+    build_id: str | None = None
+    """Use an existing Build record (created by the Build API, M29) instead of
+    creating a new one. When set, the pipeline runs *that* build."""
+    overrides: dict[str, Any] | None = None
+    """Id-based resolver overrides (M29) applied during plan resolution."""
 
 
 @dataclass
@@ -130,7 +136,8 @@ def _run_step(
     except Exception as exc:
         update_build_job(job_id, "failed", db_url=db_url)
         log_build_event(
-            build_id, "step.failed",
+            build_id,
+            "step.failed",
             {"step": step_kind, "error": str(exc)},
             job_id=job_id,
             db_url=db_url,
@@ -163,12 +170,13 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
 
     # ---- 1. Resolve plan ----
     try:
-        logs.append(
-            f"[pipeline] resolving plan: "
-            f"{spec.distribution}/{spec.profile} → {spec.board}"
-        )
+        logs.append(f"[pipeline] resolving plan: {spec.distribution}/{spec.profile} → {spec.board}")
         plan = resolve_plan(
-            spec.distribution, spec.profile, spec.board, db_url=spec.db_url
+            spec.distribution,
+            spec.profile,
+            spec.board,
+            db_url=spec.db_url,
+            overrides=spec.overrides,
         )
         logs.append(f"[pipeline] resolution_hash: {plan.resolution_hash}")
         logs.append(
@@ -182,8 +190,18 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             logs=logs,
         )
 
-    # ---- 2. Create Build record ----
-    if spec.db_url is not None and plan.distribution_id and plan.profile_id and plan.board_id:
+    # ---- 2. Build record (reuse the API-created one, or create our own) ----
+    if spec.build_id is not None:
+        build_id = spec.build_id
+        try:
+            update_build_status(build_id, "running", db_url=spec.db_url)
+            log_build_event(
+                build_id, "build.start", {"plan": plan.resolution_hash}, db_url=spec.db_url
+            )
+            logs.append(f"[pipeline] build_id (existing): {build_id}")
+        except Exception as exc:
+            logs.append(f"[pipeline] WARNING: could not update Build record: {exc}")
+    elif spec.db_url is not None and plan.distribution_id and plan.profile_id and plan.board_id:
         try:
             build_id = create_build(
                 distribution_id=plan.distribution_id,
@@ -193,7 +211,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 db_url=spec.db_url,
             )
             log_build_event(
-                build_id, "build.start",
+                build_id,
+                "build.start",
                 {"plan": plan.resolution_hash},
                 db_url=spec.db_url,
             )
@@ -231,6 +250,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
 
             def _kernel_step():
                 from osfabricum.kernel.build import build_kernel as _bk  # noqa: PLC0415
+
                 return _bk(
                     plan.kernel.name,  # type: ignore[union-attr]
                     store_root=spec.store_root,
@@ -253,6 +273,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             else:
                 # No DB — run directly
                 from osfabricum.kernel.build import build_kernel as _bk  # noqa: PLC0415
+
                 kr = _bk(
                     plan.kernel.name,
                     store_root=spec.store_root,
@@ -267,11 +288,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     return _fail(f"kernel build failed: {kr.error}", "kernel.build")
 
     # ---- 4. Collect package artifacts already in store ----
-    package_artifact_ids = [
-        pkg.artifact_id
-        for pkg in plan.packages
-        if pkg.artifact_id is not None
-    ]
+    package_artifact_ids = [pkg.artifact_id for pkg in plan.packages if pkg.artifact_id is not None]
     if plan.packages:
         missing_pkgs = [p.name for p in plan.packages if p.artifact_id is None]
         if missing_pkgs:
@@ -281,12 +298,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             )
 
     # ---- 5. Collect firmware + overlay artifacts ----
-    firmware_artifact_ids = [
-        fw.artifact_id for fw in plan.firmware if fw.artifact_id is not None
-    ]
-    overlay_artifact_ids = [
-        ov.artifact_id for ov in plan.overlays if ov.artifact_id is not None
-    ]
+    firmware_artifact_ids = [fw.artifact_id for fw in plan.firmware if fw.artifact_id is not None]
+    overlay_artifact_ids = [ov.artifact_id for ov in plan.overlays if ov.artifact_id is not None]
 
     # ---- 6. Base rootfs ----
     base_rootfs_artifact_id: str | None = None
@@ -372,7 +385,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             kernel_artifact_id=kernel_artifact_id,
             firmware_artifact_ids=firmware_artifact_ids,
             extra_boot_files=spec.extra_boot_files,
-            boot_size_mb=4,   # small default — operators can override via spec
+            boot_size_mb=4,  # small default — operators can override via spec
             rootfs_size_mb=16,
         )
 
@@ -408,9 +421,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
         except Exception:
             pass
 
-    logs.append(
-        f"[pipeline] DONE — steps: {steps_completed}"
-    )
+    logs.append(f"[pipeline] DONE — steps: {steps_completed}")
 
     return PipelineResult(
         success=True,

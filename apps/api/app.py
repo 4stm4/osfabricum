@@ -13,6 +13,7 @@ from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.model_api import router as model_router
+from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
 from apps.api.routes.profiles_api import router as profiles_router
 from apps.api.routes.workers_api import router as workers_router
@@ -40,6 +41,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(artifacts_router)
     app.include_router(workers_router)
     app.include_router(plan_router)
+    # M29: plan write API + prefetch
+    app.include_router(prefetch_router)
     # M25: universal OS builder model (distribution classes)
     app.include_router(model_router)
     # M26: distribution designer (write API)

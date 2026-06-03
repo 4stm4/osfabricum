@@ -129,6 +129,12 @@ def run_worker(
         poll_interval_s=poll_interval_s,
         lease_ttl_s=60,
     )
+
+    # M29: this worker can execute queued builds (build.run jobs).
+    from osfabricum.orchestrator import register_build_handler  # noqa: PLC0415
+
+    register_build_handler(loop, db_url=effective_db_url, store_root=settings.store.root)
+
     loop.run(stop_event)
 
     log.info("worker stopped", extra={"fields": {"worker_id": worker_id}})

@@ -175,6 +175,7 @@ def resolve_plan(
     board_name: str,
     *,
     db_url: str | None = None,
+    overrides: dict[str, Any] | None = None,
 ) -> BuildPlan:
     """Resolve a full build plan for the given triple.
 
@@ -198,7 +199,13 @@ def resolve_plan(
     ------
     ValueError
         If any of the three required entities are not found in the database.
+
+    overrides:
+        Optional id/value map that supersedes the profile selections
+        (``package_set_id``, ``kernel_id``, ``toolchain_id``, ``packages``,
+        ``inputs``). Used by the Plan API (M29) for wizard "what-if" plans.
     """
+    override = overrides or {}
     with sync_session(db_url) as session:
         # --- distribution ---
         dist: Distribution | None = session.scalar(
@@ -220,9 +227,13 @@ def resolve_plan(
             )
         profile_chain = _resolve_profile_chain(profile, session)
         merged_inputs = _merge_inputs(profile_chain)
+        if isinstance(override.get("inputs"), dict):
+            merged_inputs = {**merged_inputs, **override["inputs"]}
 
         def _pick(attr: str) -> str | None:
-            """Leaf-wins value of a profile column across the inheritance chain."""
+            """Override, then leaf-wins profile column across the chain."""
+            if override.get(attr):
+                return str(override[attr])
             for chain_profile in profile_chain:
                 value = getattr(chain_profile, attr, None)
                 if value:
@@ -306,7 +317,9 @@ def resolve_plan(
         package_refs: list[PackageRef] = []
         pkg_ver_ids: list[str] = []
         pinned_set = _pick("package_set_id")
-        inputs_packages = merged_inputs.get("packages")
+        inputs_packages = override.get("packages")
+        if inputs_packages is None:
+            inputs_packages = merged_inputs.get("packages")
         if pinned_set:
             pvs = _packages_from_set(session, pinned_set, arch.id)
         elif isinstance(inputs_packages, list):

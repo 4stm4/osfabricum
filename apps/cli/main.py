@@ -172,9 +172,36 @@ def plan(
 def prefetch(
     target: Annotated[str, typer.Argument(help="<distribution>/<profile>")],
     board: Annotated[str, typer.Option("--board", help="Target board")],
+    db_url: Annotated[
+        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL", help="DB URL override")
+    ] = None,
 ) -> None:
-    """Download all sources and toolchains for a build plan."""
-    _not_implemented(f"prefetch {target} --board {board}")
+    """Report sources / toolchains / packages a build plan would need (M29)."""
+    from rich.console import Console as _Console  # noqa: PLC0415
+
+    from osfabricum import orchestrator  # noqa: PLC0415
+
+    parts = target.split("/", 1)
+    if len(parts) != 2 or not all(parts):
+        typer.echo("ERROR: target must be <distribution>/<profile>", err=True)
+        raise typer.Exit(code=1)
+    distribution, profile = parts
+    try:
+        report = orchestrator.prefetch_report(
+            distribution=distribution, profile=profile, board=board, db_url=db_url
+        )
+    except ValueError as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+
+    console = _Console()
+    console.print(f"[bold]prefetch {distribution}/{profile} → {board}[/bold]")
+    console.print(f"  toolchain: {report['toolchain'] or '—'}")
+    console.print(f"  kernel:    {report['kernel'] or '—'}")
+    for job in report["fetch_jobs"]:
+        console.print(f"  • {job}")
+    if not report["fetch_jobs"]:
+        console.print("  [green]nothing to fetch[/green]")
 
 
 def _register_groups() -> None:
