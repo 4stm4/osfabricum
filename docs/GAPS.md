@@ -22,6 +22,12 @@ Severity scale:
 
 ## S1 — Structural gaps
 
+> **Update (2026-06): all three structural gaps are resolved.** G-01 (write
+> API) and G-02 (resolver) are fully closed; G-03 (in-process pipeline) is
+> resolved at the dispatch level — builds now run as queue-backed jobs on a
+> worker — with fine-grained per-package fan-out left as a refinement (M67).
+> See per-gap status below.
+
 ### G-01 — Write API does not exist
 - **Evidence:** Every `apps/api/routes/*` endpoint is read-only except
   `POST /v1/builds/{id}/cancel`. No `POST /v1/builds`, `POST /v1/plan`,
@@ -34,6 +40,9 @@ Severity scale:
 - **Closed by:** **M26** (distribution write API), **M27** (profile write API),
   **M29** (Plan + Build write API). Auth enforcement on writes: **M14 follow-up
   in M29**.
+- **Status: ✅ Resolved.** Write endpoints exist for distributions, profiles,
+  plan (with overrides), prefetch, and builds, each with CLI + a designer UI
+  page. Auth enforcement on writes remains a hardening follow-up (G-24).
 
 ### G-02 — Resolver ignores the profile
 - **Evidence:** `osfabricum/resolver/resolver.py:185` computes
@@ -47,6 +56,10 @@ Severity scale:
 - **Closed by:** **M27** (profile fields → resolver inputs), **M35** (package
   sets/groups), **M55** (overrides/masking). Dependency topological sort using
   `package_dependencies`: **M35/M57**.
+- **Status: ✅ Resolved.** `resolve_plan` consumes the profile's `package_set`
+  (and an `inputs.packages` list), plus pinned `kernel`/`toolchain` and M29
+  overrides; two profiles on the same arch resolve to different package sets
+  (regression-tested). Dependency topological sort remains for M35/M57.
 
 ### G-03 — Build pipeline is in-process, not a job graph
 - **Evidence:** `osfabricum/pipeline/coordinator.py` `run_pipeline()` calls
@@ -58,6 +71,11 @@ Severity scale:
 - **Blocks:** Build Wizard, distributed build farm, sandboxed builds.
 - **Closed by:** **M29** (Build API dispatches a pyjobkit job graph), **M28**
   (wizard → build), **M67** (worker pools), **M68** (isolation).
+- **Status: ◑ Resolved at dispatch level (M29).** `POST /v1/builds` creates a
+  Build and enqueues a queue-backed `build.run` job that a worker executes via
+  the pipeline — off the in-process-only path. `osfabricumctl prefetch`/`build`
+  exist. Remaining: fine-grained per-package fan-out (resolve→fetch∥build→
+  compose) and per-step worker routing — **M67**.
 
 ---
 

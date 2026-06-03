@@ -412,6 +412,16 @@ G-01/G-02/G-03):
 
 M24–M29 close these three before the designer milestones (M30+) land.
 
+> **Progress (2026-06).** M24–M27 and M29 have landed, and **all three
+> structural gaps are resolved**: G-01 (write API) via the Distribution
+> Designer (M26), Profile Designer (M27), and Plan/Build API (M29); G-02
+> (resolver consumes the profile) via M27; G-03 via M29 (builds dispatch as
+> queue-backed `build.run` jobs executed by a worker — fine-grained fan-out
+> deferred to M67). Each milestone shipped its full vertical (DB → migration →
+> service → API → CLI → UI → tests) and is committed. See `docs/GAPS.md` for
+> per-gap status. Next: M28 (Build Wizard) completes Phase 4.0, then the
+> designer milestones M30+.
+
 ## 8. Milestones
 ### Phase 0 — Foundation
 | # | Milestone | Goal | Effort |
