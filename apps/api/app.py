@@ -15,6 +15,7 @@ from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.drafts_api import router as drafts_router
+from apps.api.routes.initramfs_api import router as initramfs_router
 from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
@@ -58,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(boards_router)
     # M31: boot chain designer (write API)
     app.include_router(bootchain_router)
+    # M32: initramfs designer (write API)
+    app.include_router(initramfs_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

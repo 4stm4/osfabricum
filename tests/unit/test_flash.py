@@ -139,9 +139,7 @@ def test_flash_bytes_refuses_unlisted_device(tmp_path: Path) -> None:
 
 def test_flash_bytes_dry_run(tmp_path: Path) -> None:
     dev = tmp_path / "device.img"
-    result = flash_image_bytes(
-        b"data" * 100, str(dev), allowlist=[str(dev)], dry_run=True
-    )
+    result = flash_image_bytes(b"data" * 100, str(dev), allowlist=[str(dev)], dry_run=True)
     assert result.success is True
     assert result.dry_run is True
     assert result.bytes_written == 0
@@ -176,9 +174,7 @@ def test_flash_bytes_sha256_recorded(tmp_path: Path) -> None:
 
 def test_flash_bytes_glob_allowlist(tmp_path: Path) -> None:
     dev = tmp_path / "sdcard.img"
-    result = flash_image_bytes(
-        b"data" * 10, str(dev), allowlist=[str(tmp_path / "*.img")]
-    )
+    result = flash_image_bytes(b"data" * 10, str(dev), allowlist=[str(tmp_path / "*.img")])
     assert result.success is True
 
 
@@ -186,9 +182,7 @@ def test_flash_bytes_multiblock(tmp_path: Path) -> None:
     """Write data larger than a single block."""
     dev = tmp_path / "device.img"
     data = b"\x01\x02\x03\x04" * 100_000  # 400 KB
-    result = flash_image_bytes(
-        data, str(dev), allowlist=[str(dev)], block_size=4096
-    )
+    result = flash_image_bytes(data, str(dev), allowlist=[str(dev)], block_size=4096)
     assert result.success is True
     assert result.verified is True
     assert dev.read_bytes() == data
@@ -205,8 +199,11 @@ def test_flash_artifact_decompresses_and_writes(
     art, raw_image = image_artifact
     dev = tmp_path / "device.img"
     result = flash_image_artifact(
-        art.id, str(dev),
-        store_root=store_root, allowlist=[str(dev)], db_url=db_url,
+        art.id,
+        str(dev),
+        store_root=store_root,
+        allowlist=[str(dev)],
+        db_url=db_url,
     )
     assert result.success is True
     assert result.verified is True
@@ -220,8 +217,12 @@ def test_flash_artifact_dry_run(
     art, _ = image_artifact
     dev = tmp_path / "device.img"
     result = flash_image_artifact(
-        art.id, str(dev),
-        store_root=store_root, allowlist=[str(dev)], dry_run=True, db_url=db_url,
+        art.id,
+        str(dev),
+        store_root=store_root,
+        allowlist=[str(dev)],
+        dry_run=True,
+        db_url=db_url,
     )
     assert result.success is True
     assert result.dry_run is True
@@ -234,20 +235,24 @@ def test_flash_artifact_unlisted_device_refused(
     art, _ = image_artifact
     dev = tmp_path / "device.img"
     result = flash_image_artifact(
-        art.id, str(dev),
-        store_root=store_root, allowlist=[], db_url=db_url,
+        art.id,
+        str(dev),
+        store_root=store_root,
+        allowlist=[],
+        db_url=db_url,
     )
     assert result.success is False
     assert "allowlist" in result.error
 
 
-def test_flash_artifact_not_found(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_flash_artifact_not_found(tmp_path: Path, db_url: str, store_root: Path) -> None:
     dev = tmp_path / "device.img"
     result = flash_image_artifact(
-        "00000000-0000-0000-0000-000000000000", str(dev),
-        store_root=store_root, allowlist=[str(dev)], db_url=db_url,
+        "00000000-0000-0000-0000-000000000000",
+        str(dev),
+        store_root=store_root,
+        allowlist=[str(dev)],
+        db_url=db_url,
     )
     assert result.success is False
     assert "not found" in result.error
@@ -266,10 +271,15 @@ def test_cli_flash_requires_allow(
     result = runner.invoke(
         app,
         [
-            "flash", "image", art.id,
-            "--device", str(dev),
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "flash",
+            "image",
+            art.id,
+            "--device",
+            str(dev),
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     # No --allow → refused
@@ -277,20 +287,24 @@ def test_cli_flash_requires_allow(
     assert "allow" in result.output.lower()
 
 
-def test_cli_flash_dry_run(
-    tmp_path: Path, db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_cli_flash_dry_run(tmp_path: Path, db_url: str, store_root: Path, image_artifact) -> None:
     art, _ = image_artifact
     dev = tmp_path / "device.img"
     result = runner.invoke(
         app,
         [
-            "flash", "image", art.id,
-            "--device", str(dev),
-            "--store-root", str(store_root),
-            "--allow", str(dev),
+            "flash",
+            "image",
+            art.id,
+            "--device",
+            str(dev),
+            "--store-root",
+            str(store_root),
+            "--allow",
+            str(dev),
             "--dry-run",
-            "--db-url", db_url,
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -298,19 +312,23 @@ def test_cli_flash_dry_run(
     assert not dev.exists()
 
 
-def test_cli_flash_writes(
-    tmp_path: Path, db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_cli_flash_writes(tmp_path: Path, db_url: str, store_root: Path, image_artifact) -> None:
     art, raw_image = image_artifact
     dev = tmp_path / "device.img"
     result = runner.invoke(
         app,
         [
-            "flash", "image", art.id,
-            "--device", str(dev),
-            "--store-root", str(store_root),
-            "--allow", str(dev),
-            "--db-url", db_url,
+            "flash",
+            "image",
+            art.id,
+            "--device",
+            str(dev),
+            "--store-root",
+            str(store_root),
+            "--allow",
+            str(dev),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -327,10 +345,15 @@ def test_cli_flash_verify_command(
     result = runner.invoke(
         app,
         [
-            "flash", "verify", art.id,
-            "--device", str(dev),
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "flash",
+            "verify",
+            art.id,
+            "--device",
+            str(dev),
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -346,10 +369,15 @@ def test_cli_flash_verify_mismatch(
     result = runner.invoke(
         app,
         [
-            "flash", "verify", art.id,
-            "--device", str(dev),
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "flash",
+            "verify",
+            art.id,
+            "--device",
+            str(dev),
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code != 0

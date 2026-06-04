@@ -150,9 +150,7 @@ def test_cargo_driver_default_commands() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_run_recipe_returns_recipe_result(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_run_recipe_returns_recipe_result(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["echo hi"]},
@@ -188,9 +186,7 @@ def test_run_recipe_logs_captured(src_dir: Path, store_root: Path, db_url: str) 
     assert any("hello-from-build" in line for line in result.logs)
 
 
-def test_run_recipe_recipe_hash_in_result(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_run_recipe_recipe_hash_in_result(src_dir: Path, store_root: Path, db_url: str) -> None:
     steps = {"build": ["echo hi"]}
     result = run_recipe(
         build_system="custom",
@@ -207,9 +203,7 @@ def test_run_recipe_recipe_hash_in_result(
 # ---------------------------------------------------------------------------
 
 
-def test_source_date_epoch_always_zero(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_source_date_epoch_always_zero(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["sh -c 'echo epoch=${SOURCE_DATE_EPOCH}'"]},
@@ -221,9 +215,7 @@ def test_source_date_epoch_always_zero(
     assert any("epoch=0" in line for line in result.logs)
 
 
-def test_source_date_epoch_not_overridable(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_source_date_epoch_not_overridable(src_dir: Path, store_root: Path, db_url: str) -> None:
     """Recipe env_extra must not override SOURCE_DATE_EPOCH."""
     result = run_recipe(
         build_system="custom",
@@ -269,9 +261,7 @@ def test_destdir_not_overridable(src_dir: Path, store_root: Path, db_url: str) -
     assert not any("/absolutely-wrong" in line for line in result.logs)
 
 
-def test_env_extra_reaches_subprocess(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_env_extra_reaches_subprocess(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["sh -c 'echo MY_VAR=${MY_VAR}'"]},
@@ -289,9 +279,7 @@ def test_env_extra_reaches_subprocess(
 # ---------------------------------------------------------------------------
 
 
-def test_step_failure_sets_success_false(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_step_failure_sets_success_false(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["false"]},
@@ -303,9 +291,7 @@ def test_step_failure_sets_success_false(
     assert result.error is not None
 
 
-def test_failed_build_preserves_work_dir(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_failed_build_preserves_work_dir(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["false"]},
@@ -318,9 +304,7 @@ def test_failed_build_preserves_work_dir(
     assert result.work_dir.exists(), "work_dir must be preserved for inspection"
 
 
-def test_successful_build_cleans_work_dir(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_successful_build_cleans_work_dir(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["echo done"]},
@@ -332,9 +316,7 @@ def test_successful_build_cleans_work_dir(
     assert result.work_dir is None, "work_dir should be cleaned up on success"
 
 
-def test_failed_build_no_artifact(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_failed_build_no_artifact(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={"build": ["false"]},
@@ -345,9 +327,7 @@ def test_failed_build_no_artifact(
     assert result.artifact_id is None
 
 
-def test_error_in_install_phase_caught(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_error_in_install_phase_caught(src_dir: Path, store_root: Path, db_url: str) -> None:
     result = run_recipe(
         build_system="custom",
         steps={
@@ -392,9 +372,7 @@ def test_phases_run_in_correct_order(
     assert lines == ["prepare", "configure", "build", "install"]
 
 
-def test_missing_phase_is_silently_skipped(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_missing_phase_is_silently_skipped(src_dir: Path, store_root: Path, db_url: str) -> None:
     """A custom recipe with no configure/install steps must still succeed."""
     result = run_recipe(
         build_system="custom",
@@ -411,9 +389,7 @@ def test_missing_phase_is_silently_skipped(
 # ---------------------------------------------------------------------------
 
 
-def test_second_identical_recipe_is_cache_hit(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_second_identical_recipe_is_cache_hit(src_dir: Path, store_root: Path, db_url: str) -> None:
     steps = {"build": ["echo cached"]}
     kwargs = dict(
         build_system="custom",
@@ -432,9 +408,7 @@ def test_second_identical_recipe_is_cache_hit(
     assert r2.artifact_id == r1.artifact_id
 
 
-def test_different_steps_bypass_cache(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_different_steps_bypass_cache(src_dir: Path, store_root: Path, db_url: str) -> None:
     base = dict(src_dir=src_dir, store_root=store_root, db_url=db_url)
     r1 = run_recipe(build_system="custom", steps={"build": ["echo v1"]}, **base)
     r2 = run_recipe(build_system="custom", steps={"build": ["echo v2"]}, **base)
@@ -444,9 +418,7 @@ def test_different_steps_bypass_cache(
     assert r1.artifact_id != r2.artifact_id
 
 
-def test_source_hash_in_cache_key(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_source_hash_in_cache_key(src_dir: Path, store_root: Path, db_url: str) -> None:
     base = dict(
         build_system="custom",
         steps={"build": ["echo hi"]},
@@ -462,9 +434,7 @@ def test_source_hash_in_cache_key(
     assert r1.artifact_id != r2.artifact_id
 
 
-def test_unsupported_build_system_raises(
-    src_dir: Path, store_root: Path, db_url: str
-) -> None:
+def test_unsupported_build_system_raises(src_dir: Path, store_root: Path, db_url: str) -> None:
     with pytest.raises(ValueError, match="unsupported build_system"):
         run_recipe(
             build_system="NONEXISTENT",

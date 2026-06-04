@@ -106,9 +106,7 @@ def make_cmdline_txt(
 def _load_blob(artifact_id: str, store_root: Path, db_url: str | None) -> tuple[str, bytes]:
     """Load an artifact blob.  Returns ``(artifact.name, data)``."""
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             raise ValueError(f"artifact not found: {artifact_id!r}")
         name = art.name
@@ -175,7 +173,7 @@ def collect_boot_files(
 
     # DTBs
     first_dtb: str | None = dtb_filename
-    for dtb_id in (dtb_artifact_ids or []):
+    for dtb_id in dtb_artifact_ids or []:
         name, data = _load_blob(dtb_id, store_root, db_url)
         # Use the artifact name as filename (strip path prefixes)
         dtb_fname = Path(name).name
@@ -184,7 +182,7 @@ def collect_boot_files(
             first_dtb = dtb_fname
 
     # Firmware blobs
-    for fw_id in (firmware_artifact_ids or []):
+    for fw_id in firmware_artifact_ids or []:
         name, data = _load_blob(fw_id, store_root, db_url)
         fw_fname = Path(name).name
         files[fw_fname] = data

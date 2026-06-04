@@ -51,9 +51,7 @@ def fetch_toolchain(
             select(Toolchain).where(Toolchain.name == toolchain_name_or_id)
         )
         if tc is None:
-            tc = session.scalar(
-                select(Toolchain).where(Toolchain.id == toolchain_name_or_id)
-            )
+            tc = session.scalar(select(Toolchain).where(Toolchain.id == toolchain_name_or_id))
         if tc is None:
             raise ValueError(f"toolchain not found: {toolchain_name_or_id!r}")
         tc_id = tc.id

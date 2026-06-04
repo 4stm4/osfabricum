@@ -131,16 +131,12 @@ def test_make_reproducible_env_sets_arch() -> None:
 
 
 def test_make_reproducible_env_sets_cross_compile() -> None:
-    env = make_reproducible_env(
-        BuildEnvSpec(cross_compile_prefix="aarch64-linux-musl-")
-    )
+    env = make_reproducible_env(BuildEnvSpec(cross_compile_prefix="aarch64-linux-musl-"))
     assert env["CROSS_COMPILE"] == "aarch64-linux-musl-"
 
 
 def test_make_reproducible_env_path_includes_toolchain() -> None:
-    env = make_reproducible_env(
-        BuildEnvSpec(), path_extra=["/opt/toolchain/bin"]
-    )
+    env = make_reproducible_env(BuildEnvSpec(), path_extra=["/opt/toolchain/bin"])
     assert env["PATH"].startswith("/opt/toolchain/bin")
 
 
@@ -259,9 +255,7 @@ def test_repro_record_roundtrip_via_dict() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_ingest_blob_stores_input_hash(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_ingest_blob_stores_input_hash(tmp_path: Path, db_url: str, store_root: Path) -> None:
     data = b"test-data-for-repro"
     m = _make_manifest()
     ih = compute_input_hash(m)
@@ -316,9 +310,7 @@ def test_ingest_blob_no_repro_has_no_metadata(
     assert art.input_hash is None
 
 
-def test_ingest_blob_input_hash_indexed(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_ingest_blob_input_hash_indexed(tmp_path: Path, db_url: str, store_root: Path) -> None:
     """Two artifacts with the same input_hash can be looked up by it."""
     from sqlalchemy import select as sa_select
 
@@ -345,7 +337,5 @@ def test_ingest_blob_input_hash_indexed(
         input_hash=ih,
     )
     with sync_session(db_url) as session:
-        rows = session.scalars(
-            sa_select(Artifact).where(Artifact.input_hash == ih)
-        ).all()
+        rows = session.scalars(sa_select(Artifact).where(Artifact.input_hash == ih)).all()
     assert len(rows) == 2

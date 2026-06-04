@@ -128,9 +128,7 @@ def fetch_source(
             return existing.id
 
     if offline:
-        raise RuntimeError(
-            f"source not in cache (offline mode): {source_uri_or_id!r}"
-        )
+        raise RuntimeError(f"source not in cache (offline mode): {source_uri_or_id!r}")
 
     # --- download ---
     meta: dict[str, Any] = dict(src.metadata_json or {})
@@ -151,8 +149,7 @@ def fetch_source(
         expected = _normalise_hash(src.expected_hash)
         if actual_sha256 != expected:
             raise ValueError(
-                f"sha256 mismatch for source {src.uri!r}: "
-                f"expected {expected}, got {actual_sha256}"
+                f"sha256 mismatch for source {src.uri!r}: expected {expected}, got {actual_sha256}"
             )
 
     # --- ingest ---

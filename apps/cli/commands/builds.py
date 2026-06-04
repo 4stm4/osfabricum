@@ -94,9 +94,7 @@ def builds_show(
     show_logs: Annotated[
         bool, typer.Option("--logs", help="Also print captured log lines")
     ] = False,
-    log_limit: Annotated[
-        int, typer.Option("--log-limit", help="Max log lines to show")
-    ] = 100,
+    log_limit: Annotated[int, typer.Option("--log-limit", help="Max log lines to show")] = 100,
     db_url: Annotated[
         str | None,
         typer.Option("--db-url", envvar="OSFABRICUM_DB_URL"),

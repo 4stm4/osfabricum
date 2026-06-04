@@ -1,14 +1,14 @@
 """Boot Chain API (M31).
 
-    GET    /v1/boot-chains              — list boot chains
-    POST   /v1/boot-chains              — create boot chain
-    GET    /v1/boot-chains/{id}         — get boot chain with templates/files
-    POST   /v1/boot-chains/{id}/templates — add template
-    POST   /v1/boot-chains/{id}/files   — add file
-    POST   /v1/boot-chains/{id}/bind    — bind to board/profile
-    POST   /v1/boot-chains/{id}/render  — render boot files
-    POST   /v1/boot-chains/{id}/validate — validate boot chain
-    GET    /v1/boot-chain-bindings      — list bindings
+GET    /v1/boot-chains              — list boot chains
+POST   /v1/boot-chains              — create boot chain
+GET    /v1/boot-chains/{id}         — get boot chain with templates/files
+POST   /v1/boot-chains/{id}/templates — add template
+POST   /v1/boot-chains/{id}/files   — add file
+POST   /v1/boot-chains/{id}/bind    — bind to board/profile
+POST   /v1/boot-chains/{id}/render  — render boot files
+POST   /v1/boot-chains/{id}/validate — validate boot chain
+GET    /v1/boot-chain-bindings      — list bindings
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ def _guard(exc: ValueError) -> HTTPException:
 
 
 # Boot Chains
+
 
 class BootChainCreate(BaseModel):
     name: str
@@ -79,6 +80,7 @@ def get_boot_chain(boot_chain_id: str, request: Request) -> dict[str, Any]:
 
 # Templates
 
+
 class BootChainTemplateCreate(BaseModel):
     template_type: str
     content: str
@@ -105,6 +107,7 @@ def add_boot_chain_template(
 
 
 # Files
+
 
 class BootChainFileCreate(BaseModel):
     filename: str
@@ -138,6 +141,7 @@ def add_boot_chain_file(
 
 
 # Bindings
+
 
 class BootChainBindingCreate(BaseModel):
     board_id: str | None = None
@@ -182,6 +186,7 @@ def list_boot_chain_bindings(
 
 # Render & Validate
 
+
 class BootChainRenderRequest(BaseModel):
     variables: dict[str, Any]
 
@@ -218,5 +223,6 @@ def validate_boot_chain(
         )
     except ValueError as exc:
         raise _guard(exc) from exc
+
 
 # Made with Bob

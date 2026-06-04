@@ -85,7 +85,8 @@ def evaluate_case(
         markers: list[str] = case.spec.get("markers", [])
         hit = booted or any(m in transcript for m in markers)
         return CaseResult(
-            name=case.name, kind=case.kind,
+            name=case.name,
+            kind=case.kind,
             outcome=PASS if hit else FAIL,
             detail="" if hit else f"no boot marker found ({markers})",
         )
@@ -109,7 +110,9 @@ def evaluate_case(
     if case.kind == "command":
         if executor is None:
             return CaseResult(
-                name=case.name, kind=case.kind, outcome=SKIP,
+                name=case.name,
+                kind=case.kind,
+                outcome=SKIP,
                 detail="no command executor (serial-only run)",
             )
         command: str = case.spec.get("command", "")
@@ -118,18 +121,24 @@ def evaluate_case(
         exit_code, output = executor(command)
         if exit_code != expect_exit:
             return CaseResult(
-                name=case.name, kind=case.kind, outcome=FAIL,
+                name=case.name,
+                kind=case.kind,
+                outcome=FAIL,
                 detail=f"exit {exit_code} != expected {expect_exit}",
             )
         if expect_output is not None and expect_output not in output:
             return CaseResult(
-                name=case.name, kind=case.kind, outcome=FAIL,
+                name=case.name,
+                kind=case.kind,
+                outcome=FAIL,
                 detail=f"output missing {expect_output!r}",
             )
         return CaseResult(name=case.name, kind=case.kind, outcome=PASS)
 
     return CaseResult(
-        name=case.name, kind=case.kind, outcome=FAIL,
+        name=case.name,
+        kind=case.kind,
+        outcome=FAIL,
         detail=f"unknown case kind: {case.kind!r}",
     )
 
@@ -170,6 +179,7 @@ def run_suite(
             boot_markers.extend(c.spec.get("markers", []))
     if not boot_markers:
         from osfabricum.testkit.suites import DEFAULT_BOOT_MARKERS  # noqa: PLC0415
+
         boot_markers = list(DEFAULT_BOOT_MARKERS)
 
     if boot_result is None:
@@ -206,8 +216,10 @@ def run_suite(
             result.skipped += 1
         else:
             result.failed += 1
-        logs.append(f"[test]   {cr.outcome.upper():4} {case.name}"
-                    + (f" — {cr.detail}" if cr.detail else ""))
+        logs.append(
+            f"[test]   {cr.outcome.upper():4} {case.name}"
+            + (f" — {cr.detail}" if cr.detail else "")
+        )
 
     return result
 
@@ -238,12 +250,11 @@ def run_image_test(
     suite = get_suite(suite_name)
 
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             return SuiteResult(
-                suite=suite_name, booted=False,
+                suite=suite_name,
+                booted=False,
                 error=f"artifact not found: {artifact_id!r}",
             )
         sha256 = art.blob_sha256
@@ -252,7 +263,8 @@ def run_image_test(
     bp = blob_path(store_root, sha256)
     if not bp.exists():
         return SuiteResult(
-            suite=suite_name, booted=False,
+            suite=suite_name,
+            booted=False,
             error=f"blob not found for artifact {artifact_id}: {bp}",
         )
 

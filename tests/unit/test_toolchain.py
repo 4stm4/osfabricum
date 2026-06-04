@@ -101,9 +101,7 @@ def test_import_toolchains(db_url: str, tmp_path: Path) -> None:
                 source_type: bootlin-prebuilt
         """)
     )
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url])
     assert result.exit_code == 0, result.output
     assert "2" in result.output
 
@@ -127,9 +125,7 @@ def test_import_toolchains_idempotent(db_url: str, tmp_path: Path) -> None:
         "    libc: musl\n    version: '2024.05-1'\n    source_type: bootlin-prebuilt\n"
     )
     runner.invoke(app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url])
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url])
     assert result.exit_code == 0
     assert "0" in result.output
 
@@ -141,9 +137,7 @@ def test_import_toolchains_missing_arch(db_url: str, tmp_path: Path) -> None:
         "  - name: foo\n    arch: nonexistent\n"
         "    libc: musl\n    version: '1.0'\n    source_type: custom\n"
     )
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(tc_file), "--db-url", db_url])
     assert result.exit_code != 0
 
 
@@ -184,9 +178,7 @@ def test_fetch_toolchain_creates_toolchain_artifact(db_url: str, store_root: Pat
         artifact_id = fetch_toolchain("aarch64-linux-musl-bootlin", store_root, db_url)
 
     with sync_session(db_url) as session:
-        tc = session.scalar(
-            select(Toolchain).where(Toolchain.name == "aarch64-linux-musl-bootlin")
-        )
+        tc = session.scalar(select(Toolchain).where(Toolchain.name == "aarch64-linux-musl-bootlin"))
         assert tc is not None
         ta = session.scalar(
             select(ToolchainArtifact).where(ToolchainArtifact.toolchain_id == tc.id)
@@ -207,9 +199,7 @@ def test_fetch_toolchain_idempotent(db_url: str, store_root: Path) -> None:
 
     assert id1 == id2
     with sync_session(db_url) as session:
-        tc = session.scalar(
-            select(Toolchain).where(Toolchain.name == "aarch64-linux-musl-bootlin")
-        )
+        tc = session.scalar(select(Toolchain).where(Toolchain.name == "aarch64-linux-musl-bootlin"))
         assert tc is not None
         count = len(
             session.scalars(

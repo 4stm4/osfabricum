@@ -143,18 +143,14 @@ def kernel_show(
             if kernel is None:
                 typer.secho(f"ERROR: kernel {name!r} not found", fg=typer.colors.RED, err=True)
                 raise typer.Exit(code=1)
-            arch_row = session.scalar(
-                select(Architecture).where(Architecture.id == kernel.arch_id)
-            )
+            arch_row = session.scalar(select(Architecture).where(Architecture.id == kernel.arch_id))
             arch_name = arch_row.name if arch_row else kernel.arch_id
             kc_rows = session.scalars(
                 select(KernelConfig).where(KernelConfig.kernel_id == kernel.id)
             ).all()
             artifact_ids = [kc.config_artifact_id for kc in kc_rows if kc.config_artifact_id]
             artifacts = (
-                session.scalars(
-                    select(Artifact).where(Artifact.id.in_(artifact_ids))
-                ).all()
+                session.scalars(select(Artifact).where(Artifact.id.in_(artifact_ids))).all()
                 if artifact_ids
                 else []
             )

@@ -206,15 +206,9 @@ def test_build_kernel_artifacts_have_correct_kinds(
             db_url=db_url,
         )
     with sync_session(db_url) as session:
-        image_art = session.scalar(
-            select(Artifact).where(Artifact.id == result.image_artifact_id)
-        )
-        mod_art = session.scalar(
-            select(Artifact).where(Artifact.id == result.modules_artifact_id)
-        )
-        dtb_art = session.scalar(
-            select(Artifact).where(Artifact.id == result.dtb_artifact_ids[0])
-        )
+        image_art = session.scalar(select(Artifact).where(Artifact.id == result.image_artifact_id))
+        mod_art = session.scalar(select(Artifact).where(Artifact.id == result.modules_artifact_id))
+        dtb_art = session.scalar(select(Artifact).where(Artifact.id == result.dtb_artifact_ids[0]))
     assert image_art.kind == "kernel"
     assert mod_art.kind == "kernel-modules"
     assert dtb_art.kind == "dtb"
@@ -262,9 +256,7 @@ def test_build_kernel_updates_kernel_config(
     assert kc.config_artifact_id is not None
 
 
-def test_build_kernel_by_id(
-    kernel_id: str, store_root: Path, db_url: str, fake_src: Path
-) -> None:
+def test_build_kernel_by_id(kernel_id: str, store_root: Path, db_url: str, fake_src: Path) -> None:
     with patch("osfabricum.kernel.build._compile_kernel", side_effect=_fake_compile):
         result = build_kernel(
             kernel_id,
@@ -471,9 +463,7 @@ def test_catalog_import_kernel_idempotent(
         "    arch: aarch64\n"
     )
     runner.invoke(app, ["catalog", "import", "--file", str(yaml_file), "--db-url", db_url])
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(yaml_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(yaml_file), "--db-url", db_url])
     assert result.exit_code == 0
     assert "0 kernel" in result.output
 
@@ -556,9 +546,7 @@ def test_cli_kernel_show_not_found(db_url: str) -> None:
     assert result.exit_code != 0
 
 
-def test_cli_kernel_build(
-    db_url: str, kernel_id: str, store_root: Path, fake_src: Path
-) -> None:
+def test_cli_kernel_build(db_url: str, kernel_id: str, store_root: Path, fake_src: Path) -> None:
     with patch("osfabricum.kernel.build._compile_kernel", side_effect=_fake_compile):
         result = runner.invoke(
             app,

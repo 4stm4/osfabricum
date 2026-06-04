@@ -75,7 +75,9 @@ def get_draft(draft_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/{draft_id}")
-def update_draft(draft_id: str, body: DraftUpdate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def update_draft(
+    draft_id: str, body: DraftUpdate, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     provided = body.model_fields_set
     kwargs: dict[str, Any] = {k: getattr(body, k) for k in provided}
     try:

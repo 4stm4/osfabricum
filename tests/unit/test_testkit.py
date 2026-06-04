@@ -53,10 +53,14 @@ def image_artifact(db_url: str, store_root: Path):
     raw = b"\x55\xaa" * 2048
     gz = gzip.compress(raw, mtime=0)
     return ingest_blob(
-        data=gz, store_root=store_root,
-        store_key="images/x/test.img.gz", kind="image",
-        name="tinywifi-default-rpi-zero-2w", arch="aarch64",
-        media_type="application/gzip", db_url=db_url,
+        data=gz,
+        store_root=store_root,
+        store_key="images/x/test.img.gz",
+        kind="image",
+        name="tinywifi-default-rpi-zero-2w",
+        arch="aarch64",
+        media_type="application/gzip",
+        db_url=db_url,
     )
 
 
@@ -126,8 +130,10 @@ def test_build_qemu_command_readonly_disk(tmp_path: Path) -> None:
 
 def test_build_qemu_command_with_kernel(tmp_path: Path) -> None:
     cfg = QemuConfig(
-        arch="aarch64", image_path=tmp_path / "img",
-        kernel_path=tmp_path / "Image", append="console=ttyAMA0",
+        arch="aarch64",
+        image_path=tmp_path / "img",
+        kernel_path=tmp_path / "Image",
+        append="console=ttyAMA0",
     )
     cmd = build_qemu_command(cfg)
     assert "-kernel" in cmd
@@ -136,7 +142,9 @@ def test_build_qemu_command_with_kernel(tmp_path: Path) -> None:
 
 def test_build_qemu_command_with_dtb(tmp_path: Path) -> None:
     cfg = QemuConfig(
-        arch="aarch64", image_path=tmp_path / "img", dtb_path=tmp_path / "b.dtb",
+        arch="aarch64",
+        image_path=tmp_path / "img",
+        dtb_path=tmp_path / "b.dtb",
     )
     cmd = build_qemu_command(cfg)
     assert "-dtb" in cmd
@@ -193,7 +201,8 @@ def test_evaluate_command_skip_without_executor() -> None:
 
 def test_evaluate_command_pass_with_executor() -> None:
     case = TestCase(
-        name="cmd", kind="command",
+        name="cmd",
+        kind="command",
         spec={"command": "hostname", "expect_exit": 0, "expect_output": "rpi"},
     )
     r = evaluate_case(case, "", booted=True, executor=lambda c: (0, "rpi\n"))
@@ -208,7 +217,8 @@ def test_evaluate_command_fail_exit() -> None:
 
 def test_evaluate_command_fail_output() -> None:
     case = TestCase(
-        name="cmd", kind="command",
+        name="cmd",
+        kind="command",
         spec={"command": "x", "expect_exit": 0, "expect_output": "yes"},
     )
     r = evaluate_case(case, "", booted=True, executor=lambda c: (0, "no"))
@@ -286,57 +296,57 @@ def test_run_suite_logs(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_run_image_test_success(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_run_image_test_success(db_url: str, store_root: Path, image_artifact) -> None:
     with patch(
         "osfabricum.testkit.qemu._spawn_qemu",
         return_value=(0, _BOOT_OK, False),
     ):
         result = run_image_test(
-            image_artifact.id, "smoke",
-            store_root=store_root, db_url=db_url,
+            image_artifact.id,
+            "smoke",
+            store_root=store_root,
+            db_url=db_url,
         )
     assert result.success is True
     assert result.booted is True
 
 
-def test_run_image_test_boot_failure(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_run_image_test_boot_failure(db_url: str, store_root: Path, image_artifact) -> None:
     with patch(
         "osfabricum.testkit.qemu._spawn_qemu",
         return_value=(None, _BOOT_PANIC, True),
     ):
         result = run_image_test(
-            image_artifact.id, "smoke",
-            store_root=store_root, db_url=db_url,
+            image_artifact.id,
+            "smoke",
+            store_root=store_root,
+            db_url=db_url,
         )
     assert result.success is False
 
 
-def test_run_image_test_artifact_not_found(
-    db_url: str, store_root: Path
-) -> None:
+def test_run_image_test_artifact_not_found(db_url: str, store_root: Path) -> None:
     result = run_image_test(
-        "00000000-0000-0000-0000-000000000000", "smoke",
-        store_root=store_root, db_url=db_url,
+        "00000000-0000-0000-0000-000000000000",
+        "smoke",
+        store_root=store_root,
+        db_url=db_url,
     )
     assert result.success is False
     assert "not found" in result.error
 
 
-def test_run_image_test_qemu_missing(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_run_image_test_qemu_missing(db_url: str, store_root: Path, image_artifact) -> None:
     # _spawn_qemu returns the "binary not found" signature
     with patch(
         "osfabricum.testkit.qemu._spawn_qemu",
         return_value=(None, "", False),
     ):
         result = run_image_test(
-            image_artifact.id, "smoke",
-            store_root=store_root, db_url=db_url,
+            image_artifact.id,
+            "smoke",
+            store_root=store_root,
+            db_url=db_url,
         )
     assert result.success is False
     assert "not found" in (result.error or "")
@@ -353,9 +363,7 @@ def test_cli_test_list_suites() -> None:
     assert "smoke" in result.output
 
 
-def test_cli_test_run_success(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_cli_test_run_success(db_url: str, store_root: Path, image_artifact) -> None:
     with patch(
         "osfabricum.testkit.qemu._spawn_qemu",
         return_value=(0, _BOOT_OK, False),
@@ -363,34 +371,40 @@ def test_cli_test_run_success(
         result = runner.invoke(
             app,
             [
-                "test", "run", image_artifact.id,
-                "--suite", "smoke",
-                "--store-root", str(store_root),
-                "--db-url", db_url,
+                "test",
+                "run",
+                image_artifact.id,
+                "--suite",
+                "smoke",
+                "--store-root",
+                str(store_root),
+                "--db-url",
+                db_url,
             ],
         )
     assert result.exit_code == 0, result.output
     assert "passed" in result.output
 
 
-def test_cli_test_run_unknown_suite(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_cli_test_run_unknown_suite(db_url: str, store_root: Path, image_artifact) -> None:
     result = runner.invoke(
         app,
         [
-            "test", "run", image_artifact.id,
-            "--suite", "nonexistent",
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "test",
+            "run",
+            image_artifact.id,
+            "--suite",
+            "nonexistent",
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code != 0
 
 
-def test_cli_test_run_boot_failure_exit_code(
-    db_url: str, store_root: Path, image_artifact
-) -> None:
+def test_cli_test_run_boot_failure_exit_code(db_url: str, store_root: Path, image_artifact) -> None:
     with patch(
         "osfabricum.testkit.qemu._spawn_qemu",
         return_value=(None, _BOOT_PANIC, True),
@@ -398,10 +412,15 @@ def test_cli_test_run_boot_failure_exit_code(
         result = runner.invoke(
             app,
             [
-                "test", "run", image_artifact.id,
-                "--suite", "smoke",
-                "--store-root", str(store_root),
-                "--db-url", db_url,
+                "test",
+                "run",
+                image_artifact.id,
+                "--suite",
+                "smoke",
+                "--store-root",
+                str(store_root),
+                "--db-url",
+                db_url,
             ],
         )
     assert result.exit_code != 0

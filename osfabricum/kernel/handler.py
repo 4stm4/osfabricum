@@ -52,8 +52,6 @@ def make_kernel_build_handler(
             jobs=jobs,
         )
         if not result.success:
-            raise RuntimeError(
-                f"kernel build failed: {result.error}\nwork_dir: {result.work_dir}"
-            )
+            raise RuntimeError(f"kernel build failed: {result.error}\nwork_dir: {result.work_dir}")
 
     return _handle

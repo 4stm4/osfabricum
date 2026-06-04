@@ -150,8 +150,7 @@ def flash_image_bytes(
                 logs.append("[flash] verify OK — readback sha256 matches")
             else:
                 logs.append(
-                    f"[flash] verify FAILED — expected {image_sha256[:16]}…, "
-                    f"got {readback[:16]}…"
+                    f"[flash] verify FAILED — expected {image_sha256[:16]}…, got {readback[:16]}…"
                 )
                 return FlashResult(
                     success=False,
@@ -217,9 +216,7 @@ def flash_image_artifact(
     logs: list[str] = []
 
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             return FlashResult(
                 success=False,

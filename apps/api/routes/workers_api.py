@@ -1,7 +1,7 @@
 """REST API routes for workers (M20).
 
-    GET /v1/workers     — list registered workers
-    GET /v1/workers/{hostname}  — single worker detail
+GET /v1/workers     — list registered workers
+GET /v1/workers/{hostname}  — single worker detail
 """
 
 from __future__ import annotations

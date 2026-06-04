@@ -68,9 +68,7 @@ def run_plan(
     if plan.toolchain:
         tc = plan.toolchain
         status = "[green]✓[/green]" if tc.artifact_id else "[yellow]missing[/yellow]"
-        console.print(
-            f"  Toolchain: {tc.name} {tc.version}  {status}"
-        )
+        console.print(f"  Toolchain: {tc.name} {tc.version}  {status}")
     else:
         console.print("  Toolchain: [yellow]none[/yellow]")
 
@@ -88,7 +86,9 @@ def run_plan(
         for pkg in sorted(plan.packages, key=lambda p: p.name):
             color = "green" if pkg.artifact_id else "yellow"
             tbl.add_row(
-                pkg.name, pkg.version, pkg.arch,
+                pkg.name,
+                pkg.version,
+                pkg.arch,
                 f"[{color}]{pkg.status}[/{color}]",
             )
         console.print(tbl)
@@ -113,7 +113,7 @@ def run_plan(
     if plan.required_jobs:
         console.print(
             Panel(
-                "\n".join(f"  {i+1}. {j}" for i, j in enumerate(plan.required_jobs)),
+                "\n".join(f"  {i + 1}. {j}" for i, j in enumerate(plan.required_jobs)),
                 title="Required jobs",
                 expand=False,
             )

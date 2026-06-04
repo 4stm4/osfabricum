@@ -126,9 +126,12 @@ def count_build_logs(build_id: str, *, db_url: str | None = None) -> int:
     from sqlalchemy import func  # noqa: PLC0415
 
     with sync_session(db_url) as session:
-        return session.scalar(
-            select(func.count()).select_from(BuildLog).where(BuildLog.build_id == build_id)
-        ) or 0
+        return (
+            session.scalar(
+                select(func.count()).select_from(BuildLog).where(BuildLog.build_id == build_id)
+            )
+            or 0
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -219,10 +222,7 @@ def build_summary(
         "status": build.status,
         "created_at": build.created_at.isoformat() if build.created_at else None,
         "updated_at": build.updated_at.isoformat() if build.updated_at else None,
-        "jobs": [
-            {"id": j.id, "step_kind": j.step_kind, "status": j.status}
-            for j in jobs
-        ],
+        "jobs": [{"id": j.id, "step_kind": j.step_kind, "status": j.status} for j in jobs],
         "event_count": len(events),
         "log_line_count": log_count,
     }

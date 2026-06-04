@@ -300,7 +300,9 @@ def _build_guard(exc: ValueError) -> HTTPException:
 
 
 @router.post("", status_code=201)
-def create_build_api(body: CreateBuildRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def create_build_api(
+    body: CreateBuildRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     """Create a build: resolve plan, record it, enqueue a build.run job."""
     from osfabricum import orchestrator  # noqa: PLC0415
 

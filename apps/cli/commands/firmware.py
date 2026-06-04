@@ -80,7 +80,11 @@ def firmware_list(
             board_map = {b.id: b.name for b in session.scalars(select(Board)).all()}
 
         tbl = Table(
-            "Board", "Filename", "Placement", "Required", "Artifact",
+            "Board",
+            "Filename",
+            "Placement",
+            "Required",
+            "Artifact",
             title="Firmware Blobs",
         )
         for b in blobs:

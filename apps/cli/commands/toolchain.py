@@ -30,9 +30,7 @@ _DEFAULT_STORE = Path("~/.osfabricum/store").expanduser()
 
 @toolchain_app.command("list")
 def toolchain_list(
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """List registered toolchains."""
     try:
@@ -40,8 +38,7 @@ def toolchain_list(
             rows = session.scalars(select(Toolchain).order_by(Toolchain.name)).all()
             arch_map = {a.id: a.name for a in session.scalars(select(Architecture)).all()}
             fetched_ids = {
-                ta.toolchain_id
-                for ta in session.scalars(select(ToolchainArtifact)).all()
+                ta.toolchain_id for ta in session.scalars(select(ToolchainArtifact)).all()
             }
     except OperationalError:
         Console().print(_DB_NOT_READY)
@@ -68,9 +65,7 @@ def toolchain_list(
 @toolchain_app.command("show")
 def toolchain_show(
     name: Annotated[str, typer.Argument(help="Toolchain name")],
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Show details for a single toolchain."""
     try:
@@ -79,9 +74,7 @@ def toolchain_show(
             if tc is None:
                 typer.secho(f"toolchain not found: {name!r}", fg=typer.colors.RED, err=True)
                 raise typer.Exit(code=1)
-            arch_row = session.scalar(
-                select(Architecture).where(Architecture.id == tc.arch_id)
-            )
+            arch_row = session.scalar(select(Architecture).where(Architecture.id == tc.arch_id))
             ta = session.scalar(
                 select(ToolchainArtifact).where(ToolchainArtifact.toolchain_id == tc.id)
             )
@@ -118,9 +111,7 @@ def toolchain_fetch(
         Path,
         typer.Option("--store", help="Artifact store root directory"),
     ] = _DEFAULT_STORE,
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Download and store a toolchain tarball."""
     from osfabricum.toolchain.fetch import fetch_toolchain
@@ -150,16 +141,12 @@ def toolchain_add(
     version: Annotated[str, typer.Option("--version", help="Toolchain version string")],
     source_type: Annotated[str, typer.Option("--source-type")] = "bootlin-prebuilt",
     download_url: Annotated[str | None, typer.Option("--download-url")] = None,
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Register a toolchain in the catalog (without fetching)."""
     try:
         with sync_session(db_url) as session:
-            arch_row = session.scalar(
-                select(Architecture).where(Architecture.name == arch)
-            )
+            arch_row = session.scalar(select(Architecture).where(Architecture.name == arch))
             if arch_row is None:
                 typer.secho(
                     f"Architecture '{arch}' not found — run 'catalog import' first.",

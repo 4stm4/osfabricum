@@ -54,8 +54,7 @@ def test_run(
 
     console = Console()
     console.print(
-        f"Running suite [bold]{suite}[/bold] against artifact "
-        f"[bold]{artifact_id[:8]}…[/bold]"
+        f"Running suite [bold]{suite}[/bold] against artifact [bold]{artifact_id[:8]}…[/bold]"
     )
 
     result = run_image_test(
@@ -78,7 +77,8 @@ def test_run(
     for c in result.cases:
         color = {"pass": "green", "fail": "red", "skip": "yellow"}.get(c.outcome, "white")
         tbl.add_row(
-            c.name, c.kind,
+            c.name,
+            c.kind,
             f"[{color}]{c.outcome}[/{color}]" + (f" ({c.detail})" if c.detail else ""),
         )
     console.print(tbl)

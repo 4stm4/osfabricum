@@ -66,9 +66,7 @@ def build_sbom(
         ),
     }
     if subject_sha256:
-        meta_component["hashes"] = [
-            {"alg": "SHA-256", "content": subject_sha256}
-        ]
+        meta_component["hashes"] = [{"alg": "SHA-256", "content": subject_sha256}]
 
     # --- components: toolchain ---
     components: list[dict[str, Any]] = []
@@ -140,9 +138,7 @@ def build_sbom(
         "version": 1,
         "metadata": {
             "timestamp": ts,
-            "tools": [
-                {"vendor": "osfabricum", "name": "osfabricumctl", "version": "0.1.0"}
-            ],
+            "tools": [{"vendor": "osfabricum", "name": "osfabricumctl", "version": "0.1.0"}],
             "manufacture": {"name": manufacturer},
             "component": meta_component,
         },

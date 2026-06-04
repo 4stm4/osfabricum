@@ -124,17 +124,13 @@ _NETWORK = TestSuite(
 )
 
 #: All built-in suites keyed by name.
-BUILTIN_SUITES: dict[str, TestSuite] = {
-    s.name: s for s in (_SMOKE, _SERVICES, _NETWORK)
-}
+BUILTIN_SUITES: dict[str, TestSuite] = {s.name: s for s in (_SMOKE, _SERVICES, _NETWORK)}
 
 
 def get_suite(name: str) -> TestSuite:
     """Return a built-in suite by name, or raise :class:`KeyError`."""
     if name not in BUILTIN_SUITES:
-        raise KeyError(
-            f"unknown test suite: {name!r}; available: {sorted(BUILTIN_SUITES)}"
-        )
+        raise KeyError(f"unknown test suite: {name!r}; available: {sorted(BUILTIN_SUITES)}")
     return BUILTIN_SUITES[name]
 
 

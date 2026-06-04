@@ -14,7 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from osfabricum.db.base import Base
 
@@ -50,6 +50,7 @@ class Board(Base):
     boot_scheme: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     firmware_required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
 
 # ---------------------------------------------------------------------------
 # Board / BSP Models (M30)
@@ -250,6 +251,10 @@ class BootChain(Base):
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 
+    # Navigation to this chain's templates/files (M31).
+    templates: Mapped[list[BootChainTemplate]] = relationship(viewonly=True)
+    files: Mapped[list[BootChainFile]] = relationship(viewonly=True)
+
 
 class BootChainTemplate(Base):
     __tablename__ = "boot_chain_templates"
@@ -297,6 +302,111 @@ class BootChainBinding(Base):
     )
     is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+# M32: Initramfs / Early Boot Designer models
+
+
+class InitramfsProfile(Base):
+    __tablename__ = "initramfs_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False, index=True)
+    profile_type: Mapped[str] = mapped_column(sa.String(32), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    compression: Mapped[str] = mapped_column(sa.String(16), nullable=False, default="zstd")
+    size_limit_mb: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    include_modules: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    include_firmware: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    enable_debug_shell: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    enable_network: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    enable_encryption_unlock: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    enable_factory_reset: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class InitramfsPackage(Base):
+    __tablename__ = "initramfs_packages"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    initramfs_profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("initramfs_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False, index=True)
+    version_constraint: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class InitramfsScript(Base):
+    __tablename__ = "initramfs_scripts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    initramfs_profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("initramfs_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    script_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    script_type: Mapped[str] = mapped_column(sa.String(32), nullable=False, index=True)
+    content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    execution_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=50, index=True)
+    required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class InitramfsHook(Base):
+    __tablename__ = "initramfs_hooks"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    initramfs_profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("initramfs_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    hook_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    hook_stage: Mapped[str] = mapped_column(sa.String(32), nullable=False, index=True)
+    command: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    execution_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=50)
+    enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class InitramfsArtifact(Base):
+    __tablename__ = "initramfs_artifacts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    initramfs_profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("initramfs_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    board_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True, index=True)
+    kernel_version: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    artifact_id: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    compression: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
+    modules_manifest_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    build_hash: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=datetime.utcnow
+    )
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
 
@@ -854,7 +964,9 @@ class BootScheme(Base):
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     # M30 extensions (nullable for backward compat with M25 seed data):
     boot_type: Mapped[str | None] = mapped_column(sa.String(32), nullable=True, default="direct")
-    requires_bootloader: Mapped[bool | None] = mapped_column(sa.Boolean, nullable=True, default=False)
+    requires_bootloader: Mapped[bool | None] = mapped_column(
+        sa.Boolean, nullable=True, default=False
+    )
     requires_firmware: Mapped[bool | None] = mapped_column(sa.Boolean, nullable=True, default=False)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 

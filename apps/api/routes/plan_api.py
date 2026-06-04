@@ -79,7 +79,9 @@ def post_plan(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -
 
 
 @router.post("/validate")
-def post_plan_validate(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def post_plan_validate(
+    body: PlanRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     return orchestrator.validate_plan(
         distribution=body.distribution,
         profile=body.profile,
@@ -90,7 +92,9 @@ def post_plan_validate(body: PlanRequest, request: Request, _auth: WriteAuthDep 
 
 
 @router.post("/diff")
-def post_plan_diff(body: PlanDiffRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def post_plan_diff(
+    body: PlanDiffRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     try:
         return orchestrator.diff_plans(
             distribution=body.distribution,
@@ -106,7 +110,9 @@ def post_plan_diff(body: PlanDiffRequest, request: Request, _auth: WriteAuthDep 
 
 
 @prefetch_router.post("")
-def post_prefetch(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def post_prefetch(
+    body: PlanRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     """Report what a plan would need to fetch/build (no build started)."""
     try:
         return orchestrator.prefetch_report(

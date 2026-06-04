@@ -56,9 +56,7 @@ def update_build_status(
 ) -> None:
     """Update ``Build.status`` to *status*."""
     with sync_session(db_url) as session:
-        build: Build | None = session.scalar(
-            select(Build).where(Build.id == build_id)
-        )
+        build: Build | None = session.scalar(select(Build).where(Build.id == build_id))
         if build is None:
             raise ValueError(f"build not found: {build_id!r}")
         build.status = status
@@ -82,9 +80,7 @@ def list_builds(
 ) -> list[Build]:
     """Return the most recent *limit* builds (newest first)."""
     with sync_session(db_url) as session:
-        builds = session.scalars(
-            select(Build).order_by(Build.created_at.desc()).limit(limit)
-        ).all()
+        builds = session.scalars(select(Build).order_by(Build.created_at.desc()).limit(limit)).all()
         for b in builds:
             session.expunge(b)
         return list(builds)
@@ -122,9 +118,7 @@ def update_build_job(
 ) -> None:
     """Update ``BuildJob.status`` to *status*."""
     with sync_session(db_url) as session:
-        job: BuildJob | None = session.scalar(
-            select(BuildJob).where(BuildJob.id == job_id)
-        )
+        job: BuildJob | None = session.scalar(select(BuildJob).where(BuildJob.id == job_id))
         if job is None:
             raise ValueError(f"build job not found: {job_id!r}")
         job.status = status
@@ -138,9 +132,7 @@ def list_build_jobs(
 ) -> list[BuildJob]:
     """Return all ``BuildJob`` rows for *build_id*, ordered by creation."""
     with sync_session(db_url) as session:
-        jobs = session.scalars(
-            select(BuildJob).where(BuildJob.build_id == build_id)
-        ).all()
+        jobs = session.scalars(select(BuildJob).where(BuildJob.build_id == build_id)).all()
         for j in jobs:
             session.expunge(j)
         return list(jobs)
@@ -179,9 +171,7 @@ def list_build_events(
     """Return all events for *build_id* in chronological order."""
     with sync_session(db_url) as session:
         events = session.scalars(
-            select(BuildEvent)
-            .where(BuildEvent.build_id == build_id)
-            .order_by(BuildEvent.ts)
+            select(BuildEvent).where(BuildEvent.build_id == build_id).order_by(BuildEvent.ts)
         ).all()
         for e in events:
             session.expunge(e)

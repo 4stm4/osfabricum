@@ -56,7 +56,7 @@ def _to_83(filename: str) -> tuple[bytes, bytes]:
     if dot_idx < 0:
         name, ext = filename, ""
     else:
-        name, ext = filename[:dot_idx], filename[dot_idx + 1:]
+        name, ext = filename[:dot_idx], filename[dot_idx + 1 :]
 
     if len(name) > 8:
         # Truncate to 6 chars + ~1
@@ -87,7 +87,7 @@ def _lfn_entries(filename: str, checksum: int) -> list[bytes]:
             utf16 += b"\xff\xff"  # padding
 
     # Split into 13-char chunks (26 bytes each)
-    chunks: list[bytes] = [utf16[i:i + 26] for i in range(0, len(utf16), 26)]
+    chunks: list[bytes] = [utf16[i : i + 26] for i in range(0, len(utf16), 26)]
 
     total = len(chunks)
 
@@ -169,9 +169,7 @@ class Fat16Writer:
 
         self.fat_size_sectors = fat_size_sectors
         self.data_start_sector = (
-            self.reserved_sectors
-            + self.fat_count * self.fat_size_sectors
-            + self.root_dir_sectors
+            self.reserved_sectors + self.fat_count * self.fat_size_sectors + self.root_dir_sectors
         )
         total_data_sectors = max(0, self.total_sectors - self.data_start_sector)
         self.total_clusters = total_data_sectors // self.sectors_per_cluster
@@ -253,14 +251,17 @@ class Fat16Writer:
         dot_idx = filename.rfind(".")
         if dot_idx >= 0:
             short_name = filename[:dot_idx]
-            short_ext = filename[dot_idx + 1:]
+            short_ext = filename[dot_idx + 1 :]
         else:
             short_name = filename
             short_ext = ""
 
-        needs_lfn = len(short_name) > 8 or len(short_ext) > 3 or any(
-            c in filename for c in " +,;=[]"
-        ) or filename != filename.upper()
+        needs_lfn = (
+            len(short_name) > 8
+            or len(short_ext) > 3
+            or any(c in filename for c in " +,;=[]")
+            or filename != filename.upper()
+        )
 
         if needs_lfn:
             lfn_entries = _lfn_entries(filename, checksum)
@@ -287,9 +288,7 @@ class Fat16Writer:
         image[fat2_offset : fat2_offset + len(fat_bytes)] = fat_bytes
 
         # Root directory
-        root_offset = (
-            self.reserved_sectors + self.fat_count * self.fat_size_sectors
-        ) * SECTOR_SIZE
+        root_offset = (self.reserved_sectors + self.fat_count * self.fat_size_sectors) * SECTOR_SIZE
         image[root_offset : root_offset + len(self._root_dir)] = self._root_dir
 
         # Cluster data
@@ -316,7 +315,7 @@ class Fat16Writer:
             struct.pack_into("<I", bs, 32, self.total_sectors)
         bs[21] = 0xF8  # media: fixed disk
         struct.pack_into("<H", bs, 22, self.fat_size_sectors)
-        struct.pack_into("<H", bs, 24, 63)   # sectors/track
+        struct.pack_into("<H", bs, 24, 63)  # sectors/track
         struct.pack_into("<H", bs, 26, 255)  # heads
         struct.pack_into("<I", bs, 28, self.hidden_sectors)
         bs[36] = 0x80  # drive number

@@ -1,7 +1,7 @@
 """REST API routes for artifacts (M20).
 
-    GET /v1/artifacts           — search artifacts
-    GET /v1/artifacts/{id}      — artifact metadata
+GET /v1/artifacts           — search artifacts
+GET /v1/artifacts/{id}      — artifact metadata
 """
 
 from __future__ import annotations

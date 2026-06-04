@@ -93,7 +93,7 @@ def _install_destdir_tarball(data: bytes, stage_dir: Path) -> None:
         for member in tar.getmembers():
             # Strip leading destdir/ prefix
             if member.name.startswith("destdir/"):
-                member.name = member.name[len("destdir/"):]
+                member.name = member.name[len("destdir/") :]
             elif member.name == "destdir":
                 continue
             if not member.name:
@@ -147,9 +147,7 @@ def install_package_into_rootfs(
         If the artifact is not found or the package is malformed.
     """
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             raise ValueError(f"artifact not found: {artifact_id!r}")
         kind = art.kind
@@ -195,8 +193,6 @@ def install_packages_into_rootfs(
     """
     manifests: list[dict[str, Any]] = []
     for aid in artifact_ids:
-        manifest = install_package_into_rootfs(
-            aid, stage_dir, store_root, db_url=db_url
-        )
+        manifest = install_package_into_rootfs(aid, stage_dir, store_root, db_url=db_url)
         manifests.append(manifest)
     return manifests

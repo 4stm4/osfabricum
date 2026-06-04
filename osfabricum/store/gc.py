@@ -102,9 +102,7 @@ def store_stats(store_root: Path, *, db_url: str | None = None) -> StoreStats:
             if art.pinned:
                 stats.pinned += 1
             referenced.add(art.blob_sha256)
-            bucket = stats.by_class.setdefault(
-                art.retention_class, {"count": 0, "bytes": 0}
-            )
+            bucket = stats.by_class.setdefault(art.retention_class, {"count": 0, "bytes": 0})
             bucket["count"] += 1
             bucket["bytes"] += size
 
@@ -127,11 +125,12 @@ def store_stats(store_root: Path, *, db_url: str | None = None) -> StoreStats:
 
 def _blob_refcount(session, blob_sha256: str) -> int:
     """Number of Artifact rows referencing *blob_sha256*."""
-    return session.scalar(
-        select(func.count())
-        .select_from(Artifact)
-        .where(Artifact.blob_sha256 == blob_sha256)
-    ) or 0
+    return (
+        session.scalar(
+            select(func.count()).select_from(Artifact).where(Artifact.blob_sha256 == blob_sha256)
+        )
+        or 0
+    )
 
 
 def collect_garbage(
@@ -174,8 +173,10 @@ def collect_garbage(
         to_delete: list[Artifact] = []
         for art in artifacts:
             if is_expired(
-                art.retention_class, art.created_at,
-                pinned=art.pinned, now=now,
+                art.retention_class,
+                art.created_at,
+                pinned=art.pinned,
+                now=now,
             ):
                 to_delete.append(art)
             else:
@@ -184,10 +185,9 @@ def collect_garbage(
         # --- 2. cache-hot quota (LRU) ---
         if quota_bytes is not None:
             hot = [
-                a for a in artifacts
-                if a.retention_class == "cache-hot"
-                and not a.pinned
-                and a not in to_delete
+                a
+                for a in artifacts
+                if a.retention_class == "cache-hot" and not a.pinned and a not in to_delete
             ]
             hot.sort(key=lambda a: a.created_at or datetime.min)  # oldest first
             hot_total = sum(a.size_bytes or 0 for a in hot)
@@ -204,8 +204,7 @@ def collect_garbage(
             result.deleted_artifacts.append(art.id)
             result.freed_bytes += art.size_bytes or 0
             result.logs.append(
-                f"[gc] expire {art.kind}/{art.name} "
-                f"({art.retention_class}, {art.id[:8]}…)"
+                f"[gc] expire {art.kind}/{art.name} ({art.retention_class}, {art.id[:8]}…)"
             )
 
             if not dry_run:

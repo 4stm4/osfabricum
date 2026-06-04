@@ -56,6 +56,7 @@ def base_rootfs_artifact(db_url: str, store_root: Path) -> Artifact:
     result = build_base_rootfs(spec, store_root=store_root, db_url=db_url)
     assert result.success
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     return art
@@ -84,6 +85,7 @@ def _make_ofpkg(name: str, version: str, arch: str, files: dict[str, bytes]) -> 
 
     # Build checksums
     import hashlib
+
     manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
     sbom_bytes = json.dumps({"bomFormat": "CycloneDX"}).encode()
     checksums = (
@@ -137,9 +139,7 @@ def test_install_package_extracts_files(
 ) -> None:
     stage = tmp_path / "rootfs"
     stage.mkdir()
-    manifest = install_package_into_rootfs(
-        package_artifact.id, stage, store_root, db_url=db_url
-    )
+    manifest = install_package_into_rootfs(package_artifact.id, stage, store_root, db_url=db_url)
     assert manifest["name"] == "nanodhcp"
     assert (stage / "usr" / "bin" / "nanodhcp").exists()
     assert (stage / "etc" / "nanodhcp.conf").exists()
@@ -235,8 +235,7 @@ def test_install_systemd_service_creates_wants_symlink(tmp_path: Path) -> None:
         "myservice", tmp_path, tmp_path / "store", init_system="systemd", enabled=True
     )
     wants = (
-        tmp_path / "etc" / "systemd" / "system"
-        / "multi-user.target.wants" / "myservice.service"
+        tmp_path / "etc" / "systemd" / "system" / "multi-user.target.wants" / "myservice.service"
     )
     assert wants.is_symlink()
 
@@ -252,9 +251,7 @@ def test_install_services_multiple(tmp_path: Path) -> None:
 
 def test_install_service_unknown_init_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unknown init_system"):
-        install_service_into_rootfs(
-            "x", tmp_path, tmp_path / "store", init_system="openrc"
-        )
+        install_service_into_rootfs("x", tmp_path, tmp_path / "store", init_system="openrc")
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +286,7 @@ def test_compose_rootfs_artifact_kind(
     spec = _make_spec(base_rootfs_artifact.id)
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     assert art.kind == "rootfs"
@@ -301,6 +299,7 @@ def test_compose_rootfs_has_repro_chain(
     spec = _make_spec(base_rootfs_artifact.id)
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     assert art.input_hash is not None
@@ -309,8 +308,7 @@ def test_compose_rootfs_has_repro_chain(
 
 
 def test_compose_rootfs_with_package(
-    db_url: str, store_root: Path,
-    base_rootfs_artifact: Artifact, package_artifact: Artifact
+    db_url: str, store_root: Path, base_rootfs_artifact: Artifact, package_artifact: Artifact
 ) -> None:
     spec = _make_spec(
         base_rootfs_artifact.id,
@@ -323,8 +321,7 @@ def test_compose_rootfs_with_package(
 
 
 def test_compose_rootfs_package_present_in_tar(
-    db_url: str, store_root: Path,
-    base_rootfs_artifact: Artifact, package_artifact: Artifact
+    db_url: str, store_root: Path, base_rootfs_artifact: Artifact, package_artifact: Artifact
 ) -> None:
     """nanodhcp binary should be inside the composed rootfs tar."""
     spec = _make_spec(
@@ -333,6 +330,7 @@ def test_compose_rootfs_package_present_in_tar(
     )
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     bp = blob_path(store_root, art.blob_sha256)
@@ -364,6 +362,7 @@ def test_compose_rootfs_service_in_tar(
     )
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     bp = blob_path(store_root, art.blob_sha256)
@@ -372,9 +371,7 @@ def test_compose_rootfs_service_in_tar(
     assert any("nanodhcp" in n for n in names)
 
 
-def test_compose_rootfs_invalid_base_fails(
-    db_url: str, store_root: Path
-) -> None:
+def test_compose_rootfs_invalid_base_fails(db_url: str, store_root: Path) -> None:
     spec = _make_spec("00000000-0000-0000-0000-000000000000")
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     assert result.success is False
@@ -390,9 +387,7 @@ def test_compose_rootfs_idempotent(
     assert r1.artifact_id == r2.artifact_id
 
 
-def test_compose_rootfs_logs(
-    db_url: str, store_root: Path, base_rootfs_artifact: Artifact
-) -> None:
+def test_compose_rootfs_logs(db_url: str, store_root: Path, base_rootfs_artifact: Artifact) -> None:
     spec = _make_spec(base_rootfs_artifact.id)
     result = compose_rootfs(spec, store_root=store_root, db_url=db_url)
     assert any("[compose]" in line for line in result.logs)
@@ -403,19 +398,23 @@ def test_compose_rootfs_logs(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_compose_rootfs(
-    db_url: str, store_root: Path, base_rootfs_artifact: Artifact
-) -> None:
+def test_cli_compose_rootfs(db_url: str, store_root: Path, base_rootfs_artifact: Artifact) -> None:
     result = runner.invoke(
         app,
         [
-            "compose", "rootfs",
+            "compose",
+            "rootfs",
             "tinywifi/default",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--base", base_rootfs_artifact.id,
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--base",
+            base_rootfs_artifact.id,
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -428,13 +427,19 @@ def test_cli_compose_rootfs_bad_target(
     result = runner.invoke(
         app,
         [
-            "compose", "rootfs",
+            "compose",
+            "rootfs",
             "noslash",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--base", base_rootfs_artifact.id,
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--base",
+            base_rootfs_artifact.id,
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code != 0

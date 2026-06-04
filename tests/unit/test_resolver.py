@@ -105,10 +105,16 @@ def test_resolution_hash_is_deterministic() -> None:
 
 def test_resolution_hash_changes_with_inputs() -> None:
     base = {
-        "distribution_id": "aaa", "profile_id": "bbb", "board_id": "ccc",
-        "arch_id": "ddd", "toolchain_id": None, "kernel_id": None,
-        "package_version_ids": [], "firmware_blob_ids": [],
-        "overlay_ids": [], "script_ids": [],
+        "distribution_id": "aaa",
+        "profile_id": "bbb",
+        "board_id": "ccc",
+        "arch_id": "ddd",
+        "toolchain_id": None,
+        "kernel_id": None,
+        "package_version_ids": [],
+        "firmware_blob_ids": [],
+        "overlay_ids": [],
+        "script_ids": [],
     }
     h1 = _compute_resolution_hash(base)
     modified = {**base, "kernel_id": "new-kernel-id"}
@@ -119,10 +125,16 @@ def test_resolution_hash_changes_with_inputs() -> None:
 def test_resolution_hash_list_order_irrelevant() -> None:
     """Sorted lists → same hash regardless of insertion order."""
     payload_a = {
-        "distribution_id": "a", "profile_id": "b", "board_id": "c",
-        "arch_id": "d", "toolchain_id": None, "kernel_id": None,
+        "distribution_id": "a",
+        "profile_id": "b",
+        "board_id": "c",
+        "arch_id": "d",
+        "toolchain_id": None,
+        "kernel_id": None,
         "package_version_ids": ["z", "a", "m"],
-        "firmware_blob_ids": [], "overlay_ids": [], "script_ids": [],
+        "firmware_blob_ids": [],
+        "overlay_ids": [],
+        "script_ids": [],
     }
     payload_b = {
         **payload_a,
@@ -340,9 +352,7 @@ def test_resolve_plan_includes_firmware(db_url: str, base_data: dict) -> None:
     assert any(f.filename == "start4.elf" for f in plan.firmware)
 
 
-def test_resolve_plan_firmware_missing_in_missing_artifacts(
-    db_url: str, base_data: dict
-) -> None:
+def test_resolve_plan_firmware_missing_in_missing_artifacts(db_url: str, base_data: dict) -> None:
     board_id = base_data["board_id"]
     with sync_session(db_url) as session:
         fw = FirmwareBlob(
@@ -370,17 +380,13 @@ def test_resolve_plan_missing_artifacts_empty_when_all_present(
     assert plan.missing_artifacts == []
 
 
-def test_resolve_plan_required_jobs_always_contains_compose(
-    db_url: str, base_data: dict
-) -> None:
+def test_resolve_plan_required_jobs_always_contains_compose(db_url: str, base_data: dict) -> None:
     plan = resolve_plan("tinywifi", "default", "rpi-zero-2w", db_url=db_url)
     assert "rootfs.compose" in plan.required_jobs
     assert "image.compose" in plan.required_jobs
 
 
-def test_resolve_plan_required_jobs_includes_kernel_build(
-    db_url: str, base_data: dict
-) -> None:
+def test_resolve_plan_required_jobs_includes_kernel_build(db_url: str, base_data: dict) -> None:
     arch_id, board_id = base_data["arch_id"], base_data["board_id"]
     with sync_session(db_url) as session:
         k = Kernel(
@@ -396,17 +402,13 @@ def test_resolve_plan_required_jobs_includes_kernel_build(
     assert "kernel.build:linux-rpi" in plan.required_jobs
 
 
-def test_resolve_plan_required_jobs_includes_package_build(
-    db_url: str, base_data: dict
-) -> None:
+def test_resolve_plan_required_jobs_includes_package_build(db_url: str, base_data: dict) -> None:
     arch_id = base_data["arch_id"]
     with sync_session(db_url) as session:
         pkg = Package(name="nanodhcp", package_type="native")
         session.add(pkg)
         session.flush()
-        pv = PackageVersion(
-            package_id=pkg.id, version="0.1.0", arch_id=arch_id, status="pending"
-        )
+        pv = PackageVersion(package_id=pkg.id, version="0.1.0", arch_id=arch_id, status="pending")
         session.add(pv)
         session.commit()
 
@@ -528,10 +530,14 @@ def test_cli_plan_json_output(db_url: str, base_data: dict) -> None:
     result = runner.invoke(
         app,
         [
-            "plan", "tinywifi/default",
-            "--board", "rpi-zero-2w",
-            "--db-url", db_url,
-            "--output", "json",
+            "plan",
+            "tinywifi/default",
+            "--board",
+            "rpi-zero-2w",
+            "--db-url",
+            db_url,
+            "--output",
+            "json",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -564,10 +570,14 @@ def test_cli_plan_json_has_required_jobs(db_url: str, base_data: dict) -> None:
     result = runner.invoke(
         app,
         [
-            "plan", "tinywifi/default",
-            "--board", "rpi-zero-2w",
-            "--db-url", db_url,
-            "--output", "json",
+            "plan",
+            "tinywifi/default",
+            "--board",
+            "rpi-zero-2w",
+            "--db-url",
+            db_url,
+            "--output",
+            "json",
         ],
     )
     data = json.loads(result.output)

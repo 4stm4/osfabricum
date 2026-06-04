@@ -134,9 +134,7 @@ def test_fetch_http_verifies_sha256(db_url: str, store_root: Path) -> None:
         expected_hash=_FAKE_SHA256,
     )
     with patch("urllib.request.urlopen", return_value=_mock_urlopen()):
-        artifact_id = fetch_source(
-            "https://example.com/verified.tar.gz", store_root, db_url
-        )
+        artifact_id = fetch_source("https://example.com/verified.tar.gz", store_root, db_url)
     assert artifact_id
 
 
@@ -314,9 +312,7 @@ def test_import_sources(db_url: str, tmp_path: Path) -> None:
                   tarball_url: "https://github.com/example/repo/archive/main.tar.gz"
         """)
     )
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(src_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(src_file), "--db-url", db_url])
     assert result.exit_code == 0, result.output
     assert "2" in result.output
 
@@ -328,13 +324,10 @@ def test_import_sources(db_url: str, tmp_path: Path) -> None:
 def test_import_sources_idempotent(db_url: str, tmp_path: Path) -> None:
     src_file = tmp_path / "src.yaml"
     src_file.write_text(
-        "kind: SourceList\nitems:\n"
-        "  - uri: https://example.com/foo.tar.gz\n    source_type: http\n"
+        "kind: SourceList\nitems:\n  - uri: https://example.com/foo.tar.gz\n    source_type: http\n"
     )
     runner.invoke(app, ["catalog", "import", "--file", str(src_file), "--db-url", db_url])
-    result = runner.invoke(
-        app, ["catalog", "import", "--file", str(src_file), "--db-url", db_url]
-    )
+    result = runner.invoke(app, ["catalog", "import", "--file", str(src_file), "--db-url", db_url])
     assert result.exit_code == 0
     assert "0" in result.output
 
@@ -502,9 +495,7 @@ def test_source_fetch_handler_via_worker_loop(db_url: str, store_root: Path) -> 
         while time.monotonic() < deadline:
             if backend.status_counts().get("success", 0) >= 1:
                 with sync_session(db_url) as session:
-                    art = session.scalar(
-                        select(Artifact).where(Artifact.kind == "source")
-                    )
+                    art = session.scalar(select(Artifact).where(Artifact.kind == "source"))
                     art_id = art.id if art else None
                 break
             time.sleep(0.05)
@@ -520,9 +511,7 @@ def test_source_fetch_handler_missing_payload(db_url: str, store_root: Path) -> 
     backend.enqueue("source.fetch", payload={})  # no source_id
 
     stop = threading.Event()
-    loop = WorkerLoop(
-        backend, "test-worker", ["source.fetch"], poll_interval_s=0.05
-    )
+    loop = WorkerLoop(backend, "test-worker", ["source.fetch"], poll_interval_s=0.05)
     loop.register("source.fetch", make_source_fetch_handler(store_root, db_url))
 
     def _run() -> None:

@@ -78,9 +78,7 @@ def build_overlay(
     # Upsert Overlay row
     if db_url is not None:
         with sync_session(db_url) as session:
-            existing: Overlay | None = session.scalar(
-                select(Overlay).where(Overlay.name == name)
-            )
+            existing: Overlay | None = session.scalar(select(Overlay).where(Overlay.name == name))
             if existing is None:
                 session.add(
                     Overlay(

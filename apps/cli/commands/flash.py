@@ -148,7 +148,5 @@ def flash_verify(
     if actual == expected:
         console.print(f"[green]✓[/green] {device} matches artifact {artifact_id[:8]}…")
     else:
-        console.print(
-            f"[red]✗[/red] mismatch: expected {expected[:16]}…, got {actual[:16]}…"
-        )
+        console.print(f"[red]✗[/red] mismatch: expected {expected[:16]}…, got {actual[:16]}…")
         raise typer.Exit(code=1)

@@ -1,14 +1,21 @@
-"""API token authentication middleware (M14).
+"""API token authentication middleware (M14, refined for G-24).
 
-When ``AuthSettings.enabled`` is ``True``, every non-health-check request
-must carry a valid bearer token in the ``Authorization`` header.
+Authorization model:
+
+* **Read endpoints are public.** Browsing the catalog, plans, builds, etc. needs
+  no credentials.
+* **Write endpoints enforce auth per-endpoint** via ``WriteAuthDep``
+  (``osfabricum.security.auth_policy``) — POST/PATCH/DELETE require a bearer
+  token when ``AuthSettings.enabled`` is ``True``.
+* **This middleware guards only admin/internal surfaces** (``/internal/*``) —
+  e.g. the queue dashboard — so they are never world-readable.
+
+Health/monitoring endpoints (``/healthz``, ``/readyz``, ``/metrics``) and the
+static UI are always public.
 
 The expected token is read from (in priority order):
 1. ``OSFABRICUM_API_TOKEN`` environment variable
 2. ``auth.token`` field in the TOML config file
-
-Health/readiness endpoints (``/healthz``, ``/readyz``, ``/metrics``) are
-always exempt so monitoring systems do not need credentials.
 
 Usage (in :func:`~apps.api.app.create_app`)::
 
@@ -26,13 +33,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-#: Paths that skip authentication regardless of the auth setting.
-_PUBLIC_PATHS: frozenset[str] = frozenset(
-    {"/", "/healthz", "/readyz", "/metrics", "/docs", "/openapi.json", "/redoc"}
-)
-
-#: Path prefixes that skip authentication (e.g. static dashboard assets).
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/static/",)
+#: Path prefixes that REQUIRE a bearer token when auth is enabled. Everything
+#: else is public at the middleware level; write endpoints add their own
+#: per-endpoint check (WriteAuthDep, G-24).
+_PROTECTED_PREFIXES: tuple[str, ...] = ("/internal/",)
 
 
 def _get_expected_token(settings: object) -> str | None:
@@ -49,7 +53,7 @@ def _get_expected_token(settings: object) -> str | None:
 
 
 class TokenAuthMiddleware(BaseHTTPMiddleware):
-    """Starlette middleware that enforces bearer token authentication.
+    """Starlette middleware that protects admin/internal endpoints.
 
     Parameters
     ----------
@@ -64,14 +68,14 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         self._settings = settings
 
     async def dispatch(self, request: Request, call_next: object) -> Response:
-        # Exempt public paths and static asset prefixes
-        path = request.url.path
-        if path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES):
+        # Only admin/internal paths are guarded here; reads are public and
+        # writes are guarded per-endpoint (WriteAuthDep).
+        if not request.url.path.startswith(_PROTECTED_PREFIXES):
             return await call_next(request)  # type: ignore[operator]
 
         expected = _get_expected_token(self._settings)
         if expected is None:
-            # Auth is enabled but no token configured → refuse all requests
+            # Auth is enabled but no token configured → refuse protected requests
             return JSONResponse(
                 {"detail": "server misconfiguration: auth enabled but no token set"},
                 status_code=500,

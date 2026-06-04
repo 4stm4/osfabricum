@@ -71,15 +71,12 @@ def verify_ofpkg(path: Path) -> dict[str, Any]:
 
         for filename, expected_hex in expected.items():
             if filename not in members:
-                raise ValueError(
-                    f"checksums.sha256 references missing member: {filename!r}"
-                )
+                raise ValueError(f"checksums.sha256 references missing member: {filename!r}")
             data = zf.read(filename)
             actual_hex = hashlib.sha256(data).hexdigest()
             if actual_hex != expected_hex:
                 raise ValueError(
-                    f"checksum mismatch for {filename!r}: "
-                    f"expected {expected_hex}, got {actual_hex}"
+                    f"checksum mismatch for {filename!r}: expected {expected_hex}, got {actual_hex}"
                 )
 
         # 3–4. Manifest schema
@@ -158,9 +155,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
     for field in MANIFEST_REQUIRED:
         value = manifest.get(field)
         if not value:
-            raise ValueError(
-                f"manifest.json missing or empty required field: {field!r}"
-            )
+            raise ValueError(f"manifest.json missing or empty required field: {field!r}")
     if manifest["format_version"] != "1":
         raise ValueError(
             f"unsupported format_version: {manifest['format_version']!r} (expected '1')"
@@ -170,9 +165,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
 def _validate_sbom(sbom: dict[str, Any]) -> None:
     """Raise :exc:`ValueError` if *sbom* is missing required CycloneDX fields."""
     if sbom.get("bomFormat") != "CycloneDX":
-        raise ValueError(
-            f"sbom.json: bomFormat must be 'CycloneDX', got {sbom.get('bomFormat')!r}"
-        )
+        raise ValueError(f"sbom.json: bomFormat must be 'CycloneDX', got {sbom.get('bomFormat')!r}")
     for field in ("specVersion", "version", "components"):
         if field not in sbom:
             raise ValueError(f"sbom.json missing required field: {field!r}")

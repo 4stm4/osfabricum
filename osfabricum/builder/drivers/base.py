@@ -38,9 +38,7 @@ def _run_cmd(cmd: str | list[str], ctx: BuildContext) -> None:
 
     if proc.returncode != 0:
         tail = "\n".join(ctx.logs[-20:])
-        raise RuntimeError(
-            f"command failed (exit {proc.returncode}): {cmd!r}\n{tail}"
-        )
+        raise RuntimeError(f"command failed (exit {proc.returncode}): {cmd!r}\n{tail}")
 
 
 # ---------------------------------------------------------------------------

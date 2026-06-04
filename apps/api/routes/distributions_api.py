@@ -66,7 +66,9 @@ def list_distributions(request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("", status_code=201)
-def create_distribution(body: DistributionCreate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def create_distribution(
+    body: DistributionCreate, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     try:
         return dist_service.create_distribution(
             name=body.name,
@@ -110,7 +112,9 @@ def export_distribution(dist_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/{dist_id}")
-def update_distribution(dist_id: str, body: DistributionUpdate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def update_distribution(
+    dist_id: str, body: DistributionUpdate, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     provided = body.model_fields_set
     kwargs: dict[str, Any] = {}
     if "description" in provided:
@@ -137,7 +141,9 @@ def delete_distribution(dist_id: str, request: Request, _auth: WriteAuthDep = No
 
 
 @router.post("/{dist_id}/clone", status_code=201)
-def clone_distribution(dist_id: str, body: CloneRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+def clone_distribution(
+    dist_id: str, body: CloneRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
     try:
         return dist_service.clone_distribution(dist_id, body.name, db_url=_db(request))
     except ValueError as exc:

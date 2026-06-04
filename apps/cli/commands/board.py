@@ -15,6 +15,7 @@ board_app = typer.Typer(help="Board/BSP management commands", no_args_is_help=Tr
 
 # Seed data loader
 
+
 @board_app.command("seed")
 def seed_bsp_data(
     catalog_dir: Annotated[
@@ -42,13 +43,13 @@ def seed_bsp_data(
         if soc_file.exists():
             count = seed_soc_families_from_yaml(session, soc_file)
             typer.echo(f"Loaded {count} SoC families from {soc_file}")
-        
+
         # Load board revisions
         rev_file = catalog_dir / "board_revisions.yaml"
         if rev_file.exists():
             count = seed_board_revisions_from_yaml(session, rev_file)
             typer.echo(f"Loaded {count} board revisions from {rev_file}")
-        
+
         # Load BSP data
         bsp_file = catalog_dir / "board_bsp.yaml"
         if bsp_file.exists():
@@ -56,12 +57,13 @@ def seed_bsp_data(
             typer.echo(f"Loaded BSP data from {bsp_file}:")
             for key, count in counts.items():
                 typer.echo(f"  {key}: {count}")
-        
+
         session.commit()
         typer.echo("BSP seed data loaded successfully!")
 
 
 # SoC Families
+
 
 @board_app.command("soc-list")
 def soc_list(
@@ -92,7 +94,7 @@ def soc_create(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     result = board_service.create_soc_family(
         name=name,
         vendor=vendor,
@@ -104,6 +106,7 @@ def soc_create(
 
 
 # Board Revisions
+
 
 @board_app.command("revision-list")
 def revision_list(
@@ -138,7 +141,7 @@ def revision_create(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     result = board_service.create_board_revision(
         board_id=board_id,
         revision=revision,
@@ -153,6 +156,7 @@ def revision_create(
 
 # Board BSP (full view)
 
+
 @board_app.command("bsp-show")
 def bsp_show(
     board_id: Annotated[str, typer.Argument(help="Board ID")],
@@ -166,6 +170,7 @@ def bsp_show(
 
 
 # Board Firmware
+
 
 @board_app.command("firmware-add")
 def firmware_add(
@@ -186,7 +191,7 @@ def firmware_add(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     result = board_service.add_board_firmware(
         board_id=board_id,
         filename=filename,
@@ -203,6 +208,7 @@ def firmware_add(
 
 
 # Board Device Trees
+
 
 @board_app.command("dtb-add")
 def dtb_add(
@@ -224,11 +230,11 @@ def dtb_add(
     if dtb_type not in ("base", "overlay"):
         typer.echo("ERROR: dtb_type must be 'base' or 'overlay'", err=True)
         raise typer.Exit(code=1)
-    
+
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     result = board_service.add_board_device_tree(
         board_id=board_id,
         filename=filename,
@@ -247,12 +253,15 @@ def dtb_add(
 
 # Board Flash Methods
 
+
 @board_app.command("flash-add")
 def flash_add(
     board_id: Annotated[str, typer.Argument(help="Board ID")],
     method_name: Annotated[str, typer.Argument(help="Flash method name")],
     description: Annotated[str | None, typer.Option(help="Description")] = None,
-    command_template: Annotated[str | None, typer.Option("--command", help="Command template")] = None,
+    command_template: Annotated[
+        str | None, typer.Option("--command", help="Command template")
+    ] = None,
     tools: Annotated[str | None, typer.Option(help="Required tools (comma-separated)")] = None,
     device_pattern: Annotated[str | None, typer.Option(help="Device pattern")] = None,
     default: Annotated[bool, typer.Option(help="Set as default method")] = False,
@@ -266,11 +275,11 @@ def flash_add(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     requires_tools: list[str] | None = None
     if tools:
         requires_tools = [t.strip() for t in tools.split(",")]
-    
+
     result = board_service.add_board_flash_method(
         board_id=board_id,
         method_name=method_name,
@@ -288,6 +297,7 @@ def flash_add(
 
 # Board Test Methods
 
+
 @board_app.command("test-add")
 def test_add(
     board_id: Annotated[str, typer.Argument(help="Board ID")],
@@ -295,7 +305,9 @@ def test_add(
     description: Annotated[str | None, typer.Option(help="Description")] = None,
     test_command: Annotated[str | None, typer.Option("--command", help="Test command")] = None,
     tools: Annotated[str | None, typer.Option(help="Required tools (comma-separated)")] = None,
-    timeout_seconds: Annotated[int | None, typer.Option("--timeout", help="Timeout in seconds")] = None,
+    timeout_seconds: Annotated[
+        int | None, typer.Option("--timeout", help="Timeout in seconds")
+    ] = None,
     default: Annotated[bool, typer.Option(help="Set as default method")] = False,
     revision: Annotated[str | None, typer.Option(help="Board revision ID")] = None,
     metadata: Annotated[str | None, typer.Option(help="JSON metadata")] = None,
@@ -307,11 +319,11 @@ def test_add(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     requires_tools: list[str] | None = None
     if tools:
         requires_tools = [t.strip() for t in tools.split(",")]
-    
+
     result = board_service.add_board_test_method(
         board_id=board_id,
         method_name=method_name,
@@ -329,12 +341,15 @@ def test_add(
 
 # Board Probe Profiles
 
+
 @board_app.command("probe-add")
 def probe_add(
     board_id: Annotated[str, typer.Argument(help="Board ID")],
     probe_method: Annotated[str, typer.Argument(help="Probe method")],
     match_pattern: Annotated[str | None, typer.Option("--pattern", help="Match pattern")] = None,
-    match_fields: Annotated[str | None, typer.Option("--fields", help="Match fields (JSON)")] = None,
+    match_fields: Annotated[
+        str | None, typer.Option("--fields", help="Match fields (JSON)")
+    ] = None,
     confidence: Annotated[int, typer.Option(help="Confidence (0-100)")] = 100,
     revision: Annotated[str | None, typer.Option(help="Board revision ID")] = None,
     metadata: Annotated[str | None, typer.Option(help="JSON metadata")] = None,
@@ -346,11 +361,11 @@ def probe_add(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     fields: dict[str, Any] | None = None
     if match_fields:
         fields = json.loads(match_fields)
-    
+
     result = board_service.add_board_probe_profile(
         board_id=board_id,
         probe_method=probe_method,
@@ -362,5 +377,6 @@ def probe_add(
         db_url=db,
     )
     typer.echo(f"Added probe profile: {result['id']}")
+
 
 # Made with Bob

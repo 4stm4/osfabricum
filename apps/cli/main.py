@@ -24,6 +24,7 @@ from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.flash import flash_app
 from apps.cli.commands.image import image_app
 from apps.cli.commands.imagetest import test_app
+from apps.cli.commands.initramfs import initramfs_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
@@ -231,6 +232,7 @@ def _register_groups() -> None:
     app.add_typer(workers_app, name="workers")
     app.add_typer(board_app, name="board")
     app.add_typer(bootchain_app, name="bootchain")
+    app.add_typer(initramfs_app, name="initramfs")
 
 
 _register_groups()

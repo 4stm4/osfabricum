@@ -210,9 +210,7 @@ def run_recipe(
     # --- cache hit ---
     if db_url is not None:
         with sync_session(db_url) as session:
-            existing = session.scalar(
-                select(Artifact).where(Artifact.store_key == cache_key)
-            )
+            existing = session.scalar(select(Artifact).where(Artifact.store_key == cache_key))
             if existing is not None:
                 return RecipeResult(
                     success=True,

@@ -187,9 +187,7 @@ def _make_overlay_src(tmp_path: Path) -> Path:
     return src
 
 
-def test_build_overlay_creates_artifact(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_build_overlay_creates_artifact(tmp_path: Path, db_url: str, store_root: Path) -> None:
     src = _make_overlay_src(tmp_path)
     art = build_overlay(
         name="base-overlay",
@@ -202,9 +200,7 @@ def test_build_overlay_creates_artifact(
     assert art.name == "base-overlay"
 
 
-def test_build_overlay_upserts_db_row(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_build_overlay_upserts_db_row(tmp_path: Path, db_url: str, store_root: Path) -> None:
     src = _make_overlay_src(tmp_path)
     build_overlay(name="test-overlay", src_dir=src, store_root=store_root, db_url=db_url)
 
@@ -248,9 +244,7 @@ def test_build_overlay_no_overlay_row_without_distribution(
     assert art.kind == "overlay"
 
 
-def test_apply_overlay_extracts_files(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_apply_overlay_extracts_files(tmp_path: Path, db_url: str, store_root: Path) -> None:
     src = _make_overlay_src(tmp_path)
     art = build_overlay(name="apply-test", src_dir=src, store_root=store_root, db_url=db_url)
 
@@ -266,9 +260,7 @@ def test_apply_overlay_extracts_files(
     assert (target / "etc" / "hostname").exists()
 
 
-def test_apply_overlay_file_content(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_apply_overlay_file_content(tmp_path: Path, db_url: str, store_root: Path) -> None:
     src = _make_overlay_src(tmp_path)
     art = build_overlay(name="content-test", src_dir=src, store_root=store_root, db_url=db_url)
     target = tmp_path / "rootfs"
@@ -281,9 +273,7 @@ def test_apply_overlay_file_content(
     assert (target / "etc" / "motd").read_text() == "Welcome to OSFabricum\n"
 
 
-def test_apply_overlay_creates_target_dir(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_apply_overlay_creates_target_dir(tmp_path: Path, db_url: str, store_root: Path) -> None:
     src = _make_overlay_src(tmp_path)
     art = build_overlay(name="mkdir-test", src_dir=src, store_root=store_root, db_url=db_url)
 

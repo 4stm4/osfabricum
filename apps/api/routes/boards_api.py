@@ -1,20 +1,20 @@
 """Board/BSP API (M30).
 
-    GET    /v1/boards/{id}/bsp          — get board with all BSP data
-    GET    /v1/soc-families              — list SoC families
-    POST   /v1/soc-families              — create SoC family
-    GET    /v1/boards/{id}/revisions     — list board revisions
-    POST   /v1/boards/{id}/revisions     — create board revision
-    POST   /v1/boards/{id}/firmware      — add firmware blob
-    POST   /v1/boards/{id}/device-trees  — add device tree
-    POST   /v1/boards/{id}/flash-methods — add flash method
-    POST   /v1/boards/{id}/test-methods  — add test method
-    POST   /v1/boards/{id}/probe-profiles — add probe profile
+GET    /v1/boards/{id}/bsp          — get board with all BSP data
+GET    /v1/soc-families              — list SoC families
+POST   /v1/soc-families              — create SoC family
+GET    /v1/boards/{id}/revisions     — list board revisions
+POST   /v1/boards/{id}/revisions     — create board revision
+POST   /v1/boards/{id}/firmware      — add firmware blob
+POST   /v1/boards/{id}/device-trees  — add device tree
+POST   /v1/boards/{id}/flash-methods — add flash method
+POST   /v1/boards/{id}/test-methods  — add test method
+POST   /v1/boards/{id}/probe-profiles — add probe profile
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ def _guard(exc: ValueError) -> HTTPException:
 
 
 # SoC Families
+
 
 class SocFamilyCreate(BaseModel):
     name: str
@@ -70,6 +71,7 @@ def create_soc_family(
 
 
 # Board Revisions
+
 
 class BoardRevisionCreate(BaseModel):
     revision: str
@@ -106,6 +108,7 @@ def create_board_revision(
 
 # Board BSP (full view)
 
+
 @router.get("/boards/{board_id}/bsp")
 def get_board_bsp(board_id: str, request: Request) -> dict[str, Any]:
     """Get board with all BSP data (revisions, firmware, DTBs, methods)."""
@@ -116,6 +119,7 @@ def get_board_bsp(board_id: str, request: Request) -> dict[str, Any]:
 
 
 # Board Firmware
+
 
 class BoardFirmwareCreate(BaseModel):
     filename: str
@@ -151,6 +155,7 @@ def add_board_firmware(
 
 
 # Board Device Trees
+
 
 class BoardDeviceTreeCreate(BaseModel):
     filename: str
@@ -189,6 +194,7 @@ def add_board_device_tree(
 
 # Board Flash Methods
 
+
 class BoardFlashMethodCreate(BaseModel):
     method_name: str
     description: str | None = None
@@ -223,6 +229,7 @@ def add_board_flash_method(
 
 
 # Board Test Methods
+
 
 class BoardTestMethodCreate(BaseModel):
     method_name: str
@@ -259,6 +266,7 @@ def add_board_test_method(
 
 # Board Probe Profiles
 
+
 class BoardProbeProfileCreate(BaseModel):
     probe_method: str
     match_pattern: str | None = None
@@ -286,5 +294,6 @@ def add_board_probe_profile(
         )
     except ValueError as exc:
         raise _guard(exc) from exc
+
 
 # Made with Bob

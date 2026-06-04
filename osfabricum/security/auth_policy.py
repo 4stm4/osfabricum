@@ -54,7 +54,7 @@ def _get_expected_token(request: Request) -> str | None:
 
 def _verify_write_auth(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)] = None,
 ) -> None:
     """Verify bearer token for write operations.
 

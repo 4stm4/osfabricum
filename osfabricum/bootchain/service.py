@@ -31,7 +31,7 @@ def create_boot_chain(
         scheme = session.get(BootScheme, boot_scheme_id)
         if not scheme:
             raise ValueError(f"Boot scheme {boot_scheme_id!r} not found")
-        
+
         boot_chain = BootChain(
             id=str(uuid4()),
             name=name,
@@ -58,30 +58,28 @@ def get_boot_chain(boot_chain_id: str, *, db_url: str | None = None) -> dict[str
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         # Get templates
         templates_stmt = select(BootChainTemplate).where(
             BootChainTemplate.boot_chain_id == boot_chain_id
         )
         templates = session.execute(templates_stmt).scalars().all()
-        
+
         # Get files
-        files_stmt = select(BootChainFile).where(
-            BootChainFile.boot_chain_id == boot_chain_id
-        )
+        files_stmt = select(BootChainFile).where(BootChainFile.boot_chain_id == boot_chain_id)
         files = session.execute(files_stmt).scalars().all()
-        
+
         # Get bindings
         bindings_stmt = select(BootChainBinding).where(
             BootChainBinding.boot_chain_id == boot_chain_id
         )
         bindings = session.execute(bindings_stmt).scalars().all()
-        
+
         result = _boot_chain_to_dict(chain)
         result["templates"] = [_boot_chain_template_to_dict(t) for t in templates]
         result["files"] = [_boot_chain_file_to_dict(f) for f in files]
         result["bindings"] = [_boot_chain_binding_to_dict(b) for b in bindings]
-        
+
         return result
 
 
@@ -100,7 +98,7 @@ def add_boot_chain_template(
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         template = BootChainTemplate(
             id=str(uuid4()),
             boot_chain_id=boot_chain_id,
@@ -132,13 +130,13 @@ def add_boot_chain_file(
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         # Verify template if specified
         if template_id:
             template = session.get(BootChainTemplate, template_id)
             if not template:
                 raise ValueError(f"Template {template_id!r} not found")
-        
+
         file = BootChainFile(
             id=str(uuid4()),
             boot_chain_id=boot_chain_id,
@@ -171,7 +169,7 @@ def bind_boot_chain(
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         binding = BootChainBinding(
             id=str(uuid4()),
             boot_chain_id=boot_chain_id,
@@ -195,12 +193,12 @@ def list_boot_chain_bindings(
     """List boot chain bindings, optionally filtered by board/profile."""
     with get_session(db_url) as session:
         stmt = select(BootChainBinding)
-        
+
         if board_id:
             stmt = stmt.where(BootChainBinding.board_id == board_id)
         if profile_id:
             stmt = stmt.where(BootChainBinding.profile_id == profile_id)
-        
+
         stmt = stmt.order_by(BootChainBinding.priority.desc())
         bindings = session.execute(stmt).scalars().all()
         return [_boot_chain_binding_to_dict(b) for b in bindings]
@@ -217,35 +215,35 @@ def render_boot_chain(
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         # Get all files
-        files_stmt = select(BootChainFile).where(
-            BootChainFile.boot_chain_id == boot_chain_id
-        )
+        files_stmt = select(BootChainFile).where(BootChainFile.boot_chain_id == boot_chain_id)
         files = session.execute(files_stmt).scalars().all()
-        
+
         rendered_files = []
         for file in files:
             content = file.content_template or ""
-            
+
             # If file references a template, get template content
             if file.template_id:
                 template = session.get(BootChainTemplate, file.template_id)
                 if template:
                     content = template.content
-            
+
             # Simple variable substitution (in production, use Jinja2)
             for key, value in variables.items():
                 content = content.replace(f"{{{key}}}", str(value))
-            
-            rendered_files.append({
-                "filename": file.filename,
-                "placement": file.placement,
-                "content": content,
-                "permissions": file.permissions,
-                "required": file.required,
-            })
-        
+
+            rendered_files.append(
+                {
+                    "filename": file.filename,
+                    "placement": file.placement,
+                    "content": content,
+                    "permissions": file.permissions,
+                    "required": file.required,
+                }
+            )
+
         return {
             "boot_chain_id": boot_chain_id,
             "boot_chain_name": chain.name,
@@ -264,35 +262,37 @@ def validate_boot_chain(
         chain = session.get(BootChain, boot_chain_id)
         if not chain:
             raise ValueError(f"Boot chain {boot_chain_id!r} not found")
-        
+
         # Get required files
         files_stmt = select(BootChainFile).where(
             BootChainFile.boot_chain_id == boot_chain_id,
             BootChainFile.required == True,  # noqa: E712
         )
         required_files = session.execute(files_stmt).scalars().all()
-        
+
         errors = []
         warnings = []
-        
+
         # Check if kernel is referenced
         has_kernel = any("kernel" in f.filename.lower() for f in required_files)
         if not has_kernel and "kernel" not in context:
             errors.append("No kernel file or kernel context provided")
-        
+
         # Check if initramfs is needed but missing
         scheme = session.get(BootScheme, chain.boot_scheme_id)
         if scheme and "initramfs" in scheme.name.lower():
             has_initramfs = any("initramfs" in f.filename.lower() for f in required_files)
             if not has_initramfs and "initramfs" not in context:
                 warnings.append("Initramfs may be required but not found")
-        
+
         # Check for DTB if needed
         if context.get("board_requires_dtb"):
-            has_dtb = any("dtb" in f.filename.lower() or "dt" in f.filename.lower() for f in required_files)
+            has_dtb = any(
+                "dtb" in f.filename.lower() or "dt" in f.filename.lower() for f in required_files
+            )
             if not has_dtb:
                 errors.append("Board requires device tree but none found in boot chain")
-        
+
         return {
             "valid": len(errors) == 0,
             "errors": errors,
@@ -302,6 +302,7 @@ def validate_boot_chain(
 
 
 # Helper functions to convert ORM objects to dicts
+
 
 def _boot_chain_to_dict(chain: BootChain) -> dict[str, Any]:
     return {
@@ -349,5 +350,6 @@ def _boot_chain_binding_to_dict(binding: BootChainBinding) -> dict[str, Any]:
         "priority": binding.priority,
         "metadata": binding.metadata_json,
     }
+
 
 # Made with Bob

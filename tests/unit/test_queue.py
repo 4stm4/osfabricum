@@ -25,11 +25,11 @@ from typer.testing import CliRunner
 
 from apps.api.app import create_app
 from apps.cli.main import app
-from osfabricum.settings import Settings
 from osfabricum.db.engine import make_sync_engine
 from osfabricum.db.models import Base
 from osfabricum.queue.backend import JobBackend, JobView
 from osfabricum.queue.worker import WorkerLoop
+from osfabricum.settings import Settings
 
 runner = CliRunner()
 
@@ -62,11 +62,7 @@ def _get_job_row(db_url: str, job_id: str) -> dict[str, Any] | None:
 
     engine = make_sync_engine(db_url)
     with engine.connect() as conn:
-        row = (
-            conn.execute(select(JobTasks).where(JobTasks.c.id == job_id))
-            .mappings()
-            .first()
-        )
+        row = conn.execute(select(JobTasks).where(JobTasks.c.id == job_id)).mappings().first()
         result = dict(row) if row is not None else None
     engine.dispose()
     return result
@@ -157,9 +153,7 @@ def test_expire_leases_requeues_stale(backend: JobBackend, db_url: str) -> None:
     assert int(row["attempts"]) == 1  # 1 attempt ran and expired
 
 
-def test_expire_leases_fails_when_max_attempts_exhausted(
-    backend: JobBackend, db_url: str
-) -> None:
+def test_expire_leases_fails_when_max_attempts_exhausted(backend: JobBackend, db_url: str) -> None:
     job_id = backend.enqueue("source.fetch", max_attempts=1, lease_ttl_s=0)
     backend.claim_next(["source.fetch"], "worker-01")
     time.sleep(0.01)
@@ -419,9 +413,7 @@ def test_claim_skips_mismatched_picks_matching(backend: JobBackend) -> None:
 def test_worker_loop_tag_routing(db_url: str) -> None:
     """WorkerLoop with arch:aarch64 tag cannot claim job requiring arch:x86_64."""
     backend = JobBackend(db_url)
-    job_id = backend.enqueue(
-        "package.build", required_tags=["arch:x86_64"], max_attempts=1
-    )
+    job_id = backend.enqueue("package.build", required_tags=["arch:x86_64"], max_attempts=1)
 
     executed: list[str] = []
 

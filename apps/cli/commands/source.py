@@ -35,9 +35,7 @@ def _display_name(src: Source) -> str:
 
 @source_app.command("list")
 def source_list(
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """List registered sources."""
     try:
@@ -45,9 +43,7 @@ def source_list(
             rows = session.scalars(select(Source).order_by(Source.uri)).all()
             fetched_keys = {
                 art.store_key.split("/")[1]  # store_key = "source/<id>/..."
-                for art in session.scalars(
-                    select(Artifact).where(Artifact.kind == "source")
-                ).all()
+                for art in session.scalars(select(Artifact).where(Artifact.kind == "source")).all()
             }
     except OperationalError:
         Console().print(_DB_NOT_READY)
@@ -74,9 +70,7 @@ def source_list(
 @source_app.command("show")
 def source_show(
     identifier: Annotated[str, typer.Argument(help="URI, id, or name")],
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Show details for a single source."""
     try:
@@ -85,9 +79,7 @@ def source_show(
         src = _lookup_source(identifier, db_url)
         with sync_session(db_url) as session:
             artifact = session.scalar(
-                select(Artifact).where(
-                    Artifact.store_key.like(f"source/{src.id}/%")
-                )
+                select(Artifact).where(Artifact.store_key.like(f"source/{src.id}/%"))
             )
     except ValueError:
         typer.secho(f"source not found: {identifier!r}", fg=typer.colors.RED, err=True)
@@ -135,16 +127,12 @@ def source_add(
         str | None,
         typer.Option("--hash", help="Expected sha256 (hex or sha256:<hex>)"),
     ] = None,
-    name: Annotated[
-        str | None, typer.Option("--name", help="Human-readable name alias")
-    ] = None,
+    name: Annotated[str | None, typer.Option("--name", help="Human-readable name alias")] = None,
     tarball_url: Annotated[
         str | None,
         typer.Option("--tarball-url", help="Pre-built tarball URL (git fast path)"),
     ] = None,
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Register a source in the catalog (without fetching)."""
     try:
@@ -189,9 +177,7 @@ def source_fetch(
     offline: Annotated[
         bool, typer.Option("--offline/--no-offline", help="Serve from cache only")
     ] = False,
-    db_url: Annotated[
-        str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")
-    ] = None,
+    db_url: Annotated[str | None, typer.Option("--db-url", envvar="OSFABRICUM_DB_URL")] = None,
 ) -> None:
     """Download and store a source."""
     from osfabricum.fetcher.fetch import fetch_source

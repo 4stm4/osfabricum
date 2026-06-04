@@ -54,15 +54,24 @@ def _now() -> datetime:
 
 
 def _ingest(
-    db_url: str, store_root: Path, *,
-    data: bytes, key: str, retention: str,
-    age_days: int = 0, pinned: bool = False,
+    db_url: str,
+    store_root: Path,
+    *,
+    data: bytes,
+    key: str,
+    retention: str,
+    age_days: int = 0,
+    pinned: bool = False,
 ) -> Artifact:
     """Ingest an artifact and back-date its created_at by *age_days*."""
     art = ingest_blob(
-        data=data, store_root=store_root, store_key=key,
-        kind="test", name=key.replace("/", "-"),
-        retention_class=retention, db_url=db_url,
+        data=data,
+        store_root=store_root,
+        store_key=key,
+        kind="test",
+        name=key.replace("/", "-"),
+        retention_class=retention,
+        db_url=db_url,
     )
     if age_days or pinned:
         with sync_session(db_url) as session:
@@ -163,8 +172,12 @@ def test_store_stats_pinned_count(db_url: str, store_root: Path) -> None:
 
 def test_gc_deletes_expired_staging(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"old" * 50, key="t/old",
-        retention="staging", age_days=100,
+        db_url,
+        store_root,
+        data=b"old" * 50,
+        key="t/old",
+        retention="staging",
+        age_days=100,
     )
     result = collect_garbage(store_root, db_url=db_url)
     assert art.id in result.deleted_artifacts
@@ -177,8 +190,12 @@ def test_gc_deletes_expired_staging(db_url: str, store_root: Path) -> None:
 
 def test_gc_keeps_fresh_staging(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"new" * 50, key="t/new",
-        retention="staging", age_days=5,
+        db_url,
+        store_root,
+        data=b"new" * 50,
+        key="t/new",
+        retention="staging",
+        age_days=5,
     )
     result = collect_garbage(store_root, db_url=db_url)
     assert art.id not in result.deleted_artifacts
@@ -187,8 +204,12 @@ def test_gc_keeps_fresh_staging(db_url: str, store_root: Path) -> None:
 
 def test_gc_keeps_release_forever(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"rel" * 50, key="t/rel",
-        retention="release", age_days=10000,
+        db_url,
+        store_root,
+        data=b"rel" * 50,
+        key="t/rel",
+        retention="release",
+        age_days=10000,
     )
     result = collect_garbage(store_root, db_url=db_url)
     assert art.id not in result.deleted_artifacts
@@ -196,8 +217,13 @@ def test_gc_keeps_release_forever(db_url: str, store_root: Path) -> None:
 
 def test_gc_keeps_pinned(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"pin" * 50, key="t/pin",
-        retention="staging", age_days=1000, pinned=True,
+        db_url,
+        store_root,
+        data=b"pin" * 50,
+        key="t/pin",
+        retention="staging",
+        age_days=1000,
+        pinned=True,
     )
     result = collect_garbage(store_root, db_url=db_url)
     assert art.id not in result.deleted_artifacts
@@ -205,8 +231,12 @@ def test_gc_keeps_pinned(db_url: str, store_root: Path) -> None:
 
 def test_gc_dry_run_changes_nothing(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"old" * 50, key="t/old",
-        retention="staging", age_days=100,
+        db_url,
+        store_root,
+        data=b"old" * 50,
+        key="t/old",
+        retention="staging",
+        age_days=100,
     )
     result = collect_garbage(store_root, db_url=db_url, dry_run=True)
     assert art.id in result.deleted_artifacts  # reported
@@ -218,8 +248,12 @@ def test_gc_dry_run_changes_nothing(db_url: str, store_root: Path) -> None:
 
 def test_gc_freed_bytes(db_url: str, store_root: Path) -> None:
     _ingest(
-        db_url, store_root, data=b"z" * 500, key="t/z",
-        retention="cache-cold", age_days=30,
+        db_url,
+        store_root,
+        data=b"z" * 500,
+        key="t/z",
+        retention="cache-cold",
+        age_days=30,
     )
     result = collect_garbage(store_root, db_url=db_url)
     assert result.freed_bytes >= 500
@@ -230,9 +264,7 @@ def test_gc_freed_bytes(db_url: str, store_root: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_gc_shared_blob_not_removed_while_referenced(
-    db_url: str, store_root: Path
-) -> None:
+def test_gc_shared_blob_not_removed_while_referenced(db_url: str, store_root: Path) -> None:
     """Two artifacts share a blob; expiring one must NOT delete the blob."""
     same = b"shared-content" * 100
     old = _ingest(db_url, store_root, data=same, key="t/old", retention="staging", age_days=100)
@@ -339,8 +371,12 @@ def test_cli_store_stats(db_url: str, store_root: Path) -> None:
 
 def test_cli_store_gc_dry_run(db_url: str, store_root: Path) -> None:
     _ingest(
-        db_url, store_root, data=b"old" * 50, key="t/old",
-        retention="staging", age_days=100,
+        db_url,
+        store_root,
+        data=b"old" * 50,
+        key="t/old",
+        retention="staging",
+        age_days=100,
     )
     result = runner.invoke(
         app,
@@ -352,8 +388,12 @@ def test_cli_store_gc_dry_run(db_url: str, store_root: Path) -> None:
 
 def test_cli_store_gc_real(db_url: str, store_root: Path) -> None:
     art = _ingest(
-        db_url, store_root, data=b"old" * 50, key="t/old",
-        retention="staging", age_days=100,
+        db_url,
+        store_root,
+        data=b"old" * 50,
+        key="t/old",
+        retention="staging",
+        age_days=100,
     )
     result = runner.invoke(
         app, ["store", "gc", "--store-root", str(store_root), "--db-url", db_url]

@@ -139,9 +139,7 @@ def test_build_ofpkg_files_tar_gz_correct_checksums(pkg_path: Path) -> None:
 
 def test_build_ofpkg_creates_output_dir(tmp_path: Path, destdir: Path) -> None:
     nested = tmp_path / "a" / "b" / "c"
-    path = build_ofpkg(
-        name="x", version="1", arch="x86_64", destdir=destdir, output_dir=nested
-    )
+    path = build_ofpkg(name="x", version="1", arch="x86_64", destdir=destdir, output_dir=nested)
     assert path.exists()
 
 
@@ -202,9 +200,10 @@ def test_verify_ofpkg_passes_valid_package(pkg_path: Path) -> None:
 def _tamper_member(pkg_path: Path, member: str, new_content: bytes) -> Path:
     """Return a new .ofpkg path with *member* replaced by *new_content*."""
     tampered = pkg_path.parent / f"tampered-{pkg_path.name}"
-    with zipfile.ZipFile(pkg_path, "r") as src, zipfile.ZipFile(
-        tampered, "w", compression=zipfile.ZIP_STORED
-    ) as dst:
+    with (
+        zipfile.ZipFile(pkg_path, "r") as src,
+        zipfile.ZipFile(tampered, "w", compression=zipfile.ZIP_STORED) as dst,
+    ):
         for item in src.infolist():
             if item.filename == member:
                 dst.writestr(item, new_content)
@@ -252,9 +251,7 @@ def test_verify_rejects_nonexistent_file(tmp_path: Path) -> None:
 
 
 def test_verify_rejects_invalid_format_version(tmp_path: Path, destdir: Path) -> None:
-    path = build_ofpkg(
-        name="x", version="1", arch="x86_64", destdir=destdir, output_dir=tmp_path
-    )
+    path = build_ofpkg(name="x", version="1", arch="x86_64", destdir=destdir, output_dir=tmp_path)
     # Rebuild with wrong format_version bypassing checksums
     with zipfile.ZipFile(path) as zf:
         manifest = json.loads(zf.read("manifest.json"))

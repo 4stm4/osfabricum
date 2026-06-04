@@ -70,9 +70,7 @@ def verify_artifact_integrity(
         ``ok=True`` when the on-disk SHA-256 matches the recorded value.
     """
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
 
     if art is None:
         return VerificationResult(

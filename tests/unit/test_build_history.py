@@ -58,8 +58,10 @@ def base_data(db_url: str) -> dict:
         session.add(arch)
         session.flush()
         board = Board(
-            name="rpi-zero-2w", arch_id=arch.id,
-            boot_scheme="uboot", firmware_required=True,
+            name="rpi-zero-2w",
+            arch_id=arch.id,
+            boot_scheme="uboot",
+            firmware_required=True,
         )
         session.add(board)
         session.flush()
@@ -70,16 +72,20 @@ def base_data(db_url: str) -> dict:
         session.add(prof)
         session.commit()
         return {
-            "arch_id": arch.id, "board_id": board.id,
-            "dist_id": dist.id, "profile_id": prof.id,
+            "arch_id": arch.id,
+            "board_id": board.id,
+            "dist_id": dist.id,
+            "profile_id": prof.id,
         }
 
 
 @pytest.fixture()
 def build_id(db_url: str, base_data: dict) -> str:
     return create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "a" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "a" * 64,
         db_url=db_url,
     )
 
@@ -87,6 +93,7 @@ def build_id(db_url: str, base_data: dict) -> str:
 @pytest.fixture()
 def api_client(db_url: str) -> TestClient:
     from osfabricum.settings import Settings
+
     settings = Settings()
     settings.database.url = db_url
     return TestClient(create_app(settings))
@@ -113,6 +120,7 @@ def test_write_build_logs_bulk(db_url: str, build_id: str) -> None:
 
 def test_write_build_log_with_job_id(db_url: str, build_id: str) -> None:
     from osfabricum.pipeline.record import create_build_job
+
     job_id = create_build_job(build_id, "rootfs.base", db_url=db_url)
     write_build_log(build_id, "step log", job_id=job_id, db_url=db_url)
     logs = get_build_logs(build_id, job_id=job_id, db_url=db_url)
@@ -159,8 +167,10 @@ def test_get_build_logs_pagination(db_url: str, build_id: str) -> None:
 def test_search_builds_all(db_url: str, base_data: dict) -> None:
     for i in range(3):
         create_build(
-            base_data["dist_id"], base_data["profile_id"],
-            base_data["board_id"], f"sha256:{'b' * 63}{i}",
+            base_data["dist_id"],
+            base_data["profile_id"],
+            base_data["board_id"],
+            f"sha256:{'b' * 63}{i}",
             db_url=db_url,
         )
     builds = search_builds(db_url=db_url)
@@ -169,15 +179,20 @@ def test_search_builds_all(db_url: str, base_data: dict) -> None:
 
 def test_search_builds_by_status(db_url: str, base_data: dict) -> None:
     from osfabricum.pipeline.record import update_build_status
+
     bid = create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "c" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "c" * 64,
         db_url=db_url,
     )
     update_build_status(bid, "success", db_url=db_url)
     create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "d" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "d" * 64,
         db_url=db_url,
     )
     successes = search_builds(status="success", db_url=db_url)
@@ -187,8 +202,10 @@ def test_search_builds_by_status(db_url: str, base_data: dict) -> None:
 
 def test_search_builds_by_distribution(db_url: str, base_data: dict) -> None:
     create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "e" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "e" * 64,
         db_url=db_url,
     )
     found = search_builds(distribution_name="tinywifi", db_url=db_url)
@@ -200,8 +217,10 @@ def test_search_builds_by_distribution(db_url: str, base_data: dict) -> None:
 
 def test_search_builds_by_board_id(db_url: str, base_data: dict) -> None:
     create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "f" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "f" * 64,
         db_url=db_url,
     )
     found = search_builds(board_id=base_data["board_id"], db_url=db_url)
@@ -239,9 +258,7 @@ def test_build_summary_log_count(db_url: str, build_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_writes_build_logs(
-    db_url: str, store_root: Path, base_data: dict
-) -> None:
+def test_pipeline_writes_build_logs(db_url: str, store_root: Path, base_data: dict) -> None:
     spec = PipelineSpec(
         distribution="tinywifi",
         profile="default",
@@ -269,12 +286,12 @@ def test_api_list_builds_empty(api_client: TestClient) -> None:
     assert resp.json() == []
 
 
-def test_api_list_builds_returns_data(
-    api_client: TestClient, db_url: str, base_data: dict
-) -> None:
+def test_api_list_builds_returns_data(api_client: TestClient, db_url: str, base_data: dict) -> None:
     create_build(
-        base_data["dist_id"], base_data["profile_id"],
-        base_data["board_id"], "sha256:" + "g" * 64,
+        base_data["dist_id"],
+        base_data["profile_id"],
+        base_data["board_id"],
+        "sha256:" + "g" * 64,
         db_url=db_url,
     )
     resp = api_client.get("/v1/builds")
@@ -284,9 +301,7 @@ def test_api_list_builds_returns_data(
     assert data[0]["status"] == "running"
 
 
-def test_api_get_build_summary(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_get_build_summary(api_client: TestClient, db_url: str, build_id: str) -> None:
     resp = api_client.get(f"/v1/builds/{build_id}")
     assert resp.status_code == 200
     data = resp.json()
@@ -300,10 +315,9 @@ def test_api_get_build_not_found(api_client: TestClient) -> None:
     assert resp.status_code == 404
 
 
-def test_api_get_build_events(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_get_build_events(api_client: TestClient, db_url: str, build_id: str) -> None:
     from osfabricum.pipeline.record import log_build_event
+
     log_build_event(build_id, "test.event", {"k": "v"}, db_url=db_url)
     resp = api_client.get(f"/v1/builds/{build_id}/events")
     assert resp.status_code == 200
@@ -311,9 +325,7 @@ def test_api_get_build_events(
     assert any(e["event_type"] == "test.event" for e in events)
 
 
-def test_api_get_build_logs(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_get_build_logs(api_client: TestClient, db_url: str, build_id: str) -> None:
     write_build_logs(build_id, ["log line 1", "log line 2"], db_url=db_url)
     resp = api_client.get(f"/v1/builds/{build_id}/logs")
     assert resp.status_code == 200
@@ -322,18 +334,14 @@ def test_api_get_build_logs(
     assert lines[0]["message"] == "log line 1"
 
 
-def test_api_get_build_logs_pagination(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_get_build_logs_pagination(api_client: TestClient, db_url: str, build_id: str) -> None:
     write_build_logs(build_id, [f"line {i}" for i in range(10)], db_url=db_url)
     resp = api_client.get(f"/v1/builds/{build_id}/logs?limit=3&offset=0")
     assert resp.status_code == 200
     assert len(resp.json()) == 3
 
 
-def test_api_cancel_build(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_cancel_build(api_client: TestClient, db_url: str, build_id: str) -> None:
     resp = api_client.post(f"/v1/builds/{build_id}/cancel")
     assert resp.status_code == 200
     data = resp.json()
@@ -342,10 +350,9 @@ def test_api_cancel_build(
     assert build.status == "cancelled"
 
 
-def test_api_cancel_already_finished(
-    api_client: TestClient, db_url: str, build_id: str
-) -> None:
+def test_api_cancel_already_finished(api_client: TestClient, db_url: str, build_id: str) -> None:
     from osfabricum.pipeline.record import update_build_status
+
     update_build_status(build_id, "success", db_url=db_url)
     resp = api_client.post(f"/v1/builds/{build_id}/cancel")
     assert resp.status_code == 409
@@ -356,17 +363,18 @@ def test_api_cancel_already_finished(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_builds_list_filter_status(
-    db_url: str, store_root: Path, base_data: dict
-) -> None:
-    run_pipeline(PipelineSpec(
-        distribution="tinywifi", profile="default",
-        board="rpi-zero-2w", store_root=store_root,
-        db_url=db_url, skip_image=True,
-    ))
-    result = runner.invoke(
-        app, ["builds", "list", "--status", "success", "--db-url", db_url]
+def test_cli_builds_list_filter_status(db_url: str, store_root: Path, base_data: dict) -> None:
+    run_pipeline(
+        PipelineSpec(
+            distribution="tinywifi",
+            profile="default",
+            board="rpi-zero-2w",
+            store_root=store_root,
+            db_url=db_url,
+            skip_image=True,
+        )
     )
+    result = runner.invoke(app, ["builds", "list", "--status", "success", "--db-url", db_url])
     assert result.exit_code == 0, result.output
     assert "success" in result.output
 
@@ -374,11 +382,16 @@ def test_cli_builds_list_filter_status(
 def test_cli_builds_list_filter_distribution(
     db_url: str, store_root: Path, base_data: dict
 ) -> None:
-    run_pipeline(PipelineSpec(
-        distribution="tinywifi", profile="default",
-        board="rpi-zero-2w", store_root=store_root,
-        db_url=db_url, skip_image=True,
-    ))
+    run_pipeline(
+        PipelineSpec(
+            distribution="tinywifi",
+            profile="default",
+            board="rpi-zero-2w",
+            store_root=store_root,
+            db_url=db_url,
+            skip_image=True,
+        )
+    )
     result = runner.invoke(
         app, ["builds", "list", "--distribution", "tinywifi", "--db-url", db_url]
     )
@@ -386,14 +399,17 @@ def test_cli_builds_list_filter_distribution(
     assert "tinywifi" in result.output
 
 
-def test_cli_builds_show_with_logs(
-    db_url: str, store_root: Path, base_data: dict
-) -> None:
-    pr = run_pipeline(PipelineSpec(
-        distribution="tinywifi", profile="default",
-        board="rpi-zero-2w", store_root=store_root,
-        db_url=db_url, skip_image=True,
-    ))
+def test_cli_builds_show_with_logs(db_url: str, store_root: Path, base_data: dict) -> None:
+    pr = run_pipeline(
+        PipelineSpec(
+            distribution="tinywifi",
+            profile="default",
+            board="rpi-zero-2w",
+            store_root=store_root,
+            db_url=db_url,
+            skip_image=True,
+        )
+    )
     result = runner.invoke(
         app,
         ["builds", "show", pr.build_id, "--logs", "--db-url", db_url],

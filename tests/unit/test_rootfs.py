@@ -388,9 +388,7 @@ def test_build_base_rootfs_busybox_has_inittab(
     assert "etc/inittab" in names
 
 
-def test_build_base_rootfs_systemd(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_build_base_rootfs_systemd(tmp_path: Path, db_url: str, store_root: Path) -> None:
     spec = RootfsSpec(
         arch="x86_64",
         distribution="tinywifi",
@@ -426,36 +424,42 @@ def test_build_base_rootfs_logs(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_rootfs_init(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_cli_rootfs_init(tmp_path: Path, db_url: str, store_root: Path) -> None:
     result = runner.invoke(
         app,
         [
-            "rootfs", "init",
+            "rootfs",
+            "init",
             "tinywifi/default",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code == 0, result.output
     assert "artifact" in result.output
 
 
-def test_cli_rootfs_init_bad_target(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_cli_rootfs_init_bad_target(tmp_path: Path, db_url: str, store_root: Path) -> None:
     result = runner.invoke(
         app,
         [
-            "rootfs", "init",
+            "rootfs",
+            "init",
             "no-slash",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code != 0

@@ -54,39 +54,39 @@ boot_chain_bindings:
     is_default: true
     priority: 100
 """
-    
+
     yaml_file = tmp_path / "boot_chains.yaml"
     yaml_file.write_text(yaml_content)
-    
+
     # Load seed data
     counts = seed_boot_chains(db_session, yaml_file)
     db_session.commit()
-    
+
     # Verify counts
     assert counts["boot_chains"] == 1
     assert counts["templates"] == 1
     assert counts["files"] == 1
     assert counts["bindings"] == 1
-    
+
     # Verify boot chain was created
     chain = db_session.query(BootChain).filter_by(id="test-grub-uefi").first()
     assert chain is not None
     assert chain.name == "Test GRUB UEFI"
     assert chain.boot_scheme_id == "uefi"
-    
+
     # Verify template was created
     templates = db_session.query(BootChainTemplate).filter_by(boot_chain_id="test-grub-uefi").all()
     assert len(templates) == 1
     assert templates[0].template_type == "grub_cfg"
     assert "timeout" in templates[0].content
-    
+
     # Verify file was created
     files = db_session.query(BootChainFile).filter_by(boot_chain_id="test-grub-uefi").all()
     assert len(files) == 1
     assert files[0].filename == "grub.cfg"
     assert files[0].placement == "/boot/grub"
     assert files[0].required is True
-    
+
     # Verify binding was created
     bindings = db_session.query(BootChainBinding).filter_by(boot_chain_id="test-grub-uefi").all()
     assert len(bindings) == 1
@@ -102,20 +102,20 @@ boot_chains:
     name: Test Chain
     boot_scheme_id: uefi
 """
-    
+
     yaml_file = tmp_path / "boot_chains.yaml"
     yaml_file.write_text(yaml_content)
-    
+
     # Load once
     counts1 = seed_boot_chains(db_session, yaml_file)
     db_session.commit()
     assert counts1["boot_chains"] == 1
-    
+
     # Load again - should skip existing
     counts2 = seed_boot_chains(db_session, yaml_file)
     db_session.commit()
     assert counts2["boot_chains"] == 0
-    
+
     # Verify only one chain exists
     chains = db_session.query(BootChain).all()
     assert len(chains) == 1
@@ -124,9 +124,9 @@ boot_chains:
 def test_seed_boot_chains_missing_file(db_session: Session, tmp_path: Path) -> None:
     """Test handling of missing YAML file."""
     missing_file = tmp_path / "nonexistent.yaml"
-    
+
     counts = seed_boot_chains(db_session, missing_file)
-    
+
     # Should return zero counts without error
     assert counts["boot_chains"] == 0
     assert counts["templates"] == 0
@@ -148,17 +148,18 @@ boot_chains:
     name: Chain 3
     boot_scheme_id: uboot
 """
-    
+
     yaml_file = tmp_path / "boot_chains.yaml"
     yaml_file.write_text(yaml_content)
-    
+
     counts = seed_boot_chains(db_session, yaml_file)
     db_session.commit()
-    
+
     assert counts["boot_chains"] == 3
-    
+
     chains = db_session.query(BootChain).all()
     assert len(chains) == 3
     assert {c.name for c in chains} == {"Chain 1", "Chain 2", "Chain 3"}
+
 
 # Made with Bob

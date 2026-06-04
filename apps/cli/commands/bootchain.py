@@ -15,6 +15,7 @@ bootchain_app = typer.Typer(help="Boot chain management commands", no_args_is_he
 
 # Seed data loader
 
+
 @bootchain_app.command("seed")
 def seed_boot_chains(
     catalog_dir: Annotated[
@@ -29,7 +30,7 @@ def seed_boot_chains(
     from osfabricum.db.session import sync_session
 
     boot_chains_file = catalog_dir / "boot_chains.yaml"
-    
+
     if not boot_chains_file.exists():
         typer.echo(f"ERROR: Boot chains file not found: {boot_chains_file}", err=True)
         raise typer.Exit(code=1)
@@ -37,7 +38,7 @@ def seed_boot_chains(
     with sync_session(db) as session:
         counts = load_boot_chains(session, boot_chains_file)
         session.commit()
-        
+
         typer.echo(f"✓ Loaded boot chain seed data from {boot_chains_file}:")
         typer.echo(f"  - Boot chains: {counts['boot_chains']}")
         typer.echo(f"  - Templates: {counts['templates']}")
@@ -74,7 +75,7 @@ def create_boot_chain(
     meta: dict[str, Any] | None = None
     if metadata:
         meta = json.loads(metadata)
-    
+
     result = bootchain_service.create_boot_chain(
         name=name,
         boot_scheme_id=boot_scheme_id,
@@ -109,12 +110,12 @@ def add_template(
 ) -> None:
     """Add a template to a boot chain."""
     from pathlib import Path
-    
+
     content = Path(content_file).read_text()
     vars_dict: dict[str, Any] | None = None
     if variables:
         vars_dict = json.loads(variables)
-    
+
     result = bootchain_service.add_boot_chain_template(
         boot_chain_id=boot_chain_id,
         template_type=template_type,
@@ -208,17 +209,18 @@ def validate_boot_chain(
         context=ctx,
         db_url=db,
     )
-    
+
     if result["valid"]:
         typer.echo("✓ Boot chain is valid")
     else:
         typer.echo("✗ Boot chain validation failed:", err=True)
         for error in result["errors"]:
             typer.echo(f"  ERROR: {error}", err=True)
-    
+
     for warning in result["warnings"]:
         typer.echo(f"  WARNING: {warning}")
-    
+
     typer.echo(f"Required files: {result['required_files_count']}")
+
 
 # Made with Bob

@@ -314,9 +314,7 @@ def _make_firmware_yaml(path: Path, board_name: str) -> Path:
     return yaml_path
 
 
-def test_catalog_import_firmware_list(
-    tmp_path: Path, db_url: str, board_id: str
-) -> None:
+def test_catalog_import_firmware_list(tmp_path: Path, db_url: str, board_id: str) -> None:
     yaml_path = _make_firmware_yaml(tmp_path, "rpi-zero-2w")
     result = runner.invoke(
         app,
@@ -326,15 +324,11 @@ def test_catalog_import_firmware_list(
     assert "2 firmware blob(s)" in result.output
 
     with sync_session(db_url) as session:
-        rows = session.scalars(
-            select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)
-        ).all()
+        rows = session.scalars(select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)).all()
     assert len(rows) == 2
 
 
-def test_catalog_import_firmware_idempotent(
-    tmp_path: Path, db_url: str, board_id: str
-) -> None:
+def test_catalog_import_firmware_idempotent(tmp_path: Path, db_url: str, board_id: str) -> None:
     """Importing the same file twice does not create duplicate rows."""
     yaml_path = _make_firmware_yaml(tmp_path, "rpi-zero-2w")
     for _ in range(2):
@@ -346,9 +340,7 @@ def test_catalog_import_firmware_idempotent(
 
     with sync_session(db_url) as session:
         count = len(
-            session.scalars(
-                select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)
-            ).all()
+            session.scalars(select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)).all()
         )
     assert count == 2
 
@@ -358,9 +350,7 @@ def test_catalog_import_firmware_idempotent(
 # ---------------------------------------------------------------------------
 
 
-def test_firmware_list_command(
-    tmp_path: Path, db_url: str, board_id: str
-) -> None:
+def test_firmware_list_command(tmp_path: Path, db_url: str, board_id: str) -> None:
     with sync_session(db_url) as session:
         session.add(
             FirmwareBlob(
@@ -377,9 +367,7 @@ def test_firmware_list_command(
     assert "test.elf" in result.output
 
 
-def test_firmware_list_with_board_filter(
-    tmp_path: Path, db_url: str, board_id: str
-) -> None:
+def test_firmware_list_with_board_filter(tmp_path: Path, db_url: str, board_id: str) -> None:
     with sync_session(db_url) as session:
         session.add(
             FirmwareBlob(

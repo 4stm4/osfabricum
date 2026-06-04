@@ -1,0 +1,297 @@
+# Initramfs Profiles Seed Data (M32)
+# Defines initramfs configurations for different boot scenarios
+
+initramfs_profiles:
+  - id: minimal-busybox
+    name: Minimal BusyBox
+    profile_type: minimal
+    description: Minimal initramfs with BusyBox for fast boot
+    compression: zstd
+    size_limit_mb: 10
+    include_modules: true
+    include_firmware: false
+    enable_debug_shell: false
+    enable_network: false
+    enable_encryption_unlock: false
+    enable_factory_reset: false
+    metadata:
+      boot_time_target_ms: 500
+      use_case: "embedded"
+    packages:
+      - package_name: busybox
+        required: true
+        priority: 100
+      - package_name: kmod
+        required: true
+        priority: 90
+    scripts:
+      - script_name: init
+        script_type: init
+        execution_order: 10
+        required: true
+        content: |
+          #!/bin/sh
+          # Minimal init script
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          
+          # Load modules
+          modprobe -a $(cat /etc/modules)
+          
+          # Mount root
+          mount -o ro /dev/mmcblk0p2 /mnt/root
+          
+          # Switch root
+          exec switch_root /mnt/root /sbin/init
+
+  - id: recovery-full
+    name: Recovery Full
+    profile_type: recovery
+    description: Full recovery environment with filesystem tools
+    compression: gzip
+    size_limit_mb: 50
+    include_modules: true
+    include_firmware: true
+    enable_debug_shell: true
+    enable_network: true
+    enable_encryption_unlock: false
+    enable_factory_reset: true
+    metadata:
+      use_case: "recovery"
+      includes_gui: false
+    packages:
+      - package_name: busybox
+        required: true
+        priority: 100
+      - package_name: e2fsprogs
+        required: true
+        priority: 90
+      - package_name: dosfstools
+        required: true
+        priority: 80
+      - package_name: parted
+        required: false
+        priority: 70
+      - package_name: rsync
+        required: false
+        priority: 60
+    scripts:
+      - script_name: init
+        script_type: init
+        execution_order: 10
+        required: true
+        content: |
+          #!/bin/sh
+          # Recovery init
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          
+          # Start debug shell
+          /bin/sh
+      - script_name: factory-reset
+        script_type: unlock
+        execution_order: 50
+        required: false
+        content: |
+          #!/bin/sh
+          # Factory reset script
+          echo "WARNING: Factory reset will erase all data!"
+          read -p "Continue? (yes/no): " confirm
+          if [ "$confirm" = "yes" ]; then
+              mkfs.ext4 -F /dev/mmcblk0p2
+              echo "Factory reset complete"
+          fi
+    hooks:
+      - hook_name: include-recovery-tools
+        hook_stage: pre-pack
+        execution_order: 50
+        enabled: true
+        command: cp -r /usr/share/recovery-tools /tmp/initramfs/usr/share/
+
+  - id: encrypted-root
+    name: Encrypted Root Unlock
+    profile_type: encrypted
+    description: Initramfs for unlocking encrypted root filesystem
+    compression: zstd
+    size_limit_mb: 20
+    include_modules: true
+    include_firmware: false
+    enable_debug_shell: false
+    enable_network: false
+    enable_encryption_unlock: true
+    enable_factory_reset: false
+    metadata:
+      encryption: "luks2"
+      key_derivation: "argon2id"
+    packages:
+      - package_name: busybox
+        required: true
+        priority: 100
+      - package_name: cryptsetup
+        required: true
+        priority: 100
+      - package_name: kmod
+        required: true
+        priority: 90
+    scripts:
+      - script_name: init
+        script_type: init
+        execution_order: 10
+        required: true
+        content: |
+          #!/bin/sh
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          
+          # Load crypto modules
+          modprobe dm-crypt
+          modprobe aes
+          
+          # Unlock root
+          /sbin/unlock-root
+          
+          # Mount and switch
+          mount /dev/mapper/root /mnt/root
+          exec switch_root /mnt/root /sbin/init
+      - script_name: unlock-root
+        script_type: unlock
+        execution_order: 20
+        required: true
+        content: |
+          #!/bin/sh
+          # Unlock encrypted root
+          echo "Unlocking encrypted root filesystem..."
+          cryptsetup luksOpen /dev/mmcblk0p2 root
+
+  - id: network-boot
+    name: Network Boot
+    profile_type: network
+    description: Initramfs for network boot (PXE/NBD)
+    compression: gzip
+    size_limit_mb: 30
+    include_modules: true
+    include_firmware: true
+    enable_debug_shell: true
+    enable_network: true
+    enable_encryption_unlock: false
+    enable_factory_reset: false
+    metadata:
+      protocols: ["nfs", "nbd", "iscsi"]
+      dhcp_client: "udhcpc"
+    packages:
+      - package_name: busybox
+        required: true
+        priority: 100
+      - package_name: kmod
+        required: true
+        priority: 90
+      - package_name: nfs-utils
+        required: false
+        priority: 80
+      - package_name: nbd-client
+        required: false
+        priority: 70
+    scripts:
+      - script_name: init
+        script_type: init
+        execution_order: 10
+        required: true
+        content: |
+          #!/bin/sh
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          
+          # Configure network
+          /sbin/network-setup
+          
+          # Mount network root
+          /sbin/mount-netroot
+          
+          exec switch_root /mnt/root /sbin/init
+      - script_name: network-setup
+        script_type: network
+        execution_order: 20
+        required: true
+        content: |
+          #!/bin/sh
+          # Network setup
+          ip link set eth0 up
+          udhcpc -i eth0 -s /usr/share/udhcpc/default.script
+      - script_name: mount-netroot
+        script_type: mount
+        execution_order: 30
+        required: true
+        content: |
+          #!/bin/sh
+          # Mount network root
+          mkdir -p /mnt/root
+          mount -t nfs ${nfsroot} /mnt/root
+    hooks:
+      - hook_name: include-network-firmware
+        hook_stage: pre-pack
+        execution_order: 40
+        enabled: true
+        command: cp -r /lib/firmware/rtl_nic /tmp/initramfs/lib/firmware/
+
+  - id: debug-shell
+    name: Debug Shell
+    profile_type: debug
+    description: Initramfs with debug tools and shell
+    compression: gzip
+    size_limit_mb: 40
+    include_modules: true
+    include_firmware: true
+    enable_debug_shell: true
+    enable_network: true
+    enable_encryption_unlock: false
+    enable_factory_reset: false
+    metadata:
+      shell: "bash"
+      includes_strace: true
+    packages:
+      - package_name: busybox
+        required: true
+        priority: 100
+      - package_name: bash
+        required: true
+        priority: 90
+      - package_name: strace
+        required: false
+        priority: 80
+      - package_name: gdb
+        required: false
+        priority: 70
+    scripts:
+      - script_name: init
+        script_type: init
+        execution_order: 10
+        required: true
+        content: |
+          #!/bin/bash
+          # Debug init
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          
+          echo "=== Debug Shell ==="
+          echo "Type 'continue' to boot normally"
+          
+          /bin/bash
+          
+          # Normal boot
+          mount /dev/mmcblk0p2 /mnt/root
+          exec switch_root /mnt/root /sbin/init
+    hooks:
+      - hook_name: include-debug-tools
+        hook_stage: pre-pack
+        execution_order: 50
+        enabled: true
+        command: |
+          cp /usr/bin/strace /tmp/initramfs/usr/bin/
+          cp /usr/bin/gdb /tmp/initramfs/usr/bin/
+
+# Made with Bob

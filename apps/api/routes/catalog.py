@@ -1,8 +1,8 @@
 """REST API routes for the catalog (M20).
 
-    GET /v1/catalog/distributions   — list distributions
-    GET /v1/catalog/boards          — list boards
-    GET /v1/catalog/packages        — list packages (with filters)
+GET /v1/catalog/distributions   — list distributions
+GET /v1/catalog/boards          — list boards
+GET /v1/catalog/packages        — list packages (with filters)
 """
 
 from __future__ import annotations
@@ -63,9 +63,7 @@ def list_distributions(request: Request) -> list[DistributionItem]:
     """List all distributions in the registry."""
     db_url = _db(request)
     with sync_session(db_url) as session:
-        rows = session.scalars(
-            select(Distribution).order_by(Distribution.name)
-        ).all()
+        rows = session.scalars(select(Distribution).order_by(Distribution.name)).all()
         return [
             DistributionItem(
                 id=r.id,
@@ -87,13 +85,10 @@ def list_boards(
     with sync_session(db_url) as session:
         q = select(Board).order_by(Board.name)
         arch_map: dict[str, str] = {
-            a.id: a.name
-            for a in session.scalars(select(Architecture)).all()
+            a.id: a.name for a in session.scalars(select(Architecture)).all()
         }
         if arch:
-            arch_row = session.scalar(
-                select(Architecture).where(Architecture.name == arch)
-            )
+            arch_row = session.scalar(select(Architecture).where(Architecture.name == arch))
             if arch_row is None:
                 return []  # unknown arch → no matching boards
             q = q.where(Board.arch_id == arch_row.id)

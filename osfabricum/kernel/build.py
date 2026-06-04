@@ -297,9 +297,7 @@ def build_kernel(
     if src_dir is None:
         tarball_url = str(meta.get("tarball_url") or kernel.source_uri or "")
         if not tarball_url:
-            raise ValueError(
-                f"kernel {kernel_name_or_id!r} has no tarball_url or source_uri"
-            )
+            raise ValueError(f"kernel {kernel_name_or_id!r} has no tarball_url or source_uri")
         import urllib.request
 
         with urllib.request.urlopen(tarball_url) as resp:  # noqa: S310
@@ -346,19 +344,13 @@ def build_kernel(
 
     if db_url is not None:
         with sync_session(db_url) as session:
-            existing_image = session.scalar(
-                select(Artifact).where(Artifact.store_key == image_key)
-            )
+            existing_image = session.scalar(select(Artifact).where(Artifact.store_key == image_key))
             if existing_image is not None:
                 mod_artifact = session.scalar(
-                    select(Artifact).where(
-                        Artifact.store_key == f"{cache_prefix}/modules"
-                    )
+                    select(Artifact).where(Artifact.store_key == f"{cache_prefix}/modules")
                 )
                 dtb_artifacts = session.scalars(
-                    select(Artifact).where(
-                        Artifact.store_key.like(f"{cache_prefix}/dtb/%")
-                    )
+                    select(Artifact).where(Artifact.store_key.like(f"{cache_prefix}/dtb/%"))
                 ).all()
                 return KernelBuildResult(
                     success=True,

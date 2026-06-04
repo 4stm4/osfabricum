@@ -20,10 +20,10 @@ MBR_SIZE = 512
 BOOT_SIGNATURE = b"\x55\xaa"
 
 # Partition type constants
-PART_FAT16 = 0x0E   # FAT16 with LBA addressing
-PART_FAT32 = 0x0C   # FAT32 with LBA addressing
-PART_LINUX = 0x83   # Linux native
-PART_EMPTY = 0x00   # Unused entry
+PART_FAT16 = 0x0E  # FAT16 with LBA addressing
+PART_FAT32 = 0x0C  # FAT32 with LBA addressing
+PART_LINUX = 0x83  # Linux native
+PART_EMPTY = 0x00  # Unused entry
 
 
 @dataclass
@@ -132,9 +132,7 @@ def read_mbr(data: bytes) -> list[PartitionEntry]:
     entries: list[PartitionEntry] = []
     for i in range(4):
         offset = 446 + i * 16
-        status, _, ptype, _, lba_start, lba_size = struct.unpack_from(
-            "B3sB3sII", data, offset
-        )
+        status, _, ptype, _, lba_start, lba_size = struct.unpack_from("B3sB3sII", data, offset)
         if ptype != PART_EMPTY:
             entries.append(
                 PartitionEntry(

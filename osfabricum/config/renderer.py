@@ -136,9 +136,7 @@ def render_config(
 
         # Board-level values (most specific, overrides profile)
         if board_name is not None:
-            board_row: Board | None = session.scalar(
-                select(Board).where(Board.name == board_name)
-            )
+            board_row: Board | None = session.scalar(select(Board).where(Board.name == board_name))
             if board_row is not None:
                 cv_board: ConfigValue | None = session.scalar(
                     select(ConfigValue).where(

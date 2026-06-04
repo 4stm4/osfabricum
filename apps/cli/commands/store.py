@@ -27,6 +27,7 @@ def _resolve_store_root(store_root: str | None) -> Path:
         store_root = load_settings().store.root
     return Path(store_root)
 
+
 _DB_NOT_READY = (
     "[red]Error:[/red] database schema not found.\nRun [bold]alembic upgrade head[/bold] first."
 )
@@ -88,8 +89,7 @@ def store_stats_cmd(
         f"({stats.pinned} pinned)"
     )
     console.print(
-        f"Blobs on disk: {stats.blob_files} "
-        f"([yellow]{stats.orphan_blobs} orphan[/yellow])"
+        f"Blobs on disk: {stats.blob_files} ([yellow]{stats.orphan_blobs} orphan[/yellow])"
     )
 
 
@@ -113,9 +113,7 @@ def store_gc(
     root = _resolve_store_root(store_root)
     quota_bytes = quota_mb * 1024 * 1024 if quota_mb is not None else None
     try:
-        result = collect_garbage(
-            root, db_url=db_url, dry_run=dry_run, quota_bytes=quota_bytes
-        )
+        result = collect_garbage(root, db_url=db_url, dry_run=dry_run, quota_bytes=quota_bytes)
     except OperationalError:
         Console().print(_DB_NOT_READY)
         raise typer.Exit(code=1) from None

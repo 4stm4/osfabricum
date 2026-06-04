@@ -36,22 +36,26 @@ def _seed_boards(db_url: str) -> None:
         arch = Architecture(id="arch-aarch64", name="aarch64")
         session.add(arch)
         session.flush()
-        
+
         # Create boards
-        session.add(Board(
-            id="rpi-zero-2w",
-            name="Raspberry Pi Zero 2W",
-            arch_id=arch.id,
-            boot_scheme="rpi-firmware",
-            firmware_required=True,
-        ))
-        session.add(Board(
-            id="qemu-x86_64",
-            name="QEMU x86_64",
-            arch_id=arch.id,
-            boot_scheme="qemu",
-            firmware_required=False,
-        ))
+        session.add(
+            Board(
+                id="rpi-zero-2w",
+                name="Raspberry Pi Zero 2W",
+                arch_id=arch.id,
+                boot_scheme="rpi-firmware",
+                firmware_required=True,
+            )
+        )
+        session.add(
+            Board(
+                id="qemu-x86_64",
+                name="QEMU x86_64",
+                arch_id=arch.id,
+                boot_scheme="qemu",
+                firmware_required=False,
+            )
+        )
         session.commit()
 
 
@@ -73,18 +77,19 @@ items:
     metadata:
       cores: 4
 """)
-    
+
     with sync_session(db_url) as session:
         count = seed_soc_families_from_yaml(session, yaml_file)
         session.commit()
-    
+
     assert count == 2
-    
+
     # Verify data
     with sync_session(db_url) as session:
-        from osfabricum.db.models import SocFamily
         from sqlalchemy import select
-        
+
+        from osfabricum.db.models import SocFamily
+
         families = session.scalars(select(SocFamily)).all()
         assert len(families) == 2
         assert families[0].name == "BCM2710"
@@ -102,15 +107,15 @@ items:
   - name: BCM2710
     vendor: Broadcom
 """)
-    
+
     with sync_session(db_url) as session:
         count1 = seed_soc_families_from_yaml(session, yaml_file)
         session.commit()
-    
+
     with sync_session(db_url) as session:
         count2 = seed_soc_families_from_yaml(session, yaml_file)
         session.commit()
-    
+
     assert count1 == 1
     assert count2 == 0  # Already exists
 
@@ -120,9 +125,10 @@ def test_seed_board_revisions(db_url: str, _seed_boards: None, tmp_path: Path) -
     # First create SoC family
     with sync_session(db_url) as session:
         from osfabricum.db.models import SocFamily
+
         session.add(SocFamily(id="soc-bcm2710", name="BCM2710", vendor="Broadcom"))
         session.commit()
-    
+
     yaml_file = tmp_path / "board_revisions.yaml"
     yaml_file.write_text("""
 apiVersion: osfabricum/v1
@@ -136,18 +142,19 @@ items:
     metadata:
       ram: 512MB
 """)
-    
+
     with sync_session(db_url) as session:
         count = seed_board_revisions_from_yaml(session, yaml_file)
         session.commit()
-    
+
     assert count == 1
-    
+
     # Verify data
     with sync_session(db_url) as session:
-        from osfabricum.db.models import BoardRevision
         from sqlalchemy import select
-        
+
+        from osfabricum.db.models import BoardRevision
+
         revisions = session.scalars(select(BoardRevision)).all()
         assert len(revisions) == 1
         assert revisions[0].revision == "1.0"
@@ -201,22 +208,23 @@ probe_profiles:
     match_pattern: raspberrypi,model-zero-2-w
     confidence: 100
 """)
-    
+
     with sync_session(db_url) as session:
         counts = seed_board_bsp_from_yaml(session, yaml_file)
         session.commit()
-    
+
     assert counts["firmware"] == 1
     assert counts["device_trees"] == 1
     assert counts["flash_methods"] == 1
     assert counts["test_methods"] == 1
     assert counts["probe_profiles"] == 1
-    
+
     # Verify firmware
     with sync_session(db_url) as session:
-        from osfabricum.db.models import BoardFirmware
         from sqlalchemy import select
-        
+
+        from osfabricum.db.models import BoardFirmware
+
         firmware = session.scalars(select(BoardFirmware)).all()
         assert len(firmware) == 1
         assert firmware[0].filename == "start4.elf"
@@ -226,10 +234,10 @@ probe_profiles:
 def test_seed_nonexistent_file(db_url: str, tmp_path: Path) -> None:
     """Test that seeding nonexistent file returns 0."""
     yaml_file = tmp_path / "nonexistent.yaml"
-    
+
     with sync_session(db_url) as session:
         count = seed_soc_families_from_yaml(session, yaml_file)
-    
+
     assert count == 0
 
 
@@ -237,10 +245,11 @@ def test_seed_empty_file(db_url: str, tmp_path: Path) -> None:
     """Test that seeding empty file returns 0."""
     yaml_file = tmp_path / "empty.yaml"
     yaml_file.write_text("")
-    
+
     with sync_session(db_url) as session:
         count = seed_soc_families_from_yaml(session, yaml_file)
-    
+
     assert count == 0
+
 
 # Made with Bob

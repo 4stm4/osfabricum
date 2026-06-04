@@ -89,9 +89,7 @@ class WorkerLoop:
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.pool import NullPool
 
-        engine = create_async_engine(
-            _async_db_url(self._backend._db_url), poolclass=NullPool
-        )
+        engine = create_async_engine(_async_db_url(self._backend._db_url), poolclass=NullPool)
         sql_backend = _PjkSQLBackend(engine, lease_ttl_s=self._lease_ttl_s)
 
         try:
@@ -143,13 +141,17 @@ async def _do_expire_leases(sql_backend: Any) -> int:  # noqa: ANN401
 
     async with sql_backend.sessionmaker() as session:
         expired = (
-            await session.execute(
-                select(JobTasks)
-                .where(JobTasks.c.status == "running")
-                .where(JobTasks.c.lease_until.is_not(None))
-                .where(JobTasks.c.lease_until <= now)
+            (
+                await session.execute(
+                    select(JobTasks)
+                    .where(JobTasks.c.status == "running")
+                    .where(JobTasks.c.lease_until.is_not(None))
+                    .where(JobTasks.c.lease_until <= now)
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
         count = 0
         for row in expired:
@@ -203,14 +205,18 @@ async def _do_claim_next(
 
     async with sql_backend.sessionmaker() as session:
         rows = (
-            await session.execute(
-                select(JobTasks)
-                .where(JobTasks.c.status == "queued")
-                .where(JobTasks.c.kind.in_(kinds))
-                .where(JobTasks.c.scheduled_for <= now)
-                .order_by(JobTasks.c.priority.asc(), JobTasks.c.created_at.asc())
+            (
+                await session.execute(
+                    select(JobTasks)
+                    .where(JobTasks.c.status == "queued")
+                    .where(JobTasks.c.kind.in_(kinds))
+                    .where(JobTasks.c.scheduled_for <= now)
+                    .order_by(JobTasks.c.priority.asc(), JobTasks.c.created_at.asc())
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
         target: dict[str, Any] | None = None
         for row in rows:
@@ -284,8 +290,10 @@ async def _do_fail(  # noqa: ANN401
 
     async with sql_backend.sessionmaker() as session:
         row = (
-            await session.execute(select(JobTasks).where(JobTasks.c.id == job_id))
-        ).mappings().first()
+            (await session.execute(select(JobTasks).where(JobTasks.c.id == job_id)))
+            .mappings()
+            .first()
+        )
 
         if row is None:
             return

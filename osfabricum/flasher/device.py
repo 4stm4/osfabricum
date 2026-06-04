@@ -29,9 +29,9 @@ from pathlib import Path
 #: Patterns that are ALWAYS refused, even if present in the allowlist.
 #: Protects common system-disk device nodes.
 DENYLIST: tuple[str, ...] = (
-    "/dev/sda",          # almost always the system disk on x86 hosts
-    "/dev/nvme0n1",      # primary NVMe
-    "/dev/vda",          # primary virtio disk
+    "/dev/sda",  # almost always the system disk on x86 hosts
+    "/dev/nvme0n1",  # primary NVMe
+    "/dev/vda",  # primary virtio disk
     "/dev/mmcblk0boot*",  # eMMC boot hw partitions
 )
 

@@ -83,8 +83,6 @@ def image_compose(
         raise typer.Exit(code=1)
 
     console.print(f"[green]✓[/green] artifact: {result.artifact_id}")
-    console.print(
-        f"  size: {result.image_size_bytes / 1024 / 1024:.1f} MiB (compressed)"
-    )
+    console.print(f"  size: {result.image_size_bytes / 1024 / 1024:.1f} MiB (compressed)")
     if result.boot_files:
         console.print(f"  boot files: {', '.join(result.boot_files)}")

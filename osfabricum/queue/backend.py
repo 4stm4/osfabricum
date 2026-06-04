@@ -163,14 +163,18 @@ class JobBackend:
 
         async with self._sql_backend.sessionmaker() as session:
             rows = (
-                await session.execute(
-                    select(JobTasks)
-                    .where(JobTasks.c.status == "queued")
-                    .where(JobTasks.c.kind.in_(kinds))
-                    .where(JobTasks.c.scheduled_for <= now)
-                    .order_by(JobTasks.c.priority.asc(), JobTasks.c.created_at.asc())
+                (
+                    await session.execute(
+                        select(JobTasks)
+                        .where(JobTasks.c.status == "queued")
+                        .where(JobTasks.c.kind.in_(kinds))
+                        .where(JobTasks.c.scheduled_for <= now)
+                        .order_by(JobTasks.c.priority.asc(), JobTasks.c.created_at.asc())
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
 
             target: dict[str, Any] | None = None
             for row in rows:
@@ -241,8 +245,10 @@ class JobBackend:
 
         async with self._sql_backend.sessionmaker() as session:
             row = (
-                await session.execute(select(JobTasks).where(JobTasks.c.id == job_id))
-            ).mappings().first()
+                (await session.execute(select(JobTasks).where(JobTasks.c.id == job_id)))
+                .mappings()
+                .first()
+            )
 
             if row is None:
                 return
@@ -298,13 +304,17 @@ class JobBackend:
 
         async with self._sql_backend.sessionmaker() as session:
             expired = (
-                await session.execute(
-                    select(JobTasks)
-                    .where(JobTasks.c.status == "running")
-                    .where(JobTasks.c.lease_until.is_not(None))
-                    .where(JobTasks.c.lease_until <= now)
+                (
+                    await session.execute(
+                        select(JobTasks)
+                        .where(JobTasks.c.status == "running")
+                        .where(JobTasks.c.lease_until.is_not(None))
+                        .where(JobTasks.c.lease_until <= now)
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
 
             count = 0
             for row in expired:
@@ -372,9 +382,7 @@ class JobBackend:
         async with self._sql_backend.sessionmaker() as session:
             rows = (
                 await session.execute(
-                    select(JobTasks.c.status, func.count(JobTasks.c.id)).group_by(
-                        JobTasks.c.status
-                    )
+                    select(JobTasks.c.status, func.count(JobTasks.c.id)).group_by(JobTasks.c.status)
                 )
             ).all()
         return {status: int(count) for status, count in rows}

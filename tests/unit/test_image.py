@@ -60,6 +60,7 @@ def rootfs_artifact(db_url: str, store_root: Path) -> Artifact:
     result = build_base_rootfs(spec, store_root=store_root, db_url=db_url)
     assert result.success
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         return session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
 
@@ -262,15 +263,13 @@ def _make_spec(rootfs_id: str, **kwargs) -> ImageSpec:
         board="rpi-zero-2w",
         arch="aarch64",
         rootfs_artifact_id=rootfs_id,
-        boot_size_mb=4,     # tiny for tests
+        boot_size_mb=4,  # tiny for tests
         rootfs_size_mb=8,
         **kwargs,
     )
 
 
-def test_compose_image_success(
-    db_url: str, store_root: Path, rootfs_artifact: Artifact
-) -> None:
+def test_compose_image_success(db_url: str, store_root: Path, rootfs_artifact: Artifact) -> None:
     spec = _make_spec(rootfs_artifact.id)
     result = compose_image(spec, store_root=store_root, db_url=db_url)
     assert result.success is True
@@ -284,6 +283,7 @@ def test_compose_image_artifact_kind(
     spec = _make_spec(rootfs_artifact.id)
     result = compose_image(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     assert art.kind == "image"
@@ -299,6 +299,7 @@ def test_compose_image_is_valid_gzip(
     from sqlalchemy import select as sa_select
 
     from osfabricum.store.layout import blob_path
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     bp = blob_path(store_root, art.blob_sha256)
@@ -316,6 +317,7 @@ def test_compose_image_mbr_has_two_partitions(
     from sqlalchemy import select as sa_select
 
     from osfabricum.store.layout import blob_path
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     bp = blob_path(store_root, art.blob_sha256)
@@ -337,6 +339,7 @@ def test_compose_image_boot_has_config_txt(
     from sqlalchemy import select as sa_select
 
     from osfabricum.store.layout import blob_path
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     bp = blob_path(store_root, art.blob_sha256)
@@ -357,9 +360,7 @@ def test_compose_image_with_kernel(
 def test_compose_image_with_firmware(
     db_url: str, store_root: Path, rootfs_artifact: Artifact, firmware_artifact: Artifact
 ) -> None:
-    spec = _make_spec(
-        rootfs_artifact.id, firmware_artifact_ids=[firmware_artifact.id]
-    )
+    spec = _make_spec(rootfs_artifact.id, firmware_artifact_ids=[firmware_artifact.id])
     result = compose_image(spec, store_root=store_root, db_url=db_url)
     assert result.success is True
     assert "start4.elf" in result.boot_files
@@ -371,6 +372,7 @@ def test_compose_image_has_repro_chain(
     spec = _make_spec(rootfs_artifact.id)
     result = compose_image(spec, store_root=store_root, db_url=db_url)
     from sqlalchemy import select as sa_select
+
     with sync_session(db_url) as session:
         art = session.scalar(sa_select(Artifact).where(Artifact.id == result.artifact_id))
     assert art.input_hash is not None
@@ -385,18 +387,14 @@ def test_compose_image_invalid_rootfs(db_url: str, store_root: Path) -> None:
     assert result.error is not None
 
 
-def test_compose_image_idempotent(
-    db_url: str, store_root: Path, rootfs_artifact: Artifact
-) -> None:
+def test_compose_image_idempotent(db_url: str, store_root: Path, rootfs_artifact: Artifact) -> None:
     spec = _make_spec(rootfs_artifact.id)
     r1 = compose_image(spec, store_root=store_root, db_url=db_url)
     r2 = compose_image(spec, store_root=store_root, db_url=db_url)
     assert r1.artifact_id == r2.artifact_id
 
 
-def test_compose_image_logs(
-    db_url: str, store_root: Path, rootfs_artifact: Artifact
-) -> None:
+def test_compose_image_logs(db_url: str, store_root: Path, rootfs_artifact: Artifact) -> None:
     spec = _make_spec(rootfs_artifact.id)
     result = compose_image(spec, store_root=store_root, db_url=db_url)
     assert any("[image]" in line for line in result.logs)
@@ -407,21 +405,27 @@ def test_compose_image_logs(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_image_compose(
-    db_url: str, store_root: Path, rootfs_artifact: Artifact
-) -> None:
+def test_cli_image_compose(db_url: str, store_root: Path, rootfs_artifact: Artifact) -> None:
     result = runner.invoke(
         app,
         [
-            "image", "compose",
+            "image",
+            "compose",
             "tinywifi/default",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--rootfs", rootfs_artifact.id,
-            "--store-root", str(store_root),
-            "--db-url", db_url,
-            "--boot-mb", "4",
-            "--rootfs-mb", "8",
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--rootfs",
+            rootfs_artifact.id,
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
+            "--boot-mb",
+            "4",
+            "--rootfs-mb",
+            "8",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -434,13 +438,19 @@ def test_cli_image_compose_bad_target(
     result = runner.invoke(
         app,
         [
-            "image", "compose",
+            "image",
+            "compose",
             "noslash",
-            "--board", "rpi-zero-2w",
-            "--arch", "aarch64",
-            "--rootfs", rootfs_artifact.id,
-            "--store-root", str(store_root),
-            "--db-url", db_url,
+            "--board",
+            "rpi-zero-2w",
+            "--arch",
+            "aarch64",
+            "--rootfs",
+            rootfs_artifact.id,
+            "--store-root",
+            str(store_root),
+            "--db-url",
+            db_url,
         ],
     )
     assert result.exit_code != 0

@@ -104,9 +104,7 @@ def _extract_base_rootfs(
 ) -> None:
     """Extract the base rootfs tar.gz artifact into *stage_dir*."""
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             raise ValueError(f"base rootfs artifact not found: {artifact_id!r}")
         blob_sha256 = art.blob_sha256
@@ -152,12 +150,8 @@ def compose_rootfs(
 
     try:
         # 1. Extract base rootfs
-        logs.append(
-            f"[compose] extracting base rootfs artifact {spec.base_artifact_id[:8]}…"
-        )
-        _extract_base_rootfs(
-            spec.base_artifact_id, stage_dir, store_root, db_url=db_url
-        )
+        logs.append(f"[compose] extracting base rootfs artifact {spec.base_artifact_id[:8]}…")
+        _extract_base_rootfs(spec.base_artifact_id, stage_dir, store_root, db_url=db_url)
         logs.append(f"[compose] base rootfs extracted to {stage_dir}")
 
         # 2. Install packages
@@ -167,9 +161,7 @@ def compose_rootfs(
             manifests = install_packages_into_rootfs(
                 spec.package_artifact_ids, stage_dir, store_root, db_url=db_url
             )
-            installed_pkgs = [
-                f"{m.get('name', '?')}-{m.get('version', '?')}" for m in manifests
-            ]
+            installed_pkgs = [f"{m.get('name', '?')}-{m.get('version', '?')}" for m in manifests]
             for pkg in installed_pkgs:
                 logs.append(f"[compose]   + {pkg}")
 

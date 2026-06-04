@@ -159,16 +159,12 @@ def fetch_all_firmware(
         Updated rows for every blob that had a URL.
     """
     with sync_session(db_url) as session:
-        board: Board | None = session.scalar(
-            select(Board).where(Board.name == board_name)
-        )
+        board: Board | None = session.scalar(select(Board).where(Board.name == board_name))
         if board is None:
             raise ValueError(f"board not found: {board_name!r}")
         board_id = board.id
 
-        blobs = session.scalars(
-            select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)
-        ).all()
+        blobs = session.scalars(select(FirmwareBlob).where(FirmwareBlob.board_id == board_id)).all()
         blob_meta = [
             (
                 b.filename,

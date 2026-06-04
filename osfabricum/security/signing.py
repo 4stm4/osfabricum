@@ -217,8 +217,6 @@ def list_attestations(
     with sync_session(db_url) as session:
         return list(
             session.scalars(
-                select(ArtifactAttestation).where(
-                    ArtifactAttestation.artifact_id == artifact_id
-                )
+                select(ArtifactAttestation).where(ArtifactAttestation.artifact_id == artifact_id)
             ).all()
         )

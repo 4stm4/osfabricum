@@ -60,12 +60,16 @@ def build_qemu_command(config: QemuConfig) -> list[str]:
     """Return the full ``qemu-system-*`` argv for *config*."""
     cmd: list[str] = [
         config.qemu_binary(),
-        "-machine", config.machine(),
-        "-m", str(config.memory_mb),
-        "-smp", str(config.cpus),
+        "-machine",
+        config.machine(),
+        "-m",
+        str(config.memory_mb),
+        "-smp",
+        str(config.cpus),
         "-nographic",
         "-no-reboot",
-        "-serial", "mon:stdio",
+        "-serial",
+        "mon:stdio",
     ]
 
     # Attach the disk image read-only (safety: never mutate the artifact)

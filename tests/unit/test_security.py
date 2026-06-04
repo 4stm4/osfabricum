@@ -108,9 +108,7 @@ def test_verify_artifact_integrity_unknown_id(
     assert "not found" in (result.error or "")
 
 
-def test_verify_artifacts_batch(
-    tmp_path: Path, db_url: str, store_root: Path
-) -> None:
+def test_verify_artifacts_batch(tmp_path: Path, db_url: str, store_root: Path) -> None:
     a1 = ingest_blob(b"blob1", store_root, "t/1", "t", "t1", db_url=db_url)
     a2 = ingest_blob(b"blob2", store_root, "t/2", "t", "t2", db_url=db_url)
     result = verify_artifacts([a1.id, a2.id], store_root, db_url=db_url)

@@ -137,9 +137,7 @@ def _load_artifact_blob(
     db_url: str | None,
 ) -> bytes:
     with sync_session(db_url) as session:
-        art: Artifact | None = session.scalar(
-            select(Artifact).where(Artifact.id == artifact_id)
-        )
+        art: Artifact | None = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
         if art is None:
             raise ValueError(f"artifact not found: {artifact_id!r}")
         sha256 = art.blob_sha256
@@ -221,7 +219,7 @@ def compose_image(
         # 3. Compute partition layout (LBA)
         total_sectors = _mb_to_sectors(spec.total_size_mb())
 
-        boot_lba_start = PART_ALIGN_SECTORS           # 1 MiB offset
+        boot_lba_start = PART_ALIGN_SECTORS  # 1 MiB offset
         boot_sectors = _mb_to_sectors(spec.boot_size_mb)
         boot_lba_end = boot_lba_start + boot_sectors
 

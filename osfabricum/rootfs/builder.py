@@ -186,19 +186,19 @@ def write_etc_files(stage_dir: Path, spec: RootfsSpec) -> list[str]:
     written: list[str] = []
 
     files: list[tuple[str, bytes, int]] = [
-        ("etc/passwd",        make_passwd(),                          0o644),
-        ("etc/group",         make_group(),                           0o644),
-        ("etc/shadow",        make_shadow(),                          0o640),
-        ("etc/hosts",         make_hosts(spec.hostname),              0o644),
-        ("etc/hostname",      make_hostname(spec.hostname),           0o644),
-        ("etc/fstab",         make_fstab(),                           0o644),
-        ("etc/profile",       make_profile(),                         0o644),
-        ("etc/shells",        make_shells(),                          0o644),
-        ("etc/nsswitch.conf", make_nsswitch_conf(),                   0o644),
-        ("etc/resolv.conf",   make_resolv_conf(spec.nameservers),     0o644),
-        ("etc/os-release",    make_os_release(spec.distribution),     0o644),
-        ("etc/timezone",      (spec.timezone + "\n").encode("utf-8"), 0o644),
-        ("etc/locale.conf",   (f"LANG={spec.locale}\n").encode(), 0o644),
+        ("etc/passwd", make_passwd(), 0o644),
+        ("etc/group", make_group(), 0o644),
+        ("etc/shadow", make_shadow(), 0o640),
+        ("etc/hosts", make_hosts(spec.hostname), 0o644),
+        ("etc/hostname", make_hostname(spec.hostname), 0o644),
+        ("etc/fstab", make_fstab(), 0o644),
+        ("etc/profile", make_profile(), 0o644),
+        ("etc/shells", make_shells(), 0o644),
+        ("etc/nsswitch.conf", make_nsswitch_conf(), 0o644),
+        ("etc/resolv.conf", make_resolv_conf(spec.nameservers), 0o644),
+        ("etc/os-release", make_os_release(spec.distribution), 0o644),
+        ("etc/timezone", (spec.timezone + "\n").encode("utf-8"), 0o644),
+        ("etc/locale.conf", (f"LANG={spec.locale}\n").encode(), 0o644),
     ]
 
     for rel, data, mode in files:
@@ -278,8 +278,7 @@ def build_base_rootfs(
 
     try:
         logs.append(
-            f"[rootfs] building base rootfs for "
-            f"{spec.distribution}/{spec.profile}/{spec.board}"
+            f"[rootfs] building base rootfs for {spec.distribution}/{spec.profile}/{spec.board}"
         )
         logs.append(f"[rootfs] init_system={spec.init_system!r}  arch={spec.arch!r}")
 

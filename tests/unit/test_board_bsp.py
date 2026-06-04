@@ -25,7 +25,6 @@ def db_url(tmp_path: Path) -> str:
 @pytest.fixture
 def _seed_boards(db_url: str) -> None:
     """Seed test boards."""
-    from osfabricum.db.session import sync_session
 
     with sync_session(db_url) as session:
         from osfabricum.db.models import Architecture, Board
@@ -34,20 +33,24 @@ def _seed_boards(db_url: str) -> None:
         arch = Architecture(id="arch-aarch64", name="aarch64")
         session.add(arch)
         session.flush()
-        
+
         # Create boards
-        session.add(Board(
-            id="rpi4",
-            name="Raspberry Pi 4",
-            arch_id=arch.id,
-            boot_scheme="uefi",
-        ))
-        session.add(Board(
-            id="rpi3",
-            name="Raspberry Pi 3",
-            arch_id=arch.id,
-            boot_scheme="uefi",
-        ))
+        session.add(
+            Board(
+                id="rpi4",
+                name="Raspberry Pi 4",
+                arch_id=arch.id,
+                boot_scheme="uefi",
+            )
+        )
+        session.add(
+            Board(
+                id="rpi3",
+                name="Raspberry Pi 3",
+                arch_id=arch.id,
+                boot_scheme="uefi",
+            )
+        )
         session.commit()
 
 
@@ -69,7 +72,7 @@ def test_list_soc_families(db_url: str) -> None:
     """Test listing SoC families."""
     board_service.create_soc_family(name="BCM2711", vendor="Broadcom", db_url=db_url)
     board_service.create_soc_family(name="BCM2837", vendor="Broadcom", db_url=db_url)
-    
+
     families = board_service.list_soc_families(db_url=db_url)
     assert len(families) == 2
     assert families[0]["name"] == "BCM2711"
@@ -79,7 +82,7 @@ def test_list_soc_families(db_url: str) -> None:
 def test_create_board_revision(db_url: str, _seed_boards: None) -> None:
     """Test creating a board revision."""
     soc = board_service.create_soc_family(name="BCM2711", db_url=db_url)
-    
+
     result = board_service.create_board_revision(
         board_id="rpi4",
         revision="1.4",
@@ -98,8 +101,10 @@ def test_create_board_revision(db_url: str, _seed_boards: None) -> None:
 def test_list_board_revisions(db_url: str, _seed_boards: None) -> None:
     """Test listing board revisions."""
     board_service.create_board_revision(board_id="rpi4", revision="1.1", db_url=db_url)
-    board_service.create_board_revision(board_id="rpi4", revision="1.4", is_default=True, db_url=db_url)
-    
+    board_service.create_board_revision(
+        board_id="rpi4", revision="1.4", is_default=True, db_url=db_url
+    )
+
     revisions = board_service.list_board_revisions("rpi4", db_url=db_url)
     assert len(revisions) == 2
     assert revisions[0]["revision"] == "1.1"
@@ -200,7 +205,7 @@ def test_get_board_with_bsp(db_url: str, _seed_boards: None) -> None:
     """Test getting board with all BSP data."""
     # Create SoC family
     soc = board_service.create_soc_family(name="BCM2711", vendor="Broadcom", db_url=db_url)
-    
+
     # Create revision
     rev = board_service.create_board_revision(
         board_id="rpi4",
@@ -209,7 +214,7 @@ def test_get_board_with_bsp(db_url: str, _seed_boards: None) -> None:
         is_default=True,
         db_url=db_url,
     )
-    
+
     # Add firmware
     board_service.add_board_firmware(
         board_id="rpi4",
@@ -217,7 +222,7 @@ def test_get_board_with_bsp(db_url: str, _seed_boards: None) -> None:
         board_revision_id=rev["id"],
         db_url=db_url,
     )
-    
+
     # Add device tree
     board_service.add_board_device_tree(
         board_id="rpi4",
@@ -226,7 +231,7 @@ def test_get_board_with_bsp(db_url: str, _seed_boards: None) -> None:
         board_revision_id=rev["id"],
         db_url=db_url,
     )
-    
+
     # Add flash method
     board_service.add_board_flash_method(
         board_id="rpi4",
@@ -234,10 +239,10 @@ def test_get_board_with_bsp(db_url: str, _seed_boards: None) -> None:
         is_default=True,
         db_url=db_url,
     )
-    
+
     # Get full BSP data
     bsp = board_service.get_board_with_bsp("rpi4", db_url=db_url)
-    
+
     assert bsp["id"] == "rpi4"
     assert bsp["name"] == "Raspberry Pi 4"
     assert len(bsp["revisions"]) == 1
@@ -265,5 +270,6 @@ def test_create_revision_for_nonexistent_board(db_url: str) -> None:
             revision="1.0",
             db_url=db_url,
         )
+
 
 # Made with Bob

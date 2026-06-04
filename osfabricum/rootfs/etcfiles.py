@@ -124,22 +124,13 @@ def make_profile(extra_paths: list[str] | None = None) -> bytes:
 
 def make_shells() -> bytes:
     """Generate ``/etc/shells``."""
-    return (
-        "# /etc/shells — valid login shells\n"
-        "/bin/sh\n"
-        "/bin/ash\n"
-        "/bin/bash\n"
-    ).encode()
+    return ("# /etc/shells — valid login shells\n/bin/sh\n/bin/ash\n/bin/bash\n").encode()
 
 
 def make_nsswitch_conf() -> bytes:
     """Generate ``/etc/nsswitch.conf``."""
     return (
-        b"passwd:   files\n"
-        b"group:    files\n"
-        b"shadow:   files\n"
-        b"hosts:    files dns\n"
-        b"networks: files\n"
+        b"passwd:   files\ngroup:    files\nshadow:   files\nhosts:    files dns\nnetworks: files\n"
     )
 
 
@@ -163,7 +154,7 @@ def make_os_release(
     return (
         f'NAME="{name}"\n'
         f'VERSION="{version}"\n'
-        f'ID={distribution.lower()}\n'
+        f"ID={distribution.lower()}\n"
         f'PRETTY_NAME="{pretty}"\n'
         'HOME_URL="https://github.com/4stm4/osfabricum"\n'
     ).encode()

@@ -10,9 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from osfabricum.db.session import sync_session as get_session
 from osfabricum.db.models import (
     Board,
     BoardDeviceTree,
@@ -23,6 +21,7 @@ from osfabricum.db.models import (
     BoardTestMethod,
     SocFamily,
 )
+from osfabricum.db.session import sync_session as get_session
 
 
 def create_soc_family(
@@ -71,7 +70,7 @@ def create_board_revision(
         board = session.get(Board, board_id)
         if not board:
             raise ValueError(f"Board {board_id!r} not found")
-        
+
         # Check for duplicate revision
         stmt = select(BoardRevision).where(
             BoardRevision.board_id == board_id,
@@ -80,7 +79,7 @@ def create_board_revision(
         existing = session.execute(stmt).scalar_one_or_none()
         if existing:
             raise ValueError(f"Revision {revision!r} already exists for board {board_id!r}")
-        
+
         rev = BoardRevision(
             id=str(uuid4()),
             board_id=board_id,
@@ -98,9 +97,11 @@ def create_board_revision(
 def list_board_revisions(board_id: str, *, db_url: str | None = None) -> list[dict[str, Any]]:
     """List all revisions for a board."""
     with get_session(db_url) as session:
-        stmt = select(BoardRevision).where(
-            BoardRevision.board_id == board_id
-        ).order_by(BoardRevision.revision)
+        stmt = (
+            select(BoardRevision)
+            .where(BoardRevision.board_id == board_id)
+            .order_by(BoardRevision.revision)
+        )
         revisions = session.execute(stmt).scalars().all()
         return [_board_revision_to_dict(r) for r in revisions]
 
@@ -269,26 +270,26 @@ def get_board_with_bsp(board_id: str, *, db_url: str | None = None) -> dict[str,
         board = session.get(Board, board_id)
         if not board:
             raise ValueError(f"Board {board_id!r} not found")
-        
+
         # Get all BSP components
         revisions_stmt = select(BoardRevision).where(BoardRevision.board_id == board_id)
         revisions = session.execute(revisions_stmt).scalars().all()
-        
+
         firmware_stmt = select(BoardFirmware).where(BoardFirmware.board_id == board_id)
         firmware = session.execute(firmware_stmt).scalars().all()
-        
+
         dtb_stmt = select(BoardDeviceTree).where(BoardDeviceTree.board_id == board_id)
         dtbs = session.execute(dtb_stmt).scalars().all()
-        
+
         flash_stmt = select(BoardFlashMethod).where(BoardFlashMethod.board_id == board_id)
         flash_methods = session.execute(flash_stmt).scalars().all()
-        
+
         test_stmt = select(BoardTestMethod).where(BoardTestMethod.board_id == board_id)
         test_methods = session.execute(test_stmt).scalars().all()
-        
+
         probe_stmt = select(BoardProbeProfile).where(BoardProbeProfile.board_id == board_id)
         probe_profiles = session.execute(probe_stmt).scalars().all()
-        
+
         return {
             "id": board.id,
             "name": board.name,
@@ -306,6 +307,7 @@ def get_board_with_bsp(board_id: str, *, db_url: str | None = None) -> dict[str,
 
 
 # Helper functions to convert ORM objects to dicts
+
 
 def _soc_family_to_dict(soc: SocFamily) -> dict[str, Any]:
     return {
@@ -403,5 +405,6 @@ def _board_probe_profile_to_dict(profile: BoardProbeProfile) -> dict[str, Any]:
         "confidence": profile.confidence,
         "metadata": profile.metadata_json,
     }
+
 
 # Made with Bob

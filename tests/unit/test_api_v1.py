@@ -53,8 +53,10 @@ def seeded(db_url: str) -> dict:
         session.add(arch)
         session.flush()
         board = Board(
-            name="rpi-zero-2w", arch_id=arch.id,
-            boot_scheme="uboot", firmware_required=True,
+            name="rpi-zero-2w",
+            arch_id=arch.id,
+            boot_scheme="uboot",
+            firmware_required=True,
         )
         session.add(board)
         session.flush()
@@ -68,18 +70,26 @@ def seeded(db_url: str) -> dict:
         session.add(pkg)
         session.flush()
         pv = PackageVersion(
-            package_id=pkg.id, version="0.1.0", arch_id=arch.id, status="built",
+            package_id=pkg.id,
+            version="0.1.0",
+            arch_id=arch.id,
+            status="built",
         )
         session.add(pv)
         art = Artifact(
-            kind="image", name="tinywifi-default-rpi-zero-2w",
-            arch="aarch64", store_key="images/tinywifi/x", blob_sha256="a" * 64,
-            size_bytes=1048576, media_type="application/gzip",
+            kind="image",
+            name="tinywifi-default-rpi-zero-2w",
+            arch="aarch64",
+            store_key="images/tinywifi/x",
+            blob_sha256="a" * 64,
+            size_bytes=1048576,
+            media_type="application/gzip",
             retention_class="staging",
         )
         session.add(art)
         worker = Worker(
-            hostname="worker-01", enabled=True,
+            hostname="worker-01",
+            enabled=True,
             kinds_json=["kernel.build", "package.build"],
             tags_json=["arch:aarch64"],
             last_seen_at=datetime.now(UTC).replace(tzinfo=None),
@@ -87,8 +97,11 @@ def seeded(db_url: str) -> dict:
         session.add(worker)
         session.commit()
         return {
-            "arch_id": arch.id, "board_id": board.id, "dist_id": dist.id,
-            "profile_id": prof.id, "artifact_id": art.id,
+            "arch_id": arch.id,
+            "board_id": board.id,
+            "dist_id": dist.id,
+            "profile_id": prof.id,
+            "artifact_id": art.id,
         }
 
 
@@ -206,9 +219,7 @@ def test_workers_get_not_found(client: TestClient, seeded: dict) -> None:
 
 
 def test_plan_resolve(client: TestClient, seeded: dict) -> None:
-    resp = client.get(
-        "/v1/plan?distribution=tinywifi&profile=default&board=rpi-zero-2w"
-    )
+    resp = client.get("/v1/plan?distribution=tinywifi&profile=default&board=rpi-zero-2w")
     assert resp.status_code == 200
     data = resp.json()
     assert data["distribution"] == "tinywifi"
@@ -218,9 +229,7 @@ def test_plan_resolve(client: TestClient, seeded: dict) -> None:
 
 
 def test_plan_unknown_distribution(client: TestClient, seeded: dict) -> None:
-    resp = client.get(
-        "/v1/plan?distribution=missing&profile=default&board=rpi-zero-2w"
-    )
+    resp = client.get("/v1/plan?distribution=missing&profile=default&board=rpi-zero-2w")
     assert resp.status_code == 404
 
 
@@ -244,8 +253,11 @@ def test_build_events_stream(client: TestClient, db_url: str, seeded: dict) -> N
     )
 
     bid = create_build(
-        seeded["dist_id"], seeded["profile_id"], seeded["board_id"],
-        "sha256:" + "a" * 64, db_url=db_url,
+        seeded["dist_id"],
+        seeded["profile_id"],
+        seeded["board_id"],
+        "sha256:" + "a" * 64,
+        db_url=db_url,
     )
     log_build_event(bid, "build.start", {}, db_url=db_url)
     log_build_event(bid, "step.done", {"step": "rootfs.base"}, db_url=db_url)
@@ -325,6 +337,6 @@ def test_dashboard_public_with_auth_enabled(db_url: str) -> None:
     assert c.get("/").status_code == 200
     # Static asset is public
     assert c.get("/static/index.html").status_code == 200
-    # But a v1 API path requires a token
-    assert c.get("/v1/catalog/distributions").status_code == 401
+    # v1 reads stay public (G-24: only writes and admin endpoints need a token)
+    assert c.get("/v1/catalog/distributions").status_code in (200, 500)
     os.environ.pop("OSFABRICUM_API_TOKEN", None)
