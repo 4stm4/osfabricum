@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Board / BSP Designer</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    main { padding:24px; max-width:1000px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:4px; margin-bottom:8px; }
+    label.cb { flex-direction:row; align-items:center; gap:6px; }
+    input,select { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; }
+    form { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+    button { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    .msg { font-size:13px; min-height:18px; margin:8px 0; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    .empty { color:var(--muted); padding:12px; } .sub { font-size:12px; color:var(--muted); margin:10px 0 4px; text-transform:uppercase; }
+    .kv { color:var(--muted); } .kv b { color:var(--fg); }
+  </style>
+</head>
+<body>
+  <header><h1>⚙ Board / BSP Designer</h1><a href="/">← Dashboard</a></header>
+  <main>
+    <div class="panel">
+      <h2>SoC families</h2>
+      <form id="soc-form">
+        <label>Name<input id="soc-name" required placeholder="BCM2710"></label>
+        <label>Vendor<input id="soc-vendor" placeholder="Broadcom"></label>
+        <button type="submit">Add SoC family</button>
+      </form>
+      <div class="msg" id="soc-msg"></div>
+      <div id="soc-list" class="kv"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Board BSP</h2>
+      <label style="max-width:320px">Board
+        <select id="board" onchange="loadBsp()"><option value="">— select —</option></select>
+      </label>
+      <div id="bsp"><div class="empty">Select a board to view its BSP.</div></div>
+    </div>
+
+    <div class="panel" id="edit-panel" style="display:none">
+      <p class="sub">Add board revision</p>
+      <form id="rev-form">
+        <label>Revision<input id="r-rev" placeholder="rev1.1"></label>
+        <label>SoC family<select id="r-soc"><option value="">—</option></select></label>
+        <label class="cb"><input type="checkbox" id="r-default">default</label>
+        <button type="submit">Add revision</button>
+      </form>
+      <p class="sub">Add firmware</p>
+      <form id="fw-form">
+        <label>Filename<input id="fw-name" placeholder="start4.elf"></label>
+        <label>Source URI<input id="fw-uri" placeholder="https://…"></label>
+        <label>Placement<input id="fw-place" placeholder="/boot"></label>
+        <button type="submit">Add firmware</button>
+      </form>
+      <div class="msg" id="edit-msg"></div>
+    </div>
+  </main>
+  <script>
+    async function api(p,o){ const r=await fetch(p,o); if(!r.ok){ let d=`${r.status}`; try{ d=(await r.json()).detail||d; }catch{} throw new Error(d);} return r.status===204?null:r.json(); }
+    function msg(id,t,ok){ const e=document.getElementById(id); e.textContent=t||""; e.className="msg "+(t?(ok?"ok":"err"):""); }
+    const $=(id)=>document.getElementById(id);
+    let boardId=null;
+
+    async function init() {
+      try { for (const b of await api("/v1/catalog/boards")) $("board").add(new Option(`${b.name} (${b.arch})`, b.id, false, false)); } catch(e){}
+      loadSocs();
+    }
+    async function loadSocs() {
+      try {
+        const socs = await api("/v1/soc-families");
+        $("soc-list").innerHTML = socs.length ? socs.map(s=>`<b>${s.name}</b>${s.vendor?" ("+s.vendor+")":""}`).join(" · ") : "<span class='empty'>none yet</span>";
+        const sel=$("r-soc"); sel.innerHTML=`<option value="">—</option>`; for(const s of socs) sel.add(new Option(s.name, s.id));
+      } catch(e){}
+    }
+    async function loadBsp() {
+      boardId = $("board").value;
+      if (!boardId) { $("bsp").innerHTML=`<div class="empty">Select a board.</div>`; $("edit-panel").style.display="none"; return; }
+      $("edit-panel").style.display="block";
+      try {
+        const d = await api(`/v1/boards/${boardId}/bsp`);
+        const fmt=(arr,f)=>(arr&&arr.length)?arr.map(f).join("<br>"):"—";
+        $("bsp").innerHTML = `
+          <p class="sub">revisions</p><p>${fmt(d.revisions,r=>`${r.revision}${r.is_default?" (default)":""}`)}</p>
+          <p class="sub">firmware</p><p>${fmt(d.firmware,f=>`${f.filename} → ${f.placement||"—"}`)}</p>
+          <p class="sub">device trees</p><p>${fmt(d.device_trees,t=>`${t.filename} [${t.dtb_type}]`)}</p>
+          <p class="sub">default kernels / toolchains</p>
+          <p class="kv">${(d.default_kernels||[]).length} kernel(s), ${(d.default_toolchains||[]).length} toolchain(s), ${(d.supported_layouts||[]).length} layout(s)</p>`;
+      } catch(e){ $("bsp").innerHTML=`<div class="empty">Error: ${e.message}</div>`; }
+    }
+    $("soc-form").addEventListener("submit", async ev=>{ ev.preventDefault();
+      try { await api("/v1/soc-families",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:$("soc-name").value.trim(), vendor:$("soc-vendor").value.trim()||null})});
+        msg("soc-msg","added",true); $("soc-form").reset(); loadSocs(); } catch(e){ msg("soc-msg",e.message,false); } });
+    $("rev-form").addEventListener("submit", async ev=>{ ev.preventDefault(); if(!boardId) return;
+      try { await api(`/v1/boards/${boardId}/revisions`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({revision:$("r-rev").value.trim(), soc_family_id:$("r-soc").value||null, is_default:$("r-default").checked})});
+        msg("edit-msg","revision added",true); loadBsp(); } catch(e){ msg("edit-msg",e.message,false); } });
+    $("fw-form").addEventListener("submit", async ev=>{ ev.preventDefault(); if(!boardId) return;
+      try { await api(`/v1/boards/${boardId}/firmware`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({filename:$("fw-name").value.trim(), source_uri:$("fw-uri").value.trim()||null, placement:$("fw-place").value.trim()||null})});
+        msg("edit-msg","firmware added",true); loadBsp(); } catch(e){ msg("edit-msg",e.message,false); } });
+    init();
+  </script>
+</body>
+</html>

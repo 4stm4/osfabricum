@@ -118,6 +118,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def build_wizard_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "build_new.html"))
 
+        # M30: Board / BSP Designer page
+        @app.get("/boards", include_in_schema=False)
+        def boards_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "boards.html"))
+
+        # M31: Boot Chain Designer page
+        @app.get("/boot-chains", include_in_schema=False)
+        def bootchain_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "bootchain.html"))
+
+        # M32: Initramfs Designer page
+        @app.get("/initramfs", include_in_schema=False)
+        def initramfs_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "initramfs.html"))
+
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     return app

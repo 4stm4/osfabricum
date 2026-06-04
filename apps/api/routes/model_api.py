@@ -19,6 +19,7 @@ from sqlalchemy import or_, select
 from osfabricum.db.models import (
     Architecture,
     Board,
+    BootScheme,
     Distribution,
     DistributionClass,
     Kernel,
@@ -93,3 +94,11 @@ def list_package_sets(
         return [
             {"id": ps.id, "name": ps.name, "distribution_id": ps.distribution_id} for ps in rows
         ]
+
+
+@router.get("/boot-schemes")
+def list_boot_schemes(request: Request) -> list[dict[str, Any]]:
+    """List boot schemes (backs the Boot Chain Designer dropdown)."""
+    with sync_session(_db(request)) as s:
+        rows = s.scalars(select(BootScheme).order_by(BootScheme.name)).all()
+        return [{"id": b.id, "name": b.name, "description": b.description} for b in rows]

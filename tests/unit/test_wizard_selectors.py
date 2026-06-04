@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from apps.api.app import create_app
 from osfabricum.db.engine import make_sync_engine
 from osfabricum.db.models import Architecture, Base, Board, Distribution, Kernel, PackageSet
+from osfabricum.db.seed_data import seed_boot_schemes
 from osfabricum.db.session import sync_session
 from osfabricum.settings import Settings
 
@@ -33,6 +34,7 @@ def db_url(tmp_path: Path) -> str:
         s.flush()
         s.add(PackageSet(name="core", distribution_id=dist.id))
         s.add(PackageSet(name="global-set", distribution_id=None))
+        seed_boot_schemes(s)
         s.commit()
     return url
 
@@ -63,3 +65,18 @@ def test_package_sets_by_distribution_includes_global(client: TestClient) -> Non
 
 def test_package_sets_all(client: TestClient) -> None:
     assert len(client.get("/v1/package-sets").json()) == 2
+
+
+def test_boot_schemes_listed(client: TestClient) -> None:
+    names = {b["name"] for b in client.get("/v1/boot-schemes").json()}
+    assert "u-boot" in names and "direct-kernel" in names
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/", "/distributions", "/profiles", "/build/new", "/boards", "/boot-chains", "/initramfs"],
+)
+def test_designer_pages_served(client: TestClient, path: str) -> None:
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]

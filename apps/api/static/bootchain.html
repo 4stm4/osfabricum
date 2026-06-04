@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Boot Chain Designer</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    main { padding:24px; max-width:1000px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:4px; margin-bottom:8px; }
+    input,select,textarea { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; font-family:inherit; }
+    form { display:flex; flex-wrap:wrap; gap:8px; align-items:end; }
+    button { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    table { width:100%; border-collapse:collapse; font-size:13px; } th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    .msg { font-size:13px; min-height:18px; margin:8px 0; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    .empty { color:var(--muted); padding:12px; } .sub { font-size:12px; color:var(--muted); margin:8px 0 4px; text-transform:uppercase; }
+  </style>
+</head>
+<body>
+  <header><h1>⚙ Boot Chain Designer</h1><a href="/">← Dashboard</a></header>
+  <main>
+    <div class="panel">
+      <h2>New boot chain</h2>
+      <form id="create-form">
+        <label>Name<input id="f-name" required placeholder="rpi-uboot"></label>
+        <label>Boot scheme<select id="f-scheme"></select></label>
+        <label>Description<input id="f-desc" placeholder="optional"></label>
+        <button class="primary" type="submit">Create</button>
+      </form>
+      <div class="msg" id="create-msg"></div>
+    </div>
+    <div class="panel">
+      <h2>Boot chains</h2>
+      <div class="msg" id="list-msg"></div>
+      <div id="list"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="panel" id="detail-panel" style="display:none">
+      <h2 id="detail-title">Detail</h2>
+      <div id="detail"></div>
+      <p class="sub">Add template</p>
+      <form id="tpl-form">
+        <label>Type<input id="t-type" placeholder="grub_cfg"></label>
+        <label>Content<input id="t-content" placeholder="set timeout=5" style="min-width:280px"></label>
+        <button type="submit">Add template</button>
+      </form>
+      <p class="sub">Add file</p>
+      <form id="file-form">
+        <label>Filename<input id="ff-name" placeholder="grub.cfg"></label>
+        <label>Placement<input id="ff-place" placeholder="/boot/grub"></label>
+        <button type="submit">Add file</button>
+      </form>
+      <div class="msg" id="detail-msg"></div>
+      <div style="margin-top:8px"><button onclick="validateChain()">Validate</button></div>
+    </div>
+  </main>
+  <script>
+    let current = null;
+    async function api(p, o) { const r = await fetch(p, o); if (!r.ok) { let d=`${r.status}`; try { d=(await r.json()).detail||d; } catch {} throw new Error(d); } return r.status===204?null:r.json(); }
+    function msg(id,t,ok){ const e=document.getElementById(id); e.textContent=t||""; e.className="msg "+(t?(ok?"ok":"err"):""); }
+    const $=(id)=>document.getElementById(id);
+
+    async function init() {
+      try { for (const s of await api("/v1/boot-schemes")) $("f-scheme").add(new Option(s.name, s.id)); } catch(e){}
+      loadList();
+    }
+    async function loadList() {
+      try {
+        const rows = await api("/v1/boot-chains");
+        $("list").innerHTML = rows.length ? `<table><thead><tr><th>Name</th><th>Description</th><th></th></tr></thead><tbody>` +
+          rows.map(c=>`<tr><td><strong>${c.name}</strong></td><td>${c.description||"—"}</td>
+            <td><button onclick="openChain('${c.id}','${c.name}')">Open</button></td></tr>`).join("")+`</tbody></table>`
+          : `<div class="empty">No boot chains yet.</div>`;
+      } catch(e){ $("list").innerHTML=`<div class="empty">Error: ${e.message}</div>`; }
+    }
+    async function openChain(id, name) {
+      current = id;
+      $("detail-panel").style.display="block"; $("detail-title").textContent="Boot chain · "+name;
+      try {
+        const d = await api(`/v1/boot-chains/${id}`);
+        const tpls = (d.templates||[]).map(t=>`${t.template_type}`).join(", ")||"—";
+        const files = (d.files||[]).map(f=>`${f.filename} → ${f.placement}`).join("<br>")||"—";
+        const binds = (d.bindings||[]).length;
+        $("detail").innerHTML = `<p style="color:var(--muted)">templates: <b style="color:var(--fg)">${tpls}</b></p>
+          <p class="sub">files</p><p>${files}</p><p style="color:var(--muted)">bindings: ${binds}</p>`;
+      } catch(e){ $("detail").innerHTML=`<div class="empty">Error: ${e.message}</div>`; }
+    }
+    $("create-form").addEventListener("submit", async ev=>{ ev.preventDefault();
+      try { await api("/v1/boot-chains",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:$("f-name").value.trim(), boot_scheme_id:$("f-scheme").value, description:$("f-desc").value.trim()||null})});
+        msg("create-msg",`Created '${$("f-name").value}'`,true); $("create-form").reset(); init(); loadList(); }
+      catch(e){ msg("create-msg",e.message,false); } });
+    $("tpl-form").addEventListener("submit", async ev=>{ ev.preventDefault(); if(!current) return;
+      try { await api(`/v1/boot-chains/${current}/templates`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({template_type:$("t-type").value.trim(), content:$("t-content").value})});
+        msg("detail-msg","template added",true); openChain(current,$("detail-title").textContent.replace("Boot chain · ","")); }
+      catch(e){ msg("detail-msg",e.message,false); } });
+    $("file-form").addEventListener("submit", async ev=>{ ev.preventDefault(); if(!current) return;
+      try { await api(`/v1/boot-chains/${current}/files`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({filename:$("ff-name").value.trim(), placement:$("ff-place").value.trim()})});
+        msg("detail-msg","file added",true); openChain(current,$("detail-title").textContent.replace("Boot chain · ","")); }
+      catch(e){ msg("detail-msg",e.message,false); } });
+    async function validateChain(){ if(!current) return;
+      try { const r=await api(`/v1/boot-chains/${current}/validate`,{method:"POST"}); msg("detail-msg","validation: "+JSON.stringify(r),true); }
+      catch(e){ msg("detail-msg",e.message,false); } }
+    init();
+  </script>
+</body>
+</html>
