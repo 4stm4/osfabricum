@@ -1,0 +1,20 @@
+apiVersion: osfabricum/v1
+kind: BoardRevisionList
+items:
+  - board: rpi-zero-2w
+    revision: "1.0"
+    soc_family: BCM2710
+    description: Initial production revision
+    is_default: true
+    metadata:
+      ram: 512MB
+      release_date: "2021-10"
+
+  - board: qemu-x86_64
+    revision: "generic"
+    description: Generic QEMU x86_64 virtual machine
+    is_default: true
+    metadata:
+      emulated: true
+
+# Made with Bob

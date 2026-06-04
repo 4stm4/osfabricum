@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
@@ -10,6 +11,54 @@ import typer
 from osfabricum import board as board_service
 
 board_app = typer.Typer(help="Board/BSP management commands", no_args_is_help=True)
+
+
+# Seed data loader
+
+@board_app.command("seed")
+def seed_bsp_data(
+    catalog_dir: Annotated[
+        Path, typer.Option(help="Catalog directory with seed YAML files")
+    ] = Path("catalog/seed"),
+    db: Annotated[
+        str | None, typer.Option("--db", envvar="OSF_DATABASE_URL", help="Database URL")
+    ] = None,
+) -> None:
+    """Load BSP seed data from YAML files."""
+    from osfabricum.db.seed_data import (
+        seed_board_bsp_from_yaml,
+        seed_board_revisions_from_yaml,
+        seed_soc_families_from_yaml,
+    )
+    from osfabricum.db.session import sync_session
+
+    if not catalog_dir.exists():
+        typer.echo(f"ERROR: Catalog directory not found: {catalog_dir}", err=True)
+        raise typer.Exit(code=1)
+
+    with sync_session(db) as session:
+        # Load SoC families
+        soc_file = catalog_dir / "soc_families.yaml"
+        if soc_file.exists():
+            count = seed_soc_families_from_yaml(session, soc_file)
+            typer.echo(f"Loaded {count} SoC families from {soc_file}")
+        
+        # Load board revisions
+        rev_file = catalog_dir / "board_revisions.yaml"
+        if rev_file.exists():
+            count = seed_board_revisions_from_yaml(session, rev_file)
+            typer.echo(f"Loaded {count} board revisions from {rev_file}")
+        
+        # Load BSP data
+        bsp_file = catalog_dir / "board_bsp.yaml"
+        if bsp_file.exists():
+            counts = seed_board_bsp_from_yaml(session, bsp_file)
+            typer.echo(f"Loaded BSP data from {bsp_file}:")
+            for key, count in counts.items():
+                typer.echo(f"  {key}: {count}")
+        
+        session.commit()
+        typer.echo("BSP seed data loaded successfully!")
 
 
 # SoC Families

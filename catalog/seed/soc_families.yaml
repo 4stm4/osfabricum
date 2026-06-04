@@ -1,0 +1,40 @@
+apiVersion: osfabricum/v1
+kind: SocFamilyList
+items:
+  - name: BCM2710
+    vendor: Broadcom
+    description: ARM Cortex-A53 quad-core SoC used in Raspberry Pi Zero 2W and Pi 3
+    metadata:
+      cores: 4
+      architecture: ARM Cortex-A53
+      frequency: 1.0 GHz
+      gpu: VideoCore IV
+
+  - name: BCM2711
+    vendor: Broadcom
+    description: ARM Cortex-A72 quad-core SoC used in Raspberry Pi 4
+    metadata:
+      cores: 4
+      architecture: ARM Cortex-A72
+      frequency: 1.5 GHz
+      gpu: VideoCore VI
+
+  - name: Allwinner H3
+    vendor: Allwinner
+    description: ARM Cortex-A7 quad-core SoC used in Orange Pi boards
+    metadata:
+      cores: 4
+      architecture: ARM Cortex-A7
+      frequency: 1.2 GHz
+      gpu: Mali-400 MP2
+
+  - name: Rockchip RK3399
+    vendor: Rockchip
+    description: Dual Cortex-A72 + quad Cortex-A53 SoC
+    metadata:
+      cores: 6
+      architecture: 2x ARM Cortex-A72 + 4x ARM Cortex-A53
+      frequency: 2.0 GHz (A72), 1.5 GHz (A53)
+      gpu: Mali-T860 MP4
+
+# Made with Bob

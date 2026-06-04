@@ -1,0 +1,137 @@
+apiVersion: osfabricum/v1
+kind: BoardBSPList
+
+# Board firmware blobs
+firmware:
+  - board: rpi-zero-2w
+    filename: start4.elf
+    source_uri: https://github.com/raspberrypi/firmware
+    source_ref: master
+    required: true
+    placement: /boot
+    metadata:
+      type: bootloader
+      description: VideoCore firmware blob for RPi 4/Zero 2W
+
+  - board: rpi-zero-2w
+    filename: fixup4.dat
+    source_uri: https://github.com/raspberrypi/firmware
+    source_ref: master
+    required: true
+    placement: /boot
+    metadata:
+      type: bootloader
+      description: Linker file for start4.elf
+
+# Device trees
+device_trees:
+  - board: rpi-zero-2w
+    filename: bcm2710-rpi-zero-2-w.dtb
+    dtb_type: base
+    source_uri: https://github.com/raspberrypi/linux
+    source_ref: rpi-6.1.y
+    required: true
+    placement: /boot
+    metadata:
+      compatible: raspberrypi,model-zero-2-w
+      description: Device tree for Raspberry Pi Zero 2W
+
+  - board: rpi-zero-2w
+    filename: disable-bt.dtbo
+    dtb_type: overlay
+    source_uri: https://github.com/raspberrypi/linux
+    source_ref: rpi-6.1.y
+    required: false
+    placement: /boot/overlays
+    metadata:
+      description: Disable Bluetooth overlay
+
+# Flash methods
+flash_methods:
+  - board: rpi-zero-2w
+    method_name: dd
+    description: Write image to SD card using dd
+    command_template: "dd if={image} of={device} bs=4M status=progress conv=fsync"
+    requires_tools:
+      - dd
+    device_pattern: /dev/sd*
+    is_default: true
+    metadata:
+      safe: false
+      requires_root: true
+
+  - board: rpi-zero-2w
+    method_name: rpi-imager
+    description: Use Raspberry Pi Imager
+    command_template: "rpi-imager --cli {image} {device}"
+    requires_tools:
+      - rpi-imager
+    device_pattern: /dev/sd*
+    is_default: false
+    metadata:
+      safe: true
+      gui_available: true
+
+  - board: qemu-x86_64
+    method_name: qemu-img
+    description: Convert to QEMU disk image
+    command_template: "qemu-img convert -f raw -O qcow2 {image} {output}.qcow2"
+    requires_tools:
+      - qemu-img
+    is_default: true
+    metadata:
+      emulated: true
+
+# Test methods
+test_methods:
+  - board: rpi-zero-2w
+    method_name: qemu-aarch64
+    description: Test with QEMU aarch64 emulation
+    test_command: "qemu-system-aarch64 -M raspi3b -kernel {kernel} -dtb {dtb} -append 'console=ttyAMA0' -nographic"
+    requires_tools:
+      - qemu-system-aarch64
+    timeout_seconds: 300
+    is_default: true
+    metadata:
+      emulated: true
+      accuracy: partial
+
+  - board: qemu-x86_64
+    method_name: qemu-x86_64
+    description: Test with QEMU x86_64
+    test_command: "qemu-system-x86_64 -m 2G -drive file={image},format=raw -nographic"
+    requires_tools:
+      - qemu-system-x86_64
+    timeout_seconds: 300
+    is_default: true
+    metadata:
+      emulated: true
+      accuracy: full
+
+# Probe profiles (for auto-detection)
+probe_profiles:
+  - board: rpi-zero-2w
+    probe_method: device_tree
+    match_pattern: raspberrypi,model-zero-2-w
+    confidence: 100
+    metadata:
+      source: /proc/device-tree/compatible
+
+  - board: rpi-zero-2w
+    probe_method: cpuinfo
+    match_pattern: BCM2710
+    confidence: 90
+    metadata:
+      source: /proc/cpuinfo
+
+  - board: qemu-x86_64
+    probe_method: dmi
+    match_pattern: QEMU
+    match_fields:
+      sys_vendor: QEMU
+      product_name: Standard PC
+    confidence: 100
+    metadata:
+      source: /sys/class/dmi/id/
+
+# Made with Bob
