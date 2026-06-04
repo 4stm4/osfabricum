@@ -51,6 +51,188 @@ class Board(Base):
     firmware_required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
+# ---------------------------------------------------------------------------
+# Board / BSP Models (M30)
+# ---------------------------------------------------------------------------
+
+
+class SocFamily(Base):
+    __tablename__ = "soc_families"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    vendor: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardRevision(Base):
+    __tablename__ = "board_revisions"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    revision: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    soc_family_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("soc_families.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardFirmware(Base):
+    __tablename__ = "board_firmware"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    filename: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("artifacts.id"), nullable=True
+    )
+    source_uri: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    expected_hash: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    placement: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardDeviceTree(Base):
+    __tablename__ = "board_device_trees"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    filename: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    dtb_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("artifacts.id"), nullable=True
+    )
+    source_uri: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    expected_hash: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    placement: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardDefaultKernel(Base):
+    __tablename__ = "board_default_kernels"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    kernel_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=False
+    )
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardDefaultToolchain(Base):
+    __tablename__ = "board_default_toolchains"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    toolchain_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("toolchains.id"), nullable=False
+    )
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardSupportedLayout(Base):
+    __tablename__ = "board_supported_layouts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    layout_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("partition_layouts.id"), nullable=False
+    )
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardFlashMethod(Base):
+    __tablename__ = "board_flash_methods"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    method_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    command_template: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    requires_tools: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    device_pattern: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardTestMethod(Base):
+    __tablename__ = "board_test_methods"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    method_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    test_command: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    requires_tools: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    timeout_seconds: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BoardProbeProfile(Base):
+    __tablename__ = "board_probe_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    board_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=False, index=True
+    )
+    board_revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("board_revisions.id"), nullable=True
+    )
+    probe_method: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    match_pattern: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    match_fields: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    confidence: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
 
 class Distribution(Base):
     __tablename__ = "distributions"
@@ -597,13 +779,17 @@ class PackageSetMember(Base):
 
 
 class BootScheme(Base):
-    """A boot strategy (direct-kernel, u-boot, grub, …); M31 adds full chains."""
+    """A boot strategy (direct-kernel, u-boot, grub, …); M30/M31 extended."""
 
     __tablename__ = "boot_schemes"
 
     id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
-    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # M30 extensions (nullable for backward compat with M25 seed data):
+    boot_type: Mapped[str | None] = mapped_column(sa.String(32), nullable=True, default="direct")
+    requires_bootloader: Mapped[bool | None] = mapped_column(sa.Boolean, nullable=True, default=False)
+    requires_firmware: Mapped[bool | None] = mapped_column(sa.Boolean, nullable=True, default=False)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
 
