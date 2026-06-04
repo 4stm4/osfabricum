@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from apps.api.routes.artifacts_api import router as artifacts_router
+from apps.api.routes.boards_api import router as boards_router
 from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
@@ -52,6 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profiles_router)
     # M28: build wizard drafts
     app.include_router(drafts_router)
+    # M30: board/BSP designer (write API)
+    app.include_router(boards_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

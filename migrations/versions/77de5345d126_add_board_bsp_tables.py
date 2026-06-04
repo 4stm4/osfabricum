@@ -7,6 +7,13 @@ Create Date: 2026-06-04 10:11:46.638645
 M30 — Board/BSP Designer: Extend boards model with BSP depth.
 Add tables for board revisions, SoC families, boot schemes, firmware,
 device trees, flash methods, test methods, and probe profiles.
+
+NOTE: Due to G-23 (migration 0001 uses metadata.create_all), these tables
+will be auto-created on fresh installs. For existing databases that already
+passed 0001-0008, this migration will add the tables explicitly.
+The duplicate create_table calls are expected to fail on fresh installs;
+this is a known issue that will be resolved when 0001 is rewritten with
+explicit DDL (tracked in G-23).
 """
 
 from __future__ import annotations
