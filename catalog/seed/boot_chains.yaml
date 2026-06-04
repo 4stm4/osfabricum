@@ -1,0 +1,178 @@
+# Boot Chain Seed Data (M31)
+# Defines boot chain configurations for different boot schemes
+
+boot_chains:
+  - id: grub-uefi-default
+    name: GRUB UEFI Default
+    boot_scheme_id: uefi
+    description: Standard GRUB bootloader for UEFI systems
+    metadata:
+      version: "2.06"
+      supports_secure_boot: true
+      efi_arch: ["x64", "aa64"]
+    templates:
+      - template_type: grub_cfg
+        content: |
+          set timeout={{ timeout | default(5) }}
+          set default={{ default_entry | default(0) }}
+          
+          menuentry "{{ os_name | default('Linux') }}" {
+              linux {{ kernel_path }} root={{ root_device }} {{ kernel_params | default('') }}
+              {% if initrd_path %}
+              initrd {{ initrd_path }}
+              {% endif %}
+          }
+        variables:
+          timeout: 5
+          default_entry: 0
+          os_name: "OSFabricum Linux"
+    files:
+      - filename: grub.cfg
+        placement: /boot/grub
+        content_template: grub_cfg
+        required: true
+        permissions: "0644"
+      - filename: grubenv
+        placement: /boot/grub
+        content_template: |
+          # GRUB Environment Block
+          saved_entry={{ default_entry | default(0) }}
+        required: false
+        permissions: "0644"
+
+  - id: uboot-extlinux
+    name: U-Boot ExtLinux
+    boot_scheme_id: uboot
+    description: U-Boot with ExtLinux configuration
+    metadata:
+      version: "2023.01"
+      supports_distro_boot: true
+      arch: ["arm", "arm64"]
+    templates:
+      - template_type: extlinux_conf
+        content: |
+          default {{ default_label | default('linux') }}
+          timeout {{ timeout | default(30) }}
+          
+          label {{ default_label | default('linux') }}
+              kernel {{ kernel_path }}
+              {% if fdt_path %}
+              fdt {{ fdt_path }}
+              {% endif %}
+              {% if initrd_path %}
+              initrd {{ initrd_path }}
+              {% endif %}
+              append root={{ root_device }} {{ kernel_params | default('') }}
+        variables:
+          timeout: 30
+          default_label: "linux"
+    files:
+      - filename: extlinux.conf
+        placement: /boot/extlinux
+        content_template: extlinux_conf
+        required: true
+        permissions: "0644"
+      - filename: boot.scr
+        placement: /boot
+        content_template: |
+          # U-Boot boot script
+          setenv bootargs "root={{ root_device }} {{ kernel_params | default('') }}"
+          load mmc 0:1 ${kernel_addr_r} {{ kernel_path }}
+          {% if initrd_path %}
+          load mmc 0:1 ${ramdisk_addr_r} {{ initrd_path }}
+          {% endif %}
+          {% if fdt_path %}
+          load mmc 0:1 ${fdt_addr_r} {{ fdt_path }}
+          {% endif %}
+          bootz ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}
+        required: false
+        permissions: "0755"
+
+  - id: syslinux-bios
+    name: SYSLINUX BIOS
+    boot_scheme_id: bios
+    description: SYSLINUX bootloader for legacy BIOS systems
+    metadata:
+      version: "6.03"
+      supports_mbr: true
+      arch: ["x86", "x64"]
+    templates:
+      - template_type: syslinux_cfg
+        content: |
+          DEFAULT {{ default_label | default('linux') }}
+          TIMEOUT {{ timeout | default(50) }}
+          PROMPT 0
+          
+          LABEL {{ default_label | default('linux') }}
+              LINUX {{ kernel_path }}
+              {% if initrd_path %}
+              INITRD {{ initrd_path }}
+              {% endif %}
+              APPEND root={{ root_device }} {{ kernel_params | default('') }}
+        variables:
+          timeout: 50
+          default_label: "linux"
+    files:
+      - filename: syslinux.cfg
+        placement: /boot/syslinux
+        content_template: syslinux_cfg
+        required: true
+        permissions: "0644"
+
+  - id: grub-bios-default
+    name: GRUB BIOS Default
+    boot_scheme_id: bios
+    description: Standard GRUB bootloader for legacy BIOS systems
+    metadata:
+      version: "2.06"
+      supports_mbr: true
+      arch: ["x86", "x64"]
+    templates:
+      - template_type: grub_cfg
+        content: |
+          set timeout={{ timeout | default(5) }}
+          set default={{ default_entry | default(0) }}
+          
+          menuentry "{{ os_name | default('Linux') }}" {
+              linux {{ kernel_path }} root={{ root_device }} {{ kernel_params | default('') }}
+              {% if initrd_path %}
+              initrd {{ initrd_path }}
+              {% endif %}
+          }
+        variables:
+          timeout: 5
+          default_entry: 0
+    files:
+      - filename: grub.cfg
+        placement: /boot/grub
+        content_template: grub_cfg
+        required: true
+        permissions: "0644"
+
+# Boot chain bindings to boards/profiles
+boot_chain_bindings:
+  # Raspberry Pi 4 uses U-Boot
+  - boot_chain_id: uboot-extlinux
+    board_id: rpi4
+    is_default: true
+    priority: 100
+
+  # Generic x86_64 UEFI
+  - boot_chain_id: grub-uefi-default
+    board_id: generic-x86_64
+    is_default: true
+    priority: 100
+
+  # Generic x86_64 BIOS fallback
+  - boot_chain_id: grub-bios-default
+    board_id: generic-x86_64
+    is_default: false
+    priority: 50
+
+  # Server profile prefers UEFI
+  - boot_chain_id: grub-uefi-default
+    profile_id: server
+    is_default: true
+    priority: 90
+
+# Made with Bob

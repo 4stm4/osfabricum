@@ -233,6 +233,72 @@ class BoardProbeProfile(Base):
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
 
+# ---------------------------------------------------------------------------
+# Boot Chain Models (M31)
+# ---------------------------------------------------------------------------
+
+
+class BootChain(Base):
+    __tablename__ = "boot_chains"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    boot_scheme_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_schemes.id"), nullable=False, index=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class BootChainTemplate(Base):
+    __tablename__ = "boot_chain_templates"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    boot_chain_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_chains.id"), nullable=False, index=True
+    )
+    template_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    variables: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BootChainFile(Base):
+    __tablename__ = "boot_chain_files"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    boot_chain_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_chains.id"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    content_template: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    template_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_chain_templates.id"), nullable=True
+    )
+    placement: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    permissions: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class BootChainBinding(Base):
+    __tablename__ = "boot_chain_bindings"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    boot_chain_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("boot_chains.id"), nullable=False, index=True
+    )
+    board_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("boards.id"), nullable=True, index=True
+    )
+    profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("profiles.id"), nullable=True, index=True
+    )
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
 
 class Distribution(Base):
     __tablename__ = "distributions"

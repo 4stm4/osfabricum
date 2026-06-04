@@ -364,3 +364,128 @@ def seed_board_bsp_from_yaml(session: Session, yaml_path: Path | str) -> dict[st
         session.flush()
     
     return counts
+
+
+
+def seed_boot_chains(session: Session, yaml_path: Path | None = None) -> dict[str, int]:
+    """Load boot chain seed data from YAML (M31).
+    
+    Args:
+        session: Database session
+        yaml_path: Path to boot_chains.yaml (defaults to catalog/seed/boot_chains.yaml)
+    
+    Returns:
+        Dictionary with counts of seeded items
+    """
+    from osfabricum.db.models import BootChain, BootChainBinding, BootChainFile, BootChainTemplate
+    
+    if yaml_path is None:
+        yaml_path = Path(__file__).parent.parent.parent / "catalog" / "seed" / "boot_chains.yaml"
+    
+    if not yaml_path.exists():
+        return {"boot_chains": 0, "templates": 0, "files": 0, "bindings": 0}
+    
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    
+    counts: dict[str, int] = {
+        "boot_chains": 0,
+        "templates": 0,
+        "files": 0,
+        "bindings": 0,
+    }
+    
+    # Load boot chains
+    if "boot_chains" in data:
+        existing_chains = {
+            chain.id: chain
+            for chain in session.scalars(select(BootChain)).all()
+        }
+        
+        for item in data["boot_chains"]:
+            chain_id = item["id"]
+            
+            # Skip if already exists
+            if chain_id in existing_chains:
+                continue
+            
+            # Create boot chain
+            chain = BootChain(
+                id=chain_id,
+                name=item["name"],
+                boot_scheme_id=item["boot_scheme_id"],
+                description=item.get("description"),
+                metadata_json=item.get("metadata"),
+            )
+            session.add(chain)
+            session.flush()
+            counts["boot_chains"] += 1
+            
+            # Add templates
+            if "templates" in item:
+                for tpl in item["templates"]:
+                    template = BootChainTemplate(
+                        id=str(uuid4()),
+                        boot_chain_id=chain_id,
+                        template_type=tpl["template_type"],
+                        content=tpl["content"],
+                        variables=tpl.get("variables"),
+                    )
+                    session.add(template)
+                    counts["templates"] += 1
+            
+            # Add files
+            if "files" in item:
+                for file_item in item["files"]:
+                    # Resolve template reference
+                    content_template = file_item.get("content_template")
+                    if isinstance(content_template, str) and not content_template.startswith("{{"):
+                        # It's a template_type reference, find the template
+                        for tpl in item.get("templates", []):
+                            if tpl["template_type"] == content_template:
+                                content_template = tpl["content"]
+                                break
+                    
+                    file_obj = BootChainFile(
+                        id=str(uuid4()),
+                        boot_chain_id=chain_id,
+                        filename=file_item["filename"],
+                        placement=file_item["placement"],
+                        content_template=content_template,
+                        template_id=None,  # Could be enhanced to link to template
+                        required=file_item.get("required", True),
+                        permissions=file_item.get("permissions"),
+                    )
+                    session.add(file_obj)
+                    counts["files"] += 1
+    
+    # Load bindings
+    if "boot_chain_bindings" in data:
+        existing_bindings = {
+            (b.boot_chain_id, b.board_id, b.profile_id)
+            for b in session.scalars(select(BootChainBinding)).all()
+        }
+        
+        for item in data["boot_chain_bindings"]:
+            boot_chain_id = item["boot_chain_id"]
+            board_id = item.get("board_id")
+            profile_id = item.get("profile_id")
+            
+            if (boot_chain_id, board_id, profile_id) in existing_bindings:
+                continue
+            
+            binding = BootChainBinding(
+                id=str(uuid4()),
+                boot_chain_id=boot_chain_id,
+                board_id=board_id,
+                profile_id=profile_id,
+                is_default=item.get("is_default", False),
+                priority=item.get("priority", 100),
+            )
+            session.add(binding)
+            counts["bindings"] += 1
+    
+    if any(counts.values()):
+        session.flush()
+    
+    return counts

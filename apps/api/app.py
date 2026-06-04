@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.boards_api import router as boards_router
+from apps.api.routes.bootchain_api import router as bootchain_router
 from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
@@ -55,6 +56,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(drafts_router)
     # M30: board/BSP designer (write API)
     app.include_router(boards_router)
+    # M31: boot chain designer (write API)
+    app.include_router(bootchain_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
