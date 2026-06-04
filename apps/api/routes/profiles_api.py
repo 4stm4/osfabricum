@@ -24,6 +24,7 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from osfabricum import profile as profile_service
+from osfabricum.security.auth_policy import WriteAuthDep
 
 router = APIRouter(prefix="/v1/profiles", tags=["profiles"])
 
@@ -72,7 +73,7 @@ def list_profiles(request: Request, distribution: Annotated[str, Query()]) -> li
 
 
 @router.post("", status_code=201)
-def create_profile(body: ProfileCreate, request: Request) -> dict[str, Any]:
+def create_profile(body: ProfileCreate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return profile_service.create_profile(
             distribution=body.distribution,
@@ -91,6 +92,7 @@ def import_profile(
     request: Request,
     data: Annotated[dict[str, Any], Body()],
     overwrite: bool = False,
+    _auth: WriteAuthDep = None,
 ) -> dict[str, Any]:
     try:
         return profile_service.import_profile(data, db_url=_db(request), overwrite=overwrite)
@@ -99,7 +101,7 @@ def import_profile(
 
 
 @router.post("/{distribution}/diff")
-def diff_profiles(distribution: str, body: DiffRequest, request: Request) -> dict[str, Any]:
+def diff_profiles(distribution: str, body: DiffRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return profile_service.diff_profiles(distribution, body.a, body.b, db_url=_db(request))
     except ValueError as exc:
@@ -131,7 +133,7 @@ def list_versions(distribution: str, name: str, request: Request) -> list[dict[s
 
 
 @router.post("/{distribution}/{name}/versions", status_code=201)
-def create_version(distribution: str, name: str, request: Request) -> dict[str, Any]:
+def create_version(distribution: str, name: str, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return profile_service.create_version(distribution, name, db_url=_db(request))
     except ValueError as exc:
@@ -140,7 +142,7 @@ def create_version(distribution: str, name: str, request: Request) -> dict[str, 
 
 @router.patch("/{distribution}/{name}")
 def update_profile(
-    distribution: str, name: str, body: ProfileUpdate, request: Request
+    distribution: str, name: str, body: ProfileUpdate, request: Request, _auth: WriteAuthDep = None
 ) -> dict[str, Any]:
     provided = body.model_fields_set
     kwargs: dict[str, Any] = {}
@@ -157,7 +159,7 @@ def update_profile(
 
 
 @router.delete("/{distribution}/{name}", status_code=204)
-def delete_profile(distribution: str, name: str, request: Request) -> Response:
+def delete_profile(distribution: str, name: str, request: Request, _auth: WriteAuthDep = None) -> Response:
     try:
         profile_service.delete_profile(distribution, name, db_url=_db(request))
     except ValueError as exc:
@@ -167,7 +169,7 @@ def delete_profile(distribution: str, name: str, request: Request) -> Response:
 
 @router.post("/{distribution}/{name}/clone", status_code=201)
 def clone_profile(
-    distribution: str, name: str, body: CloneRequest, request: Request
+    distribution: str, name: str, body: CloneRequest, request: Request, _auth: WriteAuthDep = None
 ) -> dict[str, Any]:
     try:
         return profile_service.clone_profile(distribution, name, body.name, db_url=_db(request))

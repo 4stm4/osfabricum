@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from osfabricum.pipeline.log import build_summary, get_build_logs, search_builds
 from osfabricum.pipeline.record import get_build, list_build_events
+from osfabricum.security.auth_policy import WriteAuthDep
 
 router = APIRouter(prefix="/v1/builds", tags=["builds"])
 
@@ -259,7 +260,7 @@ def get_build_logs_api(
 
 
 @router.post("/{build_id}/cancel")
-def cancel_build_api(build_id: str, request: Request) -> dict[str, str]:
+def cancel_build_api(build_id: str, request: Request, _auth: WriteAuthDep = None) -> dict[str, str]:
     """Cancel a running build (stub — sets status to 'cancelled')."""
     from osfabricum.pipeline.record import update_build_status  # noqa: PLC0415
 
@@ -299,7 +300,7 @@ def _build_guard(exc: ValueError) -> HTTPException:
 
 
 @router.post("", status_code=201)
-def create_build_api(body: CreateBuildRequest, request: Request) -> dict[str, Any]:
+def create_build_api(body: CreateBuildRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     """Create a build: resolve plan, record it, enqueue a build.run job."""
     from osfabricum import orchestrator  # noqa: PLC0415
 
@@ -317,7 +318,7 @@ def create_build_api(body: CreateBuildRequest, request: Request) -> dict[str, An
 
 
 @router.post("/{build_id}/rebuild", status_code=201)
-def rebuild_api(build_id: str, request: Request) -> dict[str, Any]:
+def rebuild_api(build_id: str, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     from osfabricum import orchestrator  # noqa: PLC0415
 
     try:
@@ -328,7 +329,7 @@ def rebuild_api(build_id: str, request: Request) -> dict[str, Any]:
 
 @router.post("/{build_id}/clone-as-profile", status_code=201)
 def clone_as_profile_api(
-    build_id: str, body: CloneAsProfileRequest, request: Request
+    build_id: str, body: CloneAsProfileRequest, request: Request, _auth: WriteAuthDep = None
 ) -> dict[str, Any]:
     from osfabricum import orchestrator  # noqa: PLC0415
 

@@ -46,6 +46,7 @@ class ApiSettings(BaseModel):
 class AuthSettings(BaseModel):
     enabled: bool = False
     token_header: str = "Authorization"
+    token: str | None = None
 
 
 class SecuritySettings(BaseModel):

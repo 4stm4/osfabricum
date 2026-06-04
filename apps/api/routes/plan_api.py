@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from osfabricum import orchestrator
 from osfabricum.resolver import resolve_plan
+from osfabricum.security.auth_policy import WriteAuthDep
 
 router = APIRouter(prefix="/v1/plan", tags=["plan"])
 prefetch_router = APIRouter(prefix="/v1/prefetch", tags=["plan"])
@@ -63,7 +64,7 @@ def get_plan(
 
 
 @router.post("")
-def post_plan(body: PlanRequest, request: Request) -> dict[str, Any]:
+def post_plan(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     """Resolve a plan with name-based overrides (no build)."""
     try:
         return orchestrator.resolve_plan_request(
@@ -78,7 +79,7 @@ def post_plan(body: PlanRequest, request: Request) -> dict[str, Any]:
 
 
 @router.post("/validate")
-def post_plan_validate(body: PlanRequest, request: Request) -> dict[str, Any]:
+def post_plan_validate(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     return orchestrator.validate_plan(
         distribution=body.distribution,
         profile=body.profile,
@@ -89,7 +90,7 @@ def post_plan_validate(body: PlanRequest, request: Request) -> dict[str, Any]:
 
 
 @router.post("/diff")
-def post_plan_diff(body: PlanDiffRequest, request: Request) -> dict[str, Any]:
+def post_plan_diff(body: PlanDiffRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return orchestrator.diff_plans(
             distribution=body.distribution,
@@ -105,7 +106,7 @@ def post_plan_diff(body: PlanDiffRequest, request: Request) -> dict[str, Any]:
 
 
 @prefetch_router.post("")
-def post_prefetch(body: PlanRequest, request: Request) -> dict[str, Any]:
+def post_prefetch(body: PlanRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     """Report what a plan would need to fetch/build (no build started)."""
     try:
         return orchestrator.prefetch_report(

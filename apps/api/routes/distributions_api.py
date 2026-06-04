@@ -22,6 +22,7 @@ from fastapi import APIRouter, Body, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from osfabricum import distribution as dist_service
+from osfabricum.security.auth_policy import WriteAuthDep
 
 router = APIRouter(prefix="/v1/distributions", tags=["distributions"])
 
@@ -65,7 +66,7 @@ def list_distributions(request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("", status_code=201)
-def create_distribution(body: DistributionCreate, request: Request) -> dict[str, Any]:
+def create_distribution(body: DistributionCreate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return dist_service.create_distribution(
             name=body.name,
@@ -84,6 +85,7 @@ def import_distribution(
     request: Request,
     data: Annotated[dict[str, Any], Body()],
     overwrite: bool = False,
+    _auth: WriteAuthDep = None,
 ) -> dict[str, Any]:
     try:
         return dist_service.import_distribution(data, db_url=_db(request), overwrite=overwrite)
@@ -108,7 +110,7 @@ def export_distribution(dist_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/{dist_id}")
-def update_distribution(dist_id: str, body: DistributionUpdate, request: Request) -> dict[str, Any]:
+def update_distribution(dist_id: str, body: DistributionUpdate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     provided = body.model_fields_set
     kwargs: dict[str, Any] = {}
     if "description" in provided:
@@ -126,7 +128,7 @@ def update_distribution(dist_id: str, body: DistributionUpdate, request: Request
 
 
 @router.delete("/{dist_id}", status_code=204)
-def delete_distribution(dist_id: str, request: Request) -> Response:
+def delete_distribution(dist_id: str, request: Request, _auth: WriteAuthDep = None) -> Response:
     try:
         dist_service.delete_distribution(dist_id, db_url=_db(request))
     except ValueError as exc:
@@ -135,7 +137,7 @@ def delete_distribution(dist_id: str, request: Request) -> Response:
 
 
 @router.post("/{dist_id}/clone", status_code=201)
-def clone_distribution(dist_id: str, body: CloneRequest, request: Request) -> dict[str, Any]:
+def clone_distribution(dist_id: str, body: CloneRequest, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     try:
         return dist_service.clone_distribution(dist_id, body.name, db_url=_db(request))
     except ValueError as exc:

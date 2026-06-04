@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from osfabricum import orchestrator
+from osfabricum.security.auth_policy import WriteAuthDep
 
 router = APIRouter(prefix="/v1/build-drafts", tags=["build-drafts"])
 
@@ -53,7 +54,7 @@ def list_drafts(request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("", status_code=201)
-def create_draft(body: DraftCreate, request: Request) -> dict[str, Any]:
+def create_draft(body: DraftCreate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     return orchestrator.create_draft(
         name=body.name,
         source_kind=body.source_kind,
@@ -74,7 +75,7 @@ def get_draft(draft_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/{draft_id}")
-def update_draft(draft_id: str, body: DraftUpdate, request: Request) -> dict[str, Any]:
+def update_draft(draft_id: str, body: DraftUpdate, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
     provided = body.model_fields_set
     kwargs: dict[str, Any] = {k: getattr(body, k) for k in provided}
     try:
@@ -84,7 +85,7 @@ def update_draft(draft_id: str, body: DraftUpdate, request: Request) -> dict[str
 
 
 @router.delete("/{draft_id}", status_code=204)
-def delete_draft(draft_id: str, request: Request) -> Response:
+def delete_draft(draft_id: str, request: Request, _auth: WriteAuthDep = None) -> Response:
     try:
         orchestrator.delete_draft(draft_id, db_url=_db(request))
     except ValueError as exc:
