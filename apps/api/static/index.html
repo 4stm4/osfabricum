@@ -119,7 +119,8 @@
       async distributions() {
         const data = await api("/v1/distributions");
         const link = `<p><a href="/distributions" style="color:var(--accent)">→ Distribution Designer</a>
-          &nbsp;·&nbsp; <a href="/profiles" style="color:var(--accent)">Profile Designer</a></p>`;
+          &nbsp;·&nbsp; <a href="/profiles" style="color:var(--accent)">Profile Designer</a>
+          &nbsp;·&nbsp; <a href="/packages" style="color:var(--accent)">Package Workspace</a></p>`;
         return link + table(
           [{label:"Name"},{label:"Class"},{label:"Channel"},{label:"Profiles"}],
           data.map(d => [d.name, d.class || "—", d.default_channel, d.profile_count])

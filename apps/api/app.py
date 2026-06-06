@@ -19,6 +19,7 @@ from apps.api.routes.imagedesign_api import router as imagedesign_router
 from apps.api.routes.initramfs_api import router as initramfs_router
 from apps.api.routes.kerneldesign_api import router as kerneldesign_router
 from apps.api.routes.model_api import router as model_router
+from apps.api.routes.packages_api import router as packages_router
 from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
 from apps.api.routes.profiles_api import router as profiles_router
@@ -67,6 +68,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(kerneldesign_router)
     # M34: filesystem / image recipe designer (write API)
     app.include_router(imagedesign_router)
+    # M35: package workspace / package manager (write API)
+    app.include_router(packages_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -148,6 +151,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/image-recipes", include_in_schema=False)
         def image_recipes_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "image_recipes.html"))
+
+        # M35: Package Workspace page
+        @app.get("/packages", include_in_schema=False)
+        def packages_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "packages.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

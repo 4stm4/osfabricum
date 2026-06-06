@@ -90,6 +90,22 @@ Severity scale:
   feed publishing; no runtime package policy.
 - **Closed by:** **M35** (workspace + taxonomy + layers/groups/sets + cache),
   **M36** (features/variants), **M37** (feeds), **M38** (runtime policy).
+- **Status: ◑ Resolved (M35 part; G-28 closed).** Packages now have a `kind`
+  (18 seeded kinds) and `layer` (13 ordered layers) — system and application
+  packages are distinguishable and the install plan groups by kind/layer.
+  Groups are reusable across distributions; sets attach to a profile and
+  `resolve_set` produces a deterministic, layer-ordered install plan record.
+  **G-28 is closed:** `compute_cache_key` forbids `name+version+arch` and folds
+  in source/recipe/feature/toolchain/ABI hashes — and, for `kernel-module`/
+  `driver` kinds, the kernel release + config hash (required, else error). A
+  different `.config` ⇒ a different key ⇒ a rebuild; every hit/miss is explained
+  by the differing field (`lookup_cache`/`explain_cache`), with a queryable
+  `package_compatibility` record. Locks/feeds/promotions/variants are modelled.
+  Exposed over `/v1/package-*` + `/v1/packages/cache*`, the `osfabricumctl
+  packageworkspace` CLI and the `/packages` workspace page. Follow-ons remain
+  **M36** (variant *feature* resolution), **M37** (feed *publish/sign*) and
+  **M38** (runtime policy); the workspace model the resolver (M55) will consume
+  is in place.
 
 ### G-05 — Kernel config is an opaque blob, not a Kconfig model
 - **Evidence:** `KernelConfig` references a `config_artifact_id` blob. No Kconfig

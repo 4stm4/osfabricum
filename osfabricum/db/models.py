@@ -551,6 +551,10 @@ class Package(Base):
     name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     namespace: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
     package_type: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="native")
+    # M35: taxonomy — kind/layer names (validated against package_kinds/layers).
+    # Plain string columns added by migration 0011 (default 'system'/'system').
+    kind: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    layer: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("name", "namespace", name="uq_packages_name_ns"),)
@@ -1442,3 +1446,169 @@ class OverlayPolicy(Base):
     upper_dir: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     work_dir: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     persistent: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+
+# ---------------------------------------------------------------------------
+# M35 — Package Workspace / Package Manager (closes G-04, G-28)
+# ---------------------------------------------------------------------------
+
+
+class PackageKind(Base):
+    """One of the fixed package kinds (system, application, kernel-module, …)."""
+
+    __tablename__ = "package_kinds"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class PackageLayer(Base):
+    """One of the ordered package layers (base → … → test)."""
+
+    __tablename__ = "package_layers"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class PackageVariant(Base):
+    """A package built with a specific feature set (M36 fills the features)."""
+
+    __tablename__ = "package_variants"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    package_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("packages.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    feature_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (sa.UniqueConstraint("package_id", "name", name="uq_package_variant_name"),)
+
+
+class PackageVariantFeature(Base):
+    """A single feature value bound to a variant."""
+
+    __tablename__ = "package_variant_features"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    variant_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_variants.id"), nullable=False, index=True
+    )
+    feature: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    value: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+
+
+class PackageCacheEntry(Base):
+    """A package cache key → artifact, with the full key component breakdown.
+
+    The cache key is forbidden from being ``name+version+arch``; it includes
+    source/recipe/feature/toolchain/ABI hashes and — for kernel-bound kinds —
+    the kernel release and config hash (G-28). ``key_fields_json`` keeps the
+    component breakdown so a hit/miss can be *explained*.
+    """
+
+    __tablename__ = "package_cache_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    cache_key: Mapped[str] = mapped_column(sa.String(128), unique=True, nullable=False)
+    package_name: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    arch: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    kind: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    key_fields_json: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False)
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("artifacts.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class PackageCompatibility(Base):
+    """The compatibility binding of a kernel-bound cache entry (queryable record)."""
+
+    __tablename__ = "package_compatibility"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    cache_entry_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_cache_entries.id"), nullable=False, index=True
+    )
+    package_name: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    kernel_release: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    kernel_config_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    toolchain_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    abi_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+
+
+class PackageLock(Base):
+    """A pinned package version (and optionally cache key) for reproducibility."""
+
+    __tablename__ = "package_locks"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    package_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    version: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    cache_key: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (sa.UniqueConstraint("package_name", "version", name="uq_package_lock"),)
+
+
+class PackageFeed(Base):
+    """A published runtime package feed (M37 adds signing/publish)."""
+
+    __tablename__ = "package_feeds"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    channel: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="stable")
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class PackageFeedIndex(Base):
+    """An entry in a feed's index (package@version → cache key)."""
+
+    __tablename__ = "package_feed_indexes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    feed_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_feeds.id"), nullable=False, index=True
+    )
+    package_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    version: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    cache_key: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class PackagePromotion(Base):
+    """A staging → promoted channel transition for a package version."""
+
+    __tablename__ = "package_promotions"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    package_name: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    from_channel: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    to_channel: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class PackageInstallPlan(Base):
+    """A resolved, layer-ordered install plan record (artifact kind=install-plan)."""
+
+    __tablename__ = "package_install_plans"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    set_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_sets.id"), nullable=True
+    )
+    profile_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    plan_json: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False)
+    plan_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)

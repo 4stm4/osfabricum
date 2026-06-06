@@ -29,6 +29,7 @@ from apps.cli.commands.initramfs import initramfs_app
 from apps.cli.commands.kernel import kernel_app
 from apps.cli.commands.kerneldesign import kerneldesign_app
 from apps.cli.commands.package import package_app
+from apps.cli.commands.packageworkspace import packageworkspace_app
 from apps.cli.commands.plan import run_plan
 from apps.cli.commands.profile import profile_app
 from apps.cli.commands.rootfs import rootfs_app
@@ -237,6 +238,7 @@ def _register_groups() -> None:
     app.add_typer(initramfs_app, name="initramfs")
     app.add_typer(kerneldesign_app, name="kerneldesign")
     app.add_typer(imagedesign_app, name="imagedesign")
+    app.add_typer(packageworkspace_app, name="packageworkspace")
 
 
 _register_groups()

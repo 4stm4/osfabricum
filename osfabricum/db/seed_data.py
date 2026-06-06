@@ -29,6 +29,8 @@ from osfabricum.db.models import (
     BoardTestMethod,
     BootScheme,
     DistributionClass,
+    PackageKind,
+    PackageLayer,
     SocFamily,
 )
 
@@ -61,6 +63,45 @@ BOOT_SCHEMES: list[tuple[str, str]] = [
     ("custom-vendor", "Vendor-specific custom boot chain"),
 ]
 
+# M35: package taxonomy. Every package has exactly one kind. (name, description)
+PACKAGE_KINDS: list[tuple[str, str]] = [
+    ("system", "Core system package"),
+    ("boot", "Bootloader / boot artifact package"),
+    ("kernel-module", "In-tree or external kernel module (kernel-bound)"),
+    ("driver", "Hardware driver package (kernel-bound)"),
+    ("firmware", "Device firmware blob package"),
+    ("runtime", "Language/runtime support package"),
+    ("library", "Shared/static library package"),
+    ("service", "Background service / daemon package"),
+    ("desktop", "Desktop environment / graphical shell package"),
+    ("application", "End-user application package"),
+    ("theme", "Theme / appearance package"),
+    ("branding", "Branding / identity package"),
+    ("development", "Development tooling package"),
+    ("debug", "Debug symbols / debugging package"),
+    ("test", "Test / validation package"),
+    ("documentation", "Documentation package"),
+    ("locale", "Locale / translation package"),
+    ("meta", "Meta-package (selection only, no payload)"),
+]
+
+# M35: package layers, ordered lowest → highest. (name, position, description)
+PACKAGE_LAYERS: list[tuple[str, int, str]] = [
+    ("base", 0, "Base userland"),
+    ("hardware", 1, "Hardware enablement"),
+    ("boot", 2, "Boot chain"),
+    ("kernel", 3, "Kernel and modules"),
+    ("system", 4, "System services and core OS"),
+    ("runtime", 5, "Language runtimes"),
+    ("services", 6, "Background services"),
+    ("desktop", 7, "Desktop / graphical stack"),
+    ("applications", 8, "End-user applications"),
+    ("branding", 9, "Branding and identity"),
+    ("development", 10, "Development tooling"),
+    ("debug", 11, "Debug symbols"),
+    ("test", 12, "Test / validation"),
+]
+
 
 def seed_distribution_classes(session: Session) -> int:
     """Insert any missing distribution classes. Returns the number added."""
@@ -84,6 +125,34 @@ def seed_boot_schemes(session: Session) -> int:
         if name in existing:
             continue
         session.add(BootScheme(name=name, description=description))
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_package_kinds(session: Session) -> int:
+    """Insert any missing package kinds (M35). Returns the number added."""
+    existing = {k.name for k in session.scalars(select(PackageKind)).all()}
+    added = 0
+    for name, description in PACKAGE_KINDS:
+        if name in existing:
+            continue
+        session.add(PackageKind(name=name, description=description))
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_package_layers(session: Session) -> int:
+    """Insert any missing package layers (M35). Returns the number added."""
+    existing = {layer.name for layer in session.scalars(select(PackageLayer)).all()}
+    added = 0
+    for name, position, description in PACKAGE_LAYERS:
+        if name in existing:
+            continue
+        session.add(PackageLayer(name=name, position=position, description=description))
         added += 1
     if added:
         session.flush()

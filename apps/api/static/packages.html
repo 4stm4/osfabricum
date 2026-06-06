@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Package Workspace</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; --yellow:#d29922; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    nav { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    nav button { background:none; border:none; color:var(--muted); padding:12px 16px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+    nav button.active { color:var(--fg); border-bottom-color:var(--accent); }
+    main { padding:24px; max-width:1040px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { font-size:12px; color:var(--muted); }
+    input,select { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; font-family:inherit; }
+    button.act { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button.act:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+    .msg { font-size:13px; min-height:18px; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    pre { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; overflow:auto; }
+    .mono { font-family:"SF Mono",Menlo,monospace; } .hint { color:var(--muted); font-size:11px; }
+    .hit { color:var(--green); } .miss { color:var(--yellow); }
+  </style>
+</head>
+<body>
+  <header><h1>📦 Package Workspace</h1><a href="/">← Dashboard</a></header>
+  <nav>
+    <button data-tab="cache" class="active">Cache</button>
+    <button data-tab="taxonomy">Taxonomy</button>
+    <button data-tab="groups">Groups</button>
+    <button data-tab="sets">Sets</button>
+    <button data-tab="locks">Locks</button>
+  </nav>
+  <main id="content"></main>
+  <script>
+    let tab = "cache";
+    const $ = (id) => document.getElementById(id);
+    async function api(p,o){ const r=await fetch(p,o); if(!r.ok){ let d=`${r.status}`; try{ d=(await r.json()).detail||d; }catch{} throw new Error(d);} return r.status===204?null:r.json(); }
+    const j = (body) => ({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+
+    const views = {
+      async cache() {
+        const stats = await api("/v1/packages/cache");
+        const byKind = Object.entries(stats.by_kind||{}).map(([k,c])=>`${k}:${c}`).join(" · ") || "—";
+        return `<div class="panel"><h2>Cache key lookup</h2>
+          <p class="hint">The key folds in source/recipe/feature/toolchain/ABI hashes; kernel-bound kinds also fold in kernel release + config — a different .config is a different key (G-28).</p>
+          <div class="row">
+            <input id="c-name" placeholder="name"><input id="c-ver" placeholder="version" style="width:90px">
+            <input id="c-arch" placeholder="arch" style="width:90px" value="arm64">
+            <select id="c-kind"><option>system</option><option>application</option><option>library</option><option>kernel-module</option><option>driver</option><option>firmware</option></select>
+          </div>
+          <div class="row">
+            <input id="c-tc" placeholder="toolchain_hash" style="width:140px">
+            <input id="c-kr" placeholder="kernel_release" style="width:130px">
+            <input id="c-kc" placeholder="kernel_config_hash" style="width:150px">
+            <button class="act" onclick="doLookup()">Lookup</button>
+            <button class="act" onclick="doRecord()">Record</button>
+          </div>
+          <div class="msg" id="c-msg"></div><div id="c-out"></div>
+          <p class="hint" style="margin-top:12px">cache total: ${stats.total} &nbsp;·&nbsp; ${byKind}</p></div>`;
+      },
+      async taxonomy() {
+        const kinds = await api("/v1/package-kinds");
+        const layers = await api("/v1/package-layers");
+        return `<div class="panel"><h2>Kinds (${kinds.length})</h2><table><tbody>` +
+          kinds.map(k=>`<tr><td class="mono">${k.name}</td><td class="hint">${k.description||''}</td></tr>`).join("") + `</tbody></table></div>
+          <div class="panel"><h2>Layers (${layers.length}, ordered)</h2><table><tbody>` +
+          layers.map(l=>`<tr><td>${l.position}</td><td class="mono">${l.name}</td><td class="hint">${l.description||''}</td></tr>`).join("") + `</tbody></table></div>`;
+      },
+      async groups() {
+        const groups = await api("/v1/package-groups");
+        return `<div class="panel"><h2>Package groups</h2>
+          <div class="row"><input id="g-name" placeholder="group name">
+          <button class="act" onclick="createGroup()">Create (global)</button><span class="msg" id="g-msg"></span></div>
+          <table><thead><tr><th>Name</th><th>Scope</th><th>Members</th></tr></thead><tbody>` +
+          (groups.map(g=>`<tr><td class="mono">${g.name}</td><td>${g.global?'global':g.distribution_id}</td><td>${g.member_count}</td></tr>`).join("") || `<tr><td class="hint">none</td></tr>`) +
+          `</tbody></table></div>`;
+      },
+      async sets() {
+        const sets = await api("/v1/package-sets");
+        return `<div class="panel"><h2>Package sets</h2>
+          <div class="row"><input id="s-name" placeholder="set name">
+          <button class="act" onclick="createSet()">Create</button><span class="msg" id="s-msg"></span></div>
+          <table><thead><tr><th>Name</th><th>Distribution</th><th></th></tr></thead><tbody>` +
+          (sets.map(s=>`<tr><td class="mono">${s.name}</td><td>${s.distribution_id||'—'}</td><td><button class="act" onclick="resolveSet('${s.id}')">Resolve</button></td></tr>`).join("") || `<tr><td class="hint">none</td></tr>`) +
+          `</tbody></table><div id="s-out" style="margin-top:8px"></div></div>`;
+      },
+      async locks() {
+        const locks = await api("/v1/package-locks");
+        return `<div class="panel"><h2>Package locks</h2>
+          <div class="row"><input id="l-name" placeholder="package"><input id="l-ver" placeholder="version" style="width:90px">
+          <input id="l-reason" placeholder="reason"><button class="act" onclick="createLock()">Pin</button><span class="msg" id="l-msg"></span></div>
+          <table><thead><tr><th>Package</th><th>Version</th><th>Reason</th></tr></thead><tbody>` +
+          (locks.map(l=>`<tr><td class="mono">${l.package_name}</td><td>${l.version}</td><td class="hint">${l.reason||''}</td></tr>`).join("") || `<tr><td class="hint">none</td></tr>`) +
+          `</tbody></table></div>`;
+      },
+    };
+
+    function keyBody() {
+      return {name:$("c-name").value.trim(), version:$("c-ver").value.trim(), arch:$("c-arch").value.trim(),
+        kind:$("c-kind").value, toolchain_hash:$("c-tc").value.trim(),
+        kernel_release:$("c-kr").value.trim()||null, kernel_config_hash:$("c-kc").value.trim()||null};
+    }
+    async function doLookup() {
+      try { const r = await api("/v1/packages/cache/lookup", j(keyBody()));
+        const ex = r.explain ? ` — differs: ${r.explain.differs.join(', ')}` : "";
+        $("c-out").innerHTML = `<p class="${r.hit?'hit':'miss'}">${r.hit?'HIT':'MISS'} <span class="mono">${r.cache_key.slice(0,28)}</span>${r.hit?'':ex}</p><pre>${JSON.stringify(r.components,null,2)}</pre>`;
+        $("c-msg").textContent=""; } catch(e){ $("c-msg").textContent=e.message; $("c-msg").className="msg err"; }
+    }
+    async function doRecord() {
+      try { const r = await api("/v1/packages/cache", j(keyBody()));
+        $("c-msg").textContent = r.hit?"already cached":"recorded"; $("c-msg").className="msg ok"; } catch(e){ $("c-msg").textContent=e.message; $("c-msg").className="msg err"; }
+    }
+    async function createGroup(){ try { await api("/v1/package-groups", j({name:$("g-name").value.trim()})); load(); } catch(e){ $("g-msg").textContent=e.message; $("g-msg").className="msg err"; } }
+    async function createSet(){ try { await api("/v1/package-sets", j({name:$("s-name").value.trim()})); load(); } catch(e){ $("s-msg").textContent=e.message; $("s-msg").className="msg err"; } }
+    async function resolveSet(id){ try { const r = await api(`/v1/package-sets/${id}/resolve`, j({}));
+      $("s-out").innerHTML = `<table><thead><tr><th>#</th><th>Layer</th><th>Kind</th><th>Package</th></tr></thead><tbody>` +
+        r.packages.map(p=>`<tr><td>${p.position}</td><td>${p.layer}</td><td>${p.kind}</td><td class="mono">${p.package}</td></tr>`).join("") +
+        `</tbody></table><p class="hint mono">${r.plan_hash.slice(0,32)}</p>`; } catch(e){ $("s-out").innerHTML=`<span class="msg err">${e.message}</span>`; } }
+    async function createLock(){ try { await api("/v1/package-locks", j({package_name:$("l-name").value.trim(), version:$("l-ver").value.trim(), reason:$("l-reason").value.trim()||null})); load(); } catch(e){ $("l-msg").textContent=e.message; $("l-msg").className="msg err"; } }
+
+    async function load() {
+      $("content").innerHTML = `<div class="panel hint">Loading…</div>`;
+      try { $("content").innerHTML = await views[tab](); } catch(e){ $("content").innerHTML = `<div class="panel msg err">${e.message}</div>`; }
+    }
+    document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+      document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active"); tab = b.dataset.tab; load();
+    }));
+    load();
+  </script>
+</body>
+</html>
