@@ -102,8 +102,17 @@ Severity scale:
   by the differing field (`lookup_cache`/`explain_cache`), with a queryable
   `package_compatibility` record. Locks/feeds/promotions/variants are modelled.
   Exposed over `/v1/package-*` + `/v1/packages/cache*`, the `osfabricumctl
-  packageworkspace` CLI and the `/packages` workspace page. Follow-ons remain
-  **M36** (variant *feature* resolution), **M37** (feed *publish/sign*) and
+  packageworkspace` CLI and the `/packages` workspace page.
+- **M36 (features/variants) done.** Packages declare typed feature options
+  (`bool`/`choice`/`string`/`int`) with allowed values that pull in
+  feature-dependent deps. `resolve_variant` validates a requested feature set,
+  fills defaults, collects the implied deps and computes a deterministic
+  `feature_hash` — which **is** the M35 cache-key `feature_hash` component, so a
+  feature change yields a new variant hash ⇒ new cache key ⇒ rebuild; the
+  feature diff is reported by `diff_variants`. Exposed over
+  `GET/POST /v1/packages/{id}/features`, `POST /v1/package-variants/resolve`,
+  the `osfabricumctl packageworkspace feature-*/variant-resolve` CLI and the
+  `/packages` Variants tab. Follow-ons remain **M37** (feed *publish/sign*) and
   **M38** (runtime policy); the workspace model the resolver (M55) will consume
   is in place.
 

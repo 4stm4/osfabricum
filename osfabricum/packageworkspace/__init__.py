@@ -13,6 +13,16 @@ feature-resolution behaviour lands in those milestones.
 
 from __future__ import annotations
 
+from osfabricum.packageworkspace.features import (
+    FEATURE_TYPES,
+    add_variant_artifact,
+    define_feature,
+    diff_variants,
+    list_build_variants,
+    list_features,
+    record_build_variant,
+    resolve_variant,
+)
 from osfabricum.packageworkspace.service import (
     KERNEL_BOUND_KINDS,
     add_feed_index,
@@ -41,10 +51,12 @@ from osfabricum.packageworkspace.service import (
 )
 
 __all__ = [
+    "FEATURE_TYPES",
     "KERNEL_BOUND_KINDS",
     "add_feed_index",
     "add_to_group",
     "add_to_set",
+    "add_variant_artifact",
     "cache_stats",
     "classify_package",
     "compute_cache_key",
@@ -53,8 +65,12 @@ __all__ = [
     "create_lock",
     "create_set",
     "create_variant",
+    "define_feature",
+    "diff_variants",
     "explain_cache",
+    "list_build_variants",
     "list_feeds",
+    "list_features",
     "list_groups",
     "list_kinds",
     "list_layers",
@@ -63,6 +79,8 @@ __all__ = [
     "list_variants",
     "lookup_cache",
     "promote",
+    "record_build_variant",
     "record_cache_entry",
     "resolve_set",
+    "resolve_variant",
 ]

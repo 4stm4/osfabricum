@@ -296,3 +296,74 @@ def lock_list(db: _DB = None) -> None:
     """List package locks."""
     for locked in pw.list_locks(db_url=db):
         typer.echo(f"{locked['package_name']}@{locked['version']}  {locked['reason'] or ''}")
+
+
+# --- features / variants (M36) ---
+
+
+@packageworkspace_app.command("feature-list")
+def feature_list(
+    package_id: Annotated[str, typer.Argument(help="Package ID")],
+    db: _DB = None,
+) -> None:
+    """Show a package's feature options."""
+    try:
+        features = pw.list_features(package_id, db_url=db)
+    except ValueError as exc:
+        _fail(exc)
+    for f in features:
+        vals = ", ".join(v["value"] for v in f["values"]) or "—"
+        typer.echo(f"{f['name']:<16} {f['type']:<8} default={f['default'] or '—':<10} [{vals}]")
+
+
+@packageworkspace_app.command("feature-define")
+def feature_define(
+    package_id: Annotated[str, typer.Argument(help="Package ID")],
+    name: Annotated[str, typer.Argument(help="Feature name")],
+    feature_type: Annotated[str, typer.Argument(help="bool|choice|string|int")],
+    default: Annotated[str | None, typer.Option(help="Default value")] = None,
+    value: Annotated[
+        list[str],
+        typer.Option("--value", help="VALUE or VALUE=dep1,dep2 (repeatable)"),
+    ] = [],  # noqa: B006 — typer fills a fresh list per invocation
+    db: _DB = None,
+) -> None:
+    """Declare a feature option (--value VALUE=dep1,dep2 attaches implied deps)."""
+    values: list[dict[str, object]] = []
+    for spec in value:
+        val, _, deps = spec.partition("=")
+        values.append(
+            {"value": val.strip(), "implied_deps": [d for d in deps.split(",") if d] or None}
+        )
+    try:
+        result = pw.define_feature(
+            package_id, name, feature_type, default=default, values=values or None, db_url=db
+        )
+    except ValueError as exc:
+        _fail(exc)
+    typer.echo(f"Defined feature: {result['id']}")
+
+
+@packageworkspace_app.command("variant-resolve")
+def variant_resolve(
+    package_id: Annotated[str, typer.Argument(help="Package ID")],
+    set_: Annotated[list[str], typer.Option("--set", help="feature=value (repeatable)")] = [],  # noqa: B006 — typer fills a fresh list per invocation
+    db: _DB = None,
+) -> None:
+    """Resolve a feature set into a variant (feature hash + implied deps)."""
+    requested: dict[str, str] = {}
+    for pair in set_:
+        key, _, val = pair.partition("=")
+        requested[key.strip()] = val.strip()
+    try:
+        result = pw.resolve_variant(package_id, requested, db_url=db)
+    except ValueError as exc:
+        _fail(exc)
+    for name in sorted(result["resolved"]):
+        typer.echo(f"  {name} = {result['resolved'][name]}")
+    typer.echo(f"  deps: {', '.join(result['deps']) or '—'}")
+    for e in result["errors"]:
+        typer.secho(f"  error: {e}", fg=typer.colors.RED, err=True)
+    typer.secho(f"  {result['feature_hash']}", fg=typer.colors.CYAN)
+    if not result["valid"]:
+        raise typer.Exit(code=1)

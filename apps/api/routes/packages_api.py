@@ -132,6 +132,25 @@ class VariantRequest(BaseModel):
     description: str | None = None
 
 
+class FeatureValueRequest(BaseModel):
+    value: str
+    implied_deps: list[str] | None = None
+    description: str | None = None
+
+
+class FeatureRequest(BaseModel):
+    name: str
+    type: str
+    default: str | None = None
+    values: list[FeatureValueRequest] | None = None
+    description: str | None = None
+
+
+class VariantResolveRequest(BaseModel):
+    package_id: str
+    requested: dict[str, str] = {}
+
+
 # --- taxonomy ---
 
 
@@ -293,6 +312,44 @@ def create_variant(
             description=body.description,
             db_url=_db(request),
         )
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+# --- features (M36) ---
+
+
+@router.get("/packages/{package_id}/features")
+def list_features(package_id: str, request: Request) -> list[dict[str, Any]]:
+    try:
+        return pw.list_features(package_id, db_url=_db(request))
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+@router.post("/packages/{package_id}/features", status_code=201)
+def define_feature(
+    package_id: str, body: FeatureRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
+    values = [v.model_dump() for v in body.values] if body.values else None
+    try:
+        return pw.define_feature(
+            package_id,
+            body.name,
+            body.type,
+            default=body.default,
+            values=values,
+            description=body.description,
+            db_url=_db(request),
+        )
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+@router.post("/package-variants/resolve")
+def resolve_variant(body: VariantResolveRequest, request: Request) -> dict[str, Any]:
+    try:
+        return pw.resolve_variant(body.package_id, body.requested, db_url=_db(request))
     except ValueError as exc:
         raise _guard(exc) from exc
 

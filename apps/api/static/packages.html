@@ -36,6 +36,7 @@
     <button data-tab="taxonomy">Taxonomy</button>
     <button data-tab="groups">Groups</button>
     <button data-tab="sets">Sets</button>
+    <button data-tab="variants">Variants</button>
     <button data-tab="locks">Locks</button>
   </nav>
   <main id="content"></main>
@@ -92,6 +93,16 @@
           (sets.map(s=>`<tr><td class="mono">${s.name}</td><td>${s.distribution_id||'—'}</td><td><button class="act" onclick="resolveSet('${s.id}')">Resolve</button></td></tr>`).join("") || `<tr><td class="hint">none</td></tr>`) +
           `</tbody></table><div id="s-out" style="margin-top:8px"></div></div>`;
       },
+      async variants() {
+        const pkgs = await api("/v1/catalog/packages?limit=200");
+        return `<div class="panel"><h2>Package build variants</h2>
+          <p class="hint">Resolve a feature set into a variant. The feature hash is the M35 cache-key component — change a feature and the cache key changes (a rebuild).</p>
+          <div class="row"><select id="v-pkg" onchange="loadFeatures()"><option value="">— package —</option>` +
+          pkgs.map(p=>`<option value="${p.id}">${p.name}</option>`).join("") + `</select></div>
+          <div id="v-feats"></div>
+          <div class="row" id="v-actions" style="display:none"><button class="act primary" onclick="resolveVariant()">Resolve</button><span class="msg" id="v-msg"></span></div>
+          <div id="v-out"></div></div>`;
+      },
       async locks() {
         const locks = await api("/v1/package-locks");
         return `<div class="panel"><h2>Package locks</h2>
@@ -125,6 +136,32 @@
         r.packages.map(p=>`<tr><td>${p.position}</td><td>${p.layer}</td><td>${p.kind}</td><td class="mono">${p.package}</td></tr>`).join("") +
         `</tbody></table><p class="hint mono">${r.plan_hash.slice(0,32)}</p>`; } catch(e){ $("s-out").innerHTML=`<span class="msg err">${e.message}</span>`; } }
     async function createLock(){ try { await api("/v1/package-locks", j({package_name:$("l-name").value.trim(), version:$("l-ver").value.trim(), reason:$("l-reason").value.trim()||null})); load(); } catch(e){ $("l-msg").textContent=e.message; $("l-msg").className="msg err"; } }
+
+    async function loadFeatures(){
+      const id = $("v-pkg").value; $("v-out").innerHTML=""; window._vpkg=id;
+      if(!id){ $("v-feats").innerHTML=""; $("v-actions").style.display="none"; return; }
+      const feats = await api(`/v1/packages/${id}/features`); window._feats=feats;
+      $("v-feats").innerHTML = feats.length ? feats.map(f=>{
+        const opts = f.values.length ? f.values.map(v=>`<option ${v.value===f.default?'selected':''}>${v.value}</option>`).join("") : "";
+        const ctl = f.type==="choice" ? `<select data-f="${f.name}">${opts}</select>`
+          : f.type==="bool" ? `<select data-f="${f.name}"><option ${f.default==='y'?'selected':''}>y</option><option ${f.default!=='y'?'selected':''}>n</option></select>`
+          : `<input data-f="${f.name}" value="${f.default||''}" style="width:140px">`;
+        return `<div class="row"><label style="width:120px">${f.name} <span class="hint">(${f.type})</span></label>${ctl}</div>`;
+      }).join("") : `<p class="hint">no features declared for this package</p>`;
+      $("v-actions").style.display = feats.length ? "flex" : "none";
+    }
+    async function resolveVariant(){
+      const requested = {};
+      document.querySelectorAll("#v-feats [data-f]").forEach(el => { requested[el.dataset.f] = el.value; });
+      try {
+        const r = await api("/v1/package-variants/resolve", j({package_id:window._vpkg, requested}));
+        const rows = Object.entries(r.resolved).map(([k,v])=>`<tr><td class="mono">${k}</td><td class="mono">${v}</td></tr>`).join("");
+        $("v-out").innerHTML = `${r.errors.length?`<p class="miss">errors: ${r.errors.join('; ')}</p>`:""}
+          <table><thead><tr><th>Feature</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="hint">deps: ${r.deps.join(', ')||'—'} &nbsp;·&nbsp; <span class="mono">${r.feature_hash.slice(0,28)}</span></p>`;
+        $("v-msg").textContent = r.valid?"resolved":"invalid"; $("v-msg").className="msg "+(r.valid?"ok":"err");
+      } catch(e){ $("v-msg").textContent=e.message; $("v-msg").className="msg err"; }
+    }
 
     async function load() {
       $("content").innerHTML = `<div class="panel hint">Loading…</div>`;

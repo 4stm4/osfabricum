@@ -1612,3 +1612,79 @@ class PackageInstallPlan(Base):
     plan_json: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False)
     plan_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+# ---------------------------------------------------------------------------
+# M36 — Package Feature / Variant Manager
+# ---------------------------------------------------------------------------
+
+
+class PackageFeatureOption(Base):
+    """A declared build option of a package (ssl backend, dbus, static, …)."""
+
+    __tablename__ = "package_feature_options"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    package_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("packages.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    type: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # bool|choice|string|int
+    default_value: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("package_id", "name", name="uq_package_feature_option"),
+    )
+
+
+class PackageFeatureValue(Base):
+    """An allowed value of a feature option, with the deps it pulls in."""
+
+    __tablename__ = "package_feature_values"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    option_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_feature_options.id"), nullable=False, index=True
+    )
+    value: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    implied_deps_json: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class PackageBuildVariant(Base):
+    """A resolved build variant of a package, keyed by feature hash + arch."""
+
+    __tablename__ = "package_build_variants"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    package_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("packages.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    feature_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    arch: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    resolved_json: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "package_id", "feature_hash", "arch", name="uq_package_build_variant"
+        ),
+    )
+
+
+class PackageVariantArtifact(Base):
+    """An artifact produced for a build variant (keyed by feature hash)."""
+
+    __tablename__ = "package_variant_artifacts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    build_variant_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_build_variants.id"), nullable=False, index=True
+    )
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("artifacts.id"), nullable=True
+    )
+    arch: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
