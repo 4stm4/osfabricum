@@ -100,6 +100,19 @@ Severity scale:
   Kernel-module packages have no kernel/config/toolchain binding.
 - **Closed by:** **M33** (Kernel/Driver Designer: Kconfig index, fragments,
   validation, driver bundles, external modules, captured `modules.*`).
+- **Status: ✅ Resolved (model + resolver).** Kconfig is now a typed symbol graph
+  (`kernel_option_symbols` with type, prompt/hidden, `depends`/`select`/`imply`
+  edges in `kernel_option_dependencies`). `resolve_config` type-checks, rejects
+  hidden symbols, forces `select` targets on, applies `imply` softly, and fails a
+  requested symbol whose `depends on` is unmet — never a flat checkbox list.
+  `render_config` emits `.config` text with a deterministic `sha256:` hash;
+  driver bundles (options/modules/firmware/DT overlays) and external-module
+  recipes are modelled and resolvable. Exposed over `/v1/kconfig-indexes`,
+  `/v1/kernel-configs/*`, `/v1/driver-bundles`, `/v1/external-modules`, the
+  `osfabricumctl kerneldesign` CLI and the `/kernel-config` designer page.
+  Follow-ons: parsing a real kernel source tree into the index and executing
+  external-module builds (the ingest contract and recipe steps exist; the
+  job/runner wiring lands with the kernel build jobs).
 
 ### G-06 — No image-recipe model (single raw format, hardcoded sizes)
 - **Evidence:** `osfabricum/image/composer.py` produces raw `.img` only; sizes

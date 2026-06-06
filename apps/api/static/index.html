@@ -130,7 +130,8 @@
         const links = `<p>` +
           `<a href="/boards" style="color:var(--accent)">→ Board/BSP Designer</a>` +
           ` &nbsp;·&nbsp; <a href="/boot-chains" style="color:var(--accent)">Boot Chains</a>` +
-          ` &nbsp;·&nbsp; <a href="/initramfs" style="color:var(--accent)">Initramfs</a></p>`;
+          ` &nbsp;·&nbsp; <a href="/initramfs" style="color:var(--accent)">Initramfs</a>` +
+          ` &nbsp;·&nbsp; <a href="/kernel-config" style="color:var(--accent)">Kernel/Driver</a></p>`;
         return links + table(
           [{label:"Name"},{label:"Arch"},{label:"Boot"},{label:"Firmware"}],
           data.map(b => [b.name, b.arch, b.boot_scheme, b.firmware_required ? "yes" : "no"])

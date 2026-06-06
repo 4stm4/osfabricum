@@ -26,6 +26,7 @@ from apps.cli.commands.image import image_app
 from apps.cli.commands.imagetest import test_app
 from apps.cli.commands.initramfs import initramfs_app
 from apps.cli.commands.kernel import kernel_app
+from apps.cli.commands.kerneldesign import kerneldesign_app
 from apps.cli.commands.package import package_app
 from apps.cli.commands.plan import run_plan
 from apps.cli.commands.profile import profile_app
@@ -233,6 +234,7 @@ def _register_groups() -> None:
     app.add_typer(board_app, name="board")
     app.add_typer(bootchain_app, name="bootchain")
     app.add_typer(initramfs_app, name="initramfs")
+    app.add_typer(kerneldesign_app, name="kerneldesign")
 
 
 _register_groups()

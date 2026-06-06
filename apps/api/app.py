@@ -16,6 +16,7 @@ from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.drafts_api import router as drafts_router
 from apps.api.routes.initramfs_api import router as initramfs_router
+from apps.api.routes.kerneldesign_api import router as kerneldesign_router
 from apps.api.routes.model_api import router as model_router
 from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
@@ -61,6 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(bootchain_router)
     # M32: initramfs designer (write API)
     app.include_router(initramfs_router)
+    # M33: kernel / driver designer (write API)
+    app.include_router(kerneldesign_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -132,6 +135,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/initramfs", include_in_schema=False)
         def initramfs_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "initramfs.html"))
+
+        # M33: Kernel / Driver Designer page
+        @app.get("/kernel-config", include_in_schema=False)
+        def kernel_config_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "kernel.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

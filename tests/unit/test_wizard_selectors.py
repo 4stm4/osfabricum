@@ -74,7 +74,16 @@ def test_boot_schemes_listed(client: TestClient) -> None:
 
 @pytest.mark.parametrize(
     "path",
-    ["/", "/distributions", "/profiles", "/build/new", "/boards", "/boot-chains", "/initramfs"],
+    [
+        "/",
+        "/distributions",
+        "/profiles",
+        "/build/new",
+        "/boards",
+        "/boot-chains",
+        "/initramfs",
+        "/kernel-config",
+    ],
 )
 def test_designer_pages_served(client: TestClient, path: str) -> None:
     resp = client.get(path)

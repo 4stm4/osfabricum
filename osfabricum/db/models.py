@@ -1130,3 +1130,193 @@ class ProfileVersion(Base):
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 
     __table_args__ = (sa.UniqueConstraint("profile_id", "version", name="uq_profile_versions_pv"),)
+
+
+# ---------------------------------------------------------------------------
+# Kernel / Driver Designer (M33)
+#
+# Kconfig is modelled as a typed symbol graph — symbols carry a type and a
+# prompt (hidden symbols have none), and dependencies are explicit edges
+# (depends / select / imply) — so the resolver treats it as a dependency graph,
+# never a flat list of checkboxes.
+# ---------------------------------------------------------------------------
+
+
+class KernelKconfigIndex(Base):
+    """A Kconfig symbol index for one kernel source/version/arch."""
+
+    __tablename__ = "kernel_kconfig_indexes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    kernel_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=False, index=True
+    )
+    arch: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    source_ref: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint("kernel_id", "arch", "source_ref", name="uq_kconfig_index"),
+    )
+
+
+class KernelOptionSymbol(Base):
+    """A single Kconfig symbol (CONFIG_*). ``prompt`` NULL ⇒ not user-selectable."""
+
+    __tablename__ = "kernel_option_symbols"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    index_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernel_kconfig_indexes.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # bool|tristate|string|int|hex
+    prompt: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    help: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    default_value: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    depends_on: Mapped[str | None] = mapped_column(sa.Text, nullable=True)  # raw Kconfig expr
+    choice_group: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (sa.UniqueConstraint("index_id", "name", name="uq_kconfig_symbol"),)
+
+
+class KernelOptionDependency(Base):
+    """A directed Kconfig edge: ``symbol`` (depends|select|imply) ``target``."""
+
+    __tablename__ = "kernel_option_dependencies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    symbol_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernel_option_symbols.id"), nullable=False, index=True
+    )
+    dep_kind: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # depends|select|imply
+    target: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    condition: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class KernelConfigFragment(Base):
+    """A named set of requested option values (a config layer)."""
+
+    __tablename__ = "kernel_config_fragments"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    kernel_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (sa.UniqueConstraint("kernel_id", "name", name="uq_kconfig_fragment"),)
+
+
+class KernelConfigValue(Base):
+    __tablename__ = "kernel_config_values"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    fragment_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernel_config_fragments.id"), nullable=False, index=True
+    )
+    symbol: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    value: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+
+
+class KernelConfigPreset(Base):
+    """A saved, fully-resolved ``.config`` (with its content hash)."""
+
+    __tablename__ = "kernel_config_presets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    kernel_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=True
+    )
+    content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (sa.UniqueConstraint("kernel_id", "name", name="uq_kconfig_preset"),)
+
+
+class DriverBundle(Base):
+    """A reusable hardware-driver bundle (kernel options + modules + firmware)."""
+
+    __tablename__ = "driver_bundles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), unique=True, nullable=False)
+    kernel_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class DriverBundleOption(Base):
+    __tablename__ = "driver_bundle_kernel_options"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    bundle_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("driver_bundles.id"), nullable=False, index=True
+    )
+    symbol: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    value: Mapped[str] = mapped_column(sa.String(8), nullable=False, default="y")  # y|m
+
+
+class DriverBundleModule(Base):
+    __tablename__ = "driver_bundle_modules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    bundle_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("driver_bundles.id"), nullable=False, index=True
+    )
+    module_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+
+
+class DriverBundleFirmware(Base):
+    __tablename__ = "driver_bundle_firmware"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    bundle_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("driver_bundles.id"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+
+
+class DriverBundleDtOverlay(Base):
+    __tablename__ = "driver_bundle_dt_overlays"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    bundle_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("driver_bundles.id"), nullable=False, index=True
+    )
+    overlay_name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+
+
+class ExternalKernelModule(Base):
+    """An out-of-tree kernel module (built against a specific kernel tree)."""
+
+    __tablename__ = "external_kernel_modules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), unique=True, nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class ExternalKernelModuleRecipe(Base):
+    """How to build an external module against a particular kernel build tree."""
+
+    __tablename__ = "external_kernel_module_recipes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    module_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("external_kernel_modules.id"), nullable=False, index=True
+    )
+    kernel_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("kernels.id"), nullable=False
+    )
+    build_system: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="kbuild")
+    steps_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
