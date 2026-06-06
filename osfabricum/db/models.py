@@ -972,7 +972,14 @@ class BootScheme(Base):
 
 
 class ImageRecipe(Base):
-    """An output image definition; M34 adds formats/filesystems/layouts."""
+    """An output image definition (M34: formats/filesystems/layouts as data).
+
+    The recipe is the hub: it ties a reusable :class:`PartitionLayout`, a
+    :class:`SizePolicy` and a root :class:`FilesystemProfile` together, owns one
+    or more :class:`ImageOutput` rows (multi-format per build) and any
+    :class:`MountPolicy` / :class:`OverlayPolicy` entries. ``output_format``
+    stays as the primary/default format for backward compatibility.
+    """
 
     __tablename__ = "image_recipes"
 
@@ -982,6 +989,14 @@ class ImageRecipe(Base):
         sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
     )
     output_format: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="raw")
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Plain id references (not DB-level FKs): these columns are added to an
+    # existing table by migration 0010, and SQLite cannot DROP COLUMN a column
+    # that participates in a foreign key — keeping them plain keeps downgrade
+    # reversible. The service resolves them by explicit id lookup.
+    partition_layout_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    size_policy_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    root_filesystem_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
 
     __table_args__ = (
@@ -1320,3 +1335,110 @@ class ExternalKernelModuleRecipe(Base):
     )
     build_system: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="kbuild")
     steps_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# M34 — Filesystem / Image Recipe Designer (closes G-06)
+# ---------------------------------------------------------------------------
+
+
+class FilesystemProfile(Base):
+    """A reusable filesystem definition (ext4, squashfs, erofs, btrfs, …)."""
+
+    __tablename__ = "filesystem_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    fs_type: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    label: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    mount_point: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    read_only: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    compression: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
+    options_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+
+class SizePolicy(Base):
+    """A reusable image sizing policy (free space, alignment, reserve)."""
+
+    __tablename__ = "size_policies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    free_space_pct: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    min_free_mb: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    align_mb: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=4)
+    reserve_mb: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=1)
+    grow_to_fit: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+
+
+class PartitionEntry(Base):
+    """A partition within a :class:`PartitionLayout` (M34 normalizes layout_json)."""
+
+    __tablename__ = "partition_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    layout_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("partition_layouts.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    role: Mapped[str] = mapped_column(sa.String(24), nullable=False)
+    filesystem_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("filesystem_profiles.id"), nullable=True
+    )
+    size_mb: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    grow: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    flags_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+
+    __table_args__ = (sa.UniqueConstraint("layout_id", "name", name="uq_partition_entry_name"),)
+
+
+class ImageOutput(Base):
+    """One output format produced from an image recipe (multi-format per build)."""
+
+    __tablename__ = "image_outputs"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    recipe_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("image_recipes.id"), nullable=False, index=True
+    )
+    output_format: Mapped[str] = mapped_column(sa.String(24), nullable=False)
+    compression: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
+    filename_template: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint("recipe_id", "output_format", name="uq_image_output_format"),
+    )
+
+
+class MountPolicy(Base):
+    """An fstab-style mount entry attached to an image recipe."""
+
+    __tablename__ = "mount_policies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    recipe_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("image_recipes.id"), nullable=False, index=True
+    )
+    source: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    target: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    fstype: Mapped[str] = mapped_column(sa.String(24), nullable=False)
+    options: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class OverlayPolicy(Base):
+    """An overlayfs policy attached to an image recipe (RO root + RW overlay)."""
+
+    __tablename__ = "overlay_policies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    recipe_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("image_recipes.id"), nullable=False, index=True
+    )
+    target: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    lower_dir: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    upper_dir: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    work_dir: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    persistent: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)

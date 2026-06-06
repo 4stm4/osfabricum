@@ -83,6 +83,7 @@ def test_boot_schemes_listed(client: TestClient) -> None:
         "/boot-chains",
         "/initramfs",
         "/kernel-config",
+        "/image-recipes",
     ],
 )
 def test_designer_pages_served(client: TestClient, path: str) -> None:

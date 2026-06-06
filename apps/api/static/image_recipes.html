@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Image Recipe Designer</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; --yellow:#d29922; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    main { padding:24px; max-width:1080px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { font-size:12px; color:var(--muted); }
+    input,select { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; font-family:inherit; }
+    input[type=number] { width:90px; } input[type=text] { min-width:140px; }
+    button { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+    .msg { font-size:13px; min-height:18px; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    .err-line { color:var(--red); } .warn-line { color:var(--yellow); } .mono { font-family:"SF Mono",Menlo,monospace; }
+    .hint { color:var(--muted); font-size:11px; } .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media (max-width:760px){ .cols { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header><h1>💿 Image Recipe Designer</h1><a href="/">← Dashboard</a></header>
+  <main>
+    <div class="cols">
+      <div class="panel">
+        <h2>Filesystem profiles</h2>
+        <div class="row">
+          <input id="fs-name" type="text" placeholder="name">
+          <select id="fs-type"></select>
+          <button onclick="createFs()">Add</button>
+        </div>
+        <span class="msg" id="fs-msg"></span>
+        <div id="fs-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Size policies</h2>
+        <div class="row">
+          <input id="sp-name" type="text" placeholder="name">
+          <label>align <input id="sp-align" type="number" value="4"></label>
+          <label>reserve <input id="sp-reserve" type="number" value="1"></label>
+        </div>
+        <div class="row">
+          <label>free% <input id="sp-free" type="number" value="0"></label>
+          <label>min&nbsp;free <input id="sp-min" type="number" value="0"></label>
+          <button onclick="createSize()">Add</button>
+        </div>
+        <span class="msg" id="sp-msg"></span>
+        <div id="sp-list"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Partition layout</h2>
+      <div class="row">
+        <select id="layout-sel"></select>
+        <input id="layout-name" type="text" placeholder="new layout name">
+        <button onclick="createLayout()">Create layout</button>
+        <span class="msg" id="layout-msg"></span>
+      </div>
+      <div class="row">
+        <input id="p-name" type="text" placeholder="partition">
+        <select id="p-role">
+          <option>boot</option><option>esp</option><option>rootfs</option>
+          <option>recovery</option><option>data</option><option>ab_a</option>
+          <option>ab_b</option><option>swap</option>
+        </select>
+        <select id="p-fs"></select>
+        <label>size&nbsp;MiB <input id="p-size" type="number" placeholder="—"></label>
+        <label>grow <input id="p-grow" type="checkbox"></label>
+        <button onclick="addPartition()">Add partition</button>
+      </div>
+      <div id="p-list"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Image recipe</h2>
+      <div class="row">
+        <select id="recipe-sel" onchange="onRecipe()"></select>
+        <input id="recipe-name" type="text" placeholder="new recipe name">
+        <select id="recipe-fmt">
+          <option>raw</option><option>qcow2</option><option>vmdk</option><option>iso</option>
+          <option>tarball</option><option>sdcard</option><option>usb</option>
+          <option>netboot</option><option>container</option><option>vmimage</option>
+          <option>update-bundle</option>
+        </select>
+        <button onclick="createRecipe()">Create recipe</button>
+        <span class="msg" id="recipe-msg"></span>
+      </div>
+      <div class="row hint" id="recipe-targets">Select layout + size policy + root filesystem, then estimate.</div>
+      <div class="row">
+        <button onclick="attachTargets()">Attach selected layout/size/root-fs ↑</button>
+        <span style="margin-left:auto"></span>
+        <label>total disk MiB <input id="est-disk" type="number" placeholder="auto"></label>
+        <button class="primary" onclick="estimate()">Estimate</button>
+      </div>
+      <div id="est-out"></div>
+    </div>
+  </main>
+  <script>
+    const FS_TYPES = ["ext4","squashfs","erofs","btrfs","xfs","vfat","overlayfs","tmpfs"];
+    let layoutId = null, recipeId = null;
+    const $ = (id) => document.getElementById(id);
+    async function api(p,o){ const r=await fetch(p,o); if(!r.ok){ let d=`${r.status}`; try{ d=(await r.json()).detail||d; }catch{} throw new Error(d);} return r.status===204?null:r.json(); }
+    function msg(id,t,ok){ const e=$(id); e.textContent=t||""; e.className="msg "+(t?(ok?"ok":"err"):""); }
+    const j = (body) => ({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+
+    async function init() {
+      FS_TYPES.forEach(t => $("fs-type").add(new Option(t,t)));
+      await Promise.all([loadFs(), loadSizes(), loadLayouts(), loadRecipes()]);
+    }
+
+    // filesystem profiles
+    async function loadFs() {
+      const rows = await api("/v1/filesystem-profiles");
+      $("fs-list").innerHTML = rows.length ? `<table><tbody>` + rows.map(r=>`<tr><td class="mono">${r.name}</td><td>${r.fs_type}${r.read_only?' ro':''}</td></tr>`).join("") + `</tbody></table>` : `<span class="hint">none yet</span>`;
+      for (const sel of [$("p-fs")]) { sel.innerHTML = `<option value="">(no fs)</option>` + rows.map(r=>`<option value="${r.id}">${r.name}</option>`).join(""); }
+    }
+    async function createFs() {
+      try { await api("/v1/filesystem-profiles", j({name:$("fs-name").value.trim(), fs_type:$("fs-type").value}));
+        msg("fs-msg","added",true); $("fs-name").value=""; loadFs(); } catch(e){ msg("fs-msg",e.message,false); }
+    }
+
+    // size policies
+    async function loadSizes() {
+      const rows = await api("/v1/size-policies");
+      $("sp-list").innerHTML = rows.length ? `<table><tbody>` + rows.map(r=>`<tr><td class="mono">${r.name}</td><td class="hint">align ${r.align_mb} · reserve ${r.reserve_mb} · free ${r.free_space_pct}% · min ${r.min_free_mb}</td></tr>`).join("") + `</tbody></table>` : `<span class="hint">none yet</span>`;
+      window._sizes = rows;
+    }
+    async function createSize() {
+      try { await api("/v1/size-policies", j({name:$("sp-name").value.trim(), align_mb:+$("sp-align").value, reserve_mb:+$("sp-reserve").value, free_space_pct:+$("sp-free").value, min_free_mb:+$("sp-min").value}));
+        msg("sp-msg","added",true); $("sp-name").value=""; loadSizes(); } catch(e){ msg("sp-msg",e.message,false); }
+    }
+
+    // layouts
+    async function loadLayouts() {
+      const rows = await api("/v1/partition-layouts");
+      $("layout-sel").innerHTML = `<option value="">— layout —</option>` + rows.map(r=>`<option value="${r.id}">${r.name} (${r.partition_count})</option>`).join("");
+      if (layoutId) $("layout-sel").value = layoutId;
+    }
+    async function createLayout() {
+      try { const r = await api("/v1/partition-layouts", j({name:$("layout-name").value.trim()}));
+        layoutId = r.id; msg("layout-msg","created",true); $("layout-name").value=""; await loadLayouts(); $("layout-sel").value=layoutId; renderPartitions(); } catch(e){ msg("layout-msg",e.message,false); }
+    }
+    $("layout-sel")?.addEventListener("change", () => { layoutId = $("layout-sel").value || null; renderPartitions(); });
+    function renderPartitions() {
+      $("p-list").innerHTML = layoutId
+        ? `<span class="hint">Add partitions below; select/create a recipe on this layout and Estimate to see the resolved plan.</span>`
+        : "";
+    }
+    async function addPartition() {
+      if (!layoutId) return msg("layout-msg","select or create a layout first",false);
+      const size = $("p-size").value ? +$("p-size").value : null;
+      try { await api(`/v1/partition-layouts/${layoutId}/partitions`, j({name:$("p-name").value.trim(), role:$("p-role").value, filesystem_id:$("p-fs").value||null, size_mb:size, grow:$("p-grow").checked}));
+        msg("layout-msg","partition added",true); $("p-name").value=""; $("p-size").value=""; $("p-grow").checked=false; loadLayouts(); } catch(e){ msg("layout-msg",e.message,false); }
+    }
+
+    // recipes
+    async function loadRecipes() {
+      const rows = await api("/v1/image-recipes");
+      $("recipe-sel").innerHTML = `<option value="">— recipe —</option>` + rows.map(r=>`<option value="${r.id}">${r.name} [${r.formats.join(',')}]</option>`).join("");
+      if (recipeId) $("recipe-sel").value = recipeId;
+    }
+    async function createRecipe() {
+      try { const r = await api("/v1/image-recipes", j({name:$("recipe-name").value.trim(), output_format:$("recipe-fmt").value, partition_layout_id:layoutId||null}));
+        recipeId = r.id; msg("recipe-msg","created — use Attach to set the size policy",true); $("recipe-name").value=""; await loadRecipes(); $("recipe-sel").value=recipeId; onRecipe(); } catch(e){ msg("recipe-msg",e.message,false); }
+    }
+    function onRecipe(){ recipeId = $("recipe-sel").value || null; $("est-out").innerHTML=""; if(recipeId) showTargets(); }
+    async function showTargets() {
+      try { const r = await api(`/v1/image-recipes/${recipeId}`);
+        const sp = r.size_policy ? `size:${r.size_policy.name}` : "size:—";
+        $("recipe-targets").textContent = `layout:${r.partitions.length?'set':'—'} · ${sp} · outputs:${r.outputs.join(',')}`;
+      } catch(e){ $("recipe-targets").textContent = e.message; }
+    }
+    async function attachTargets() {
+      if (!recipeId) return msg("recipe-msg","select a recipe first",false);
+      const sizeId = (window._sizes && window._sizes.length) ? window._sizes[0].id : null;
+      try { await api(`/v1/image-recipes/${recipeId}/targets`, {...j({partition_layout_id:layoutId||null, size_policy_id:sizeId}), method:"PATCH"});
+        msg("recipe-msg","attached layout + first size policy",true); showTargets(); } catch(e){ msg("recipe-msg",e.message,false); }
+    }
+    async function estimate() {
+      if (!recipeId) return msg("recipe-msg","select a recipe first",false);
+      const disk = $("est-disk").value ? +$("est-disk").value : null;
+      try {
+        const r = await api(`/v1/image-recipes/${recipeId}/estimate`, j({total_disk_mb:disk}));
+        const rows = r.partitions.map(p=>`<tr><td class="mono">${p.name}</td><td>${p.role}</td><td>${p.size_mb} MiB</td><td>${p.fs_type||'—'}</td><td>${p.grow?'grow':''}</td></tr>`).join("");
+        $("est-out").innerHTML = `
+          ${r.errors.length?`<p class="err-line">errors: ${r.errors.join('; ')}</p>`:""}
+          ${r.warnings.length?`<p class="warn-line">warnings: ${r.warnings.join('; ')}</p>`:""}
+          <table><thead><tr><th>Partition</th><th>Role</th><th>Size</th><th>FS</th><th></th></tr></thead>
+          <tbody>${rows}<tr><td class="mono"><b>TOTAL</b></td><td></td><td><b>${r.total_image_mb} MiB</b></td><td></td><td></td></tr></tbody></table>
+          <p class="hint">outputs: ${r.outputs.join(', ')} · <span class="mono">${r.plan_hash.slice(0,24)}</span></p>`;
+        msg("recipe-msg", r.valid?`estimate ok (${r.total_image_mb} MiB)`:"invalid — see errors", r.valid);
+      } catch(e){ msg("recipe-msg",e.message,false); }
+    }
+    init();
+  </script>
+</body>
+</html>

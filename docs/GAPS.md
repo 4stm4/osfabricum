@@ -120,6 +120,21 @@ Severity scale:
 - **Impact:** No qcow2/vmdk/iso/squashfs/erofs/btrfs/A-B/recovery/container
   outputs; no per-profile filesystem/layout selection; no size policy.
 - **Closed by:** **M34** (Filesystem / Image Recipe Designer).
+- **Status: ✅ Resolved (model + estimator).** Output images are data now:
+  `image_recipes` ties a reusable `partition_layouts` (normalized into
+  `partition_entries`), `filesystem_profiles`, `size_policies`, `image_outputs`
+  (multi-format per build), `mount_policies` and `overlay_policies`.
+  `estimate_recipe` walks the layout, validates the role set (exactly one
+  `rootfs`, or a matched `ab_a`/`ab_b` pair) and applies the size policy
+  (alignment, reserve, free-space %, grow-to-fit) to produce a deterministic
+  partition-size plan with a `sha256:` hash — replacing the hardcoded
+  `boot_size_mb` / `rootfs_size_mb` constants. Exposed over
+  `/v1/image-recipes`, `/v1/filesystem-profiles`, `/v1/size-policies`,
+  `/v1/partition-layouts`, the `osfabricumctl imagedesign` CLI and the
+  `/image-recipes` designer page. Follow-on: wiring the multi-format *compose
+  execution* (qcow2/iso/squashfs/erofs/…) into `image.compose` and feeding the
+  estimate into the live pipeline's `resolution_hash` (the model and estimator
+  the pipeline reads from are in place).
 
 ### G-07 — Branding, graphical shell, applications are not modelled
 - **Evidence:** No tables/services for branding profiles/assets, graphical
