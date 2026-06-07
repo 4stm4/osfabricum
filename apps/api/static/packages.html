@@ -38,6 +38,7 @@
     <button data-tab="sets">Sets</button>
     <button data-tab="variants">Variants</button>
     <button data-tab="locks">Locks</button>
+    <button data-tab="feeds">Feeds</button>
   </nav>
   <main id="content"></main>
   <script>
@@ -112,6 +113,44 @@
           (locks.map(l=>`<tr><td class="mono">${l.package_name}</td><td>${l.version}</td><td class="hint">${l.reason||''}</td></tr>`).join("") || `<tr><td class="hint">none</td></tr>`) +
           `</tbody></table></div>`;
       },
+      async feeds() {
+        const feeds = await api("/v1/package-feeds");
+        return `<div class="panel"><h2>Package Feeds</h2>
+          <div class="row">
+            <input id="fd-name" placeholder="feed name" style="width:160px">
+            <select id="fd-chan"><option>stable</option><option>edge</option><option>lts</option><option>staging</option></select>
+            <input id="fd-desc" placeholder="description" style="width:200px">
+            <button class="act primary" onclick="createFeed()">Create feed</button>
+            <span class="msg" id="fd-msg"></span>
+          </div>
+          <table><thead><tr><th>Name</th><th>Channel</th><th>Description</th><th></th></tr></thead><tbody>` +
+          (feeds.length ? feeds.map(f=>`<tr><td class="mono">${f.name}</td><td>${f.channel}</td><td class="hint">${f.description||''}</td>
+            <td><button class="act" onclick="selectFeed('${f.id}')">Open</button></td></tr>`).join("") : `<tr><td colspan="4" class="hint">no feeds</td></tr>`) +
+          `</tbody></table></div>
+          <div class="panel" id="fd-detail" style="display:none">
+            <h2 id="fd-dtitle"></h2>
+            <div id="fd-sig" class="hint" style="margin-bottom:8px"></div>
+            <div class="row">
+              <button class="act primary" onclick="publishFeed()">Publish (sign index)</button>
+              <span class="msg" id="fd-pmsg"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+              <div>
+                <h3 style="margin:0 0 6px">Index entries</h3>
+                <div class="row"><input id="fd-ipkg" placeholder="package" style="width:120px"><input id="fd-iver" placeholder="version" style="width:80px">
+                  <input id="fd-ick" placeholder="cache key" style="width:120px"><button class="act" onclick="addFeedIdx()">Add</button></div>
+                <div id="fd-idx"></div>
+              </div>
+              <div>
+                <h3 style="margin:0 0 6px">Scope rules</h3>
+                <div class="row"><input id="fd-sdist" placeholder="distribution" style="width:100px"><input id="fd-sarch" placeholder="arch" style="width:60px">
+                  <input id="fd-slibc" placeholder="libc" style="width:60px"><input id="fd-skr" placeholder="kernel" style="width:80px">
+                  <button class="act" onclick="addFeedScope()">Add scope</button></div>
+                <div id="fd-scopes"></div>
+              </div>
+            </div>
+          </div>`;
+      },
     };
 
     function keyBody() {
@@ -136,6 +175,23 @@
         r.packages.map(p=>`<tr><td>${p.position}</td><td>${p.layer}</td><td>${p.kind}</td><td class="mono">${p.package}</td></tr>`).join("") +
         `</tbody></table><p class="hint mono">${r.plan_hash.slice(0,32)}</p>`; } catch(e){ $("s-out").innerHTML=`<span class="msg err">${e.message}</span>`; } }
     async function createLock(){ try { await api("/v1/package-locks", j({package_name:$("l-name").value.trim(), version:$("l-ver").value.trim(), reason:$("l-reason").value.trim()||null})); load(); } catch(e){ $("l-msg").textContent=e.message; $("l-msg").className="msg err"; } }
+
+    async function createFeed(){ try { await api("/v1/package-feeds", j({name:$("fd-name").value.trim(), channel:$("fd-chan").value, description:$("fd-desc").value.trim()||null})); load(); } catch(e){ $("fd-msg").textContent=e.message; $("fd-msg").className="msg err"; } }
+    async function selectFeed(id){
+      window._fdid = id;
+      const f = await api(`/v1/package-feeds/${id}`);
+      $("fd-dtitle").textContent = `${f.name}  [${f.channel}]`;
+      const sig = f.last_signature;
+      $("fd-sig").textContent = sig ? `Signed: ${sig.index_hash.slice(0,40)}  (${sig.entry_count} entries)  @ ${sig.signed_at}` : "Not yet published";
+      $("fd-idx").innerHTML = f.entries.length ? `<table><tbody>${f.entries.map(e=>`<tr><td class="mono">${e.package_name}</td><td>${e.version}</td><td class="hint mono" style="font-size:11px">${(e.cache_key||'').slice(0,20)}</td></tr>`).join("")}</tbody></table>` : `<p class="hint">no entries</p>`;
+      $("fd-scopes").innerHTML = f.channels.length ? `<table><tbody>${f.channels.map(c=>`<tr><td class="hint">${[c.distribution,c.arch,c.libc,c.kernel_release].filter(Boolean).join(' / ')||'(any)'}</td></tr>`).join("")}</tbody></table>` : `<p class="hint">no scope rules (global)</p>`;
+      $("fd-detail").style.display = "block";
+    }
+    async function publishFeed(){ try { const r = await api(`/v1/package-feeds/${window._fdid}/publish`, j({}));
+      $("fd-pmsg").textContent=`signed: ${r.index_hash.slice(0,28)}  (${r.entry_count} entries)`; $("fd-pmsg").className="msg ok";
+      await selectFeed(window._fdid); } catch(e){ $("fd-pmsg").textContent=e.message; $("fd-pmsg").className="msg err"; } }
+    async function addFeedIdx(){ try { await api(`/v1/package-feeds/${window._fdid}/index`, j({package_name:$("fd-ipkg").value.trim(), version:$("fd-iver").value.trim(), cache_key:$("fd-ick").value.trim()||null})); await selectFeed(window._fdid); } catch(e){ alert(e.message); } }
+    async function addFeedScope(){ try { await api(`/v1/package-feeds/${window._fdid}/scope`, j({distribution:$("fd-sdist").value.trim()||null, arch:$("fd-sarch").value.trim()||null, libc:$("fd-slibc").value.trim()||null, kernel_release:$("fd-skr").value.trim()||null})); await selectFeed(window._fdid); } catch(e){ alert(e.message); } }
 
     async function loadFeatures(){
       const id = $("v-pkg").value; $("v-out").innerHTML=""; window._vpkg=id;

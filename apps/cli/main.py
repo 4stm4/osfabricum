@@ -20,6 +20,7 @@ from apps.cli.commands.builds import builds_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.compose import compose_app
 from apps.cli.commands.distribution import distribution_app
+from apps.cli.commands.feed import feed_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.flash import flash_app
 from apps.cli.commands.image import image_app
@@ -239,6 +240,7 @@ def _register_groups() -> None:
     app.add_typer(kerneldesign_app, name="kerneldesign")
     app.add_typer(imagedesign_app, name="imagedesign")
     app.add_typer(packageworkspace_app, name="packageworkspace")
+    app.add_typer(feed_app, name="feed")
 
 
 _register_groups()

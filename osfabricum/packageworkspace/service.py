@@ -26,6 +26,9 @@ from typing import Any
 from sqlalchemy import func, select
 
 from osfabricum.db.models import (
+    FeedChannel,
+    FeedPublishJob,
+    FeedSignature,
     Package,
     PackageCacheEntry,
     PackageCompatibility,
@@ -576,3 +579,162 @@ def list_variants(package_id: str, *, db_url: str | None = None) -> list[dict[st
                 select(PackageVariant).where(PackageVariant.package_id == package_id)
             ).all()
         ]
+
+
+# ---------------------------------------------------------------------------
+# M37 — Feed Publisher
+# ---------------------------------------------------------------------------
+
+
+def get_feed(feed_id: str, *, db_url: str | None = None) -> dict[str, Any]:
+    """Return feed metadata, index entries, scoping channels and last signature."""
+    with sync_session(db_url) as s:
+        feed = s.get(PackageFeed, feed_id)
+        if feed is None:
+            raise ValueError(f"feed not found: {feed_id!r}")
+        entries = [
+            {
+                "id": e.id,
+                "package_name": e.package_name,
+                "version": e.version,
+                "cache_key": e.cache_key,
+                "position": e.position,
+            }
+            for e in s.scalars(
+                select(PackageFeedIndex)
+                .where(PackageFeedIndex.feed_id == feed_id)
+                .order_by(PackageFeedIndex.position)
+            ).all()
+        ]
+        channels = [
+            {
+                "id": c.id,
+                "distribution": c.distribution,
+                "arch": c.arch,
+                "libc": c.libc,
+                "kernel_release": c.kernel_release,
+            }
+            for c in s.scalars(
+                select(FeedChannel).where(FeedChannel.feed_id == feed_id)
+            ).all()
+        ]
+        last_sig = s.scalars(
+            select(FeedSignature)
+            .where(FeedSignature.feed_id == feed_id)
+            .order_by(FeedSignature.signed_at.desc())
+            .limit(1)
+        ).first()
+        signature = (
+            {
+                "index_hash": last_sig.index_hash,
+                "entry_count": last_sig.entry_count,
+                "algorithm": last_sig.algorithm,
+                "signed_at": last_sig.signed_at.isoformat(),
+            }
+            if last_sig
+            else None
+        )
+        return {
+            "id": feed.id,
+            "name": feed.name,
+            "channel": feed.channel,
+            "description": feed.description,
+            "entries": entries,
+            "channels": channels,
+            "last_signature": signature,
+        }
+
+
+def scope_feed(
+    feed_id: str,
+    *,
+    distribution: str | None = None,
+    arch: str | None = None,
+    libc: str | None = None,
+    kernel_release: str | None = None,
+    db_url: str | None = None,
+) -> dict[str, Any]:
+    """Add a FeedChannel scoping record to the feed."""
+    with sync_session(db_url) as s:
+        if s.get(PackageFeed, feed_id) is None:
+            raise ValueError(f"feed not found: {feed_id!r}")
+        ch = FeedChannel(
+            feed_id=feed_id,
+            distribution=distribution,
+            arch=arch,
+            libc=libc,
+            kernel_release=kernel_release,
+        )
+        s.add(ch)
+        s.commit()
+        return {
+            "id": ch.id,
+            "feed_id": feed_id,
+            "distribution": distribution,
+            "arch": arch,
+            "libc": libc,
+            "kernel_release": kernel_release,
+        }
+
+
+def publish_feed(feed_id: str, *, db_url: str | None = None) -> dict[str, Any]:
+    """Build index JSON, compute SHA-256 signature, record FeedSignature + FeedPublishJob.
+
+    The index hash is sha256(sorted JSON of the index entries) — deterministic content
+    hash, same pattern as plan_hash. Asymmetric signing is a follow-on (M48).
+    """
+    with sync_session(db_url) as s:
+        feed = s.get(PackageFeed, feed_id)
+        if feed is None:
+            raise ValueError(f"feed not found: {feed_id!r}")
+
+        job = FeedPublishJob(feed_id=feed_id, status="running")
+        s.add(job)
+        s.flush()
+
+        try:
+            entries = s.scalars(
+                select(PackageFeedIndex)
+                .where(PackageFeedIndex.feed_id == feed_id)
+                .order_by(PackageFeedIndex.position)
+            ).all()
+            index_payload = [
+                {
+                    "package_name": e.package_name,
+                    "version": e.version,
+                    "cache_key": e.cache_key,
+                    "position": e.position,
+                }
+                for e in entries
+            ]
+            index_hash = "sha256:" + _sha(json.dumps(index_payload, sort_keys=True))
+            entry_count = len(index_payload)
+
+            sig = FeedSignature(
+                feed_id=feed_id,
+                algorithm="sha256",
+                index_hash=index_hash,
+                entry_count=entry_count,
+            )
+            s.add(sig)
+
+            from datetime import UTC, datetime as _dt
+
+            job.status = "done"
+            job.index_hash = index_hash
+            job.entry_count = entry_count
+            job.completed_at = _dt.now(UTC).replace(tzinfo=None)
+            s.commit()
+        except Exception as exc:
+            job.status = "failed"
+            job.error = str(exc)
+            s.commit()
+            raise
+
+        return {
+            "job_id": job.id,
+            "feed_id": feed_id,
+            "status": "done",
+            "index_hash": index_hash,
+            "entry_count": entry_count,
+        }

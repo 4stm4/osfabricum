@@ -37,6 +37,7 @@ from osfabricum.packageworkspace.service import (
     create_set,
     create_variant,
     explain_cache,
+    get_feed,
     list_feeds,
     list_groups,
     list_kinds,
@@ -46,8 +47,10 @@ from osfabricum.packageworkspace.service import (
     list_variants,
     lookup_cache,
     promote,
+    publish_feed,
     record_cache_entry,
     resolve_set,
+    scope_feed,
 )
 
 __all__ = [
@@ -68,6 +71,7 @@ __all__ = [
     "define_feature",
     "diff_variants",
     "explain_cache",
+    "get_feed",
     "list_build_variants",
     "list_feeds",
     "list_features",
@@ -79,8 +83,10 @@ __all__ = [
     "list_variants",
     "lookup_cache",
     "promote",
+    "publish_feed",
     "record_build_variant",
     "record_cache_entry",
     "resolve_set",
     "resolve_variant",
+    "scope_feed",
 ]

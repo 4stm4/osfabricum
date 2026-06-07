@@ -112,9 +112,20 @@ Severity scale:
   feature diff is reported by `diff_variants`. Exposed over
   `GET/POST /v1/packages/{id}/features`, `POST /v1/package-variants/resolve`,
   the `osfabricumctl packageworkspace feature-*/variant-resolve` CLI and the
-  `/packages` Variants tab. Follow-ons remain **M37** (feed *publish/sign*) and
-  **M38** (runtime policy); the workspace model the resolver (M55) will consume
-  is in place.
+  `/packages` Variants tab.
+- **M37 (feed publisher) done.** Feeds are now signed and scoped. Three new
+  tables — `feed_signatures`, `feed_channels`, `feed_publish_jobs` — extend the
+  M35 feed skeleton. `publish_feed` walks the ordered index, computes a
+  deterministic `sha256:` content hash (same pattern as `plan_hash`), stores a
+  `FeedSignature` and a `FeedPublishJob` with status `done`. Feeds can be
+  scoped by `distribution/arch/libc/kernel_release` via `FeedChannel` rows.
+  `get_feed` returns the full feed: index entries, scope rules and the latest
+  signature. Exposed over `GET /v1/package-feeds/{id}`,
+  `POST /v1/package-feeds/{id}/publish`, `POST /v1/package-feeds/{id}/scope`,
+  the `osfabricumctl feed list|create|show|index-add|scope|promote|publish` CLI
+  and the `/packages` Feeds tab. Follow-on: asymmetric signing (M48), feed
+  *serve/mirror* endpoint and OTA client integration (M49). **M38** (runtime
+  package policy) remains.
 
 ### G-05 — Kernel config is an opaque blob, not a Kconfig model
 - **Evidence:** `KernelConfig` references a `config_artifact_id` blob. No Kconfig

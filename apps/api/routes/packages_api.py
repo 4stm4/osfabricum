@@ -1,4 +1,4 @@
-"""Package Workspace / Package Manager API (M35).
+"""Package Workspace / Package Manager API (M35/M36/M37).
 
     GET  /v1/package-kinds | /v1/package-layers
     POST /v1/packages/cache          — record a cache entry
@@ -8,7 +8,9 @@
     GET/POST /v1/package-groups ; POST /{id}/members
     GET/POST /v1/package-sets ; POST /{id}/members ; POST /{id}/resolve
     POST /v1/packages/{id}/classify ; GET/POST /v1/packages/{id}/variants
-    GET/POST /v1/package-locks | /v1/package-feeds ; POST /{id}/index
+    GET/POST /v1/package-locks
+    GET/POST /v1/package-feeds ; POST /{id}/index ; POST /{id}/scope ; POST /{id}/publish
+    GET /v1/package-feeds/{id}
     POST /v1/package-promotions
 
 Reads and pure computations (lookup / explain / resolve) are public; mutations
@@ -124,6 +126,13 @@ class PromotionRequest(BaseModel):
     version: str
     to_channel: str
     from_channel: str | None = None
+
+
+class FeedScopeRequest(BaseModel):
+    distribution: str | None = None
+    arch: str | None = None
+    libc: str | None = None
+    kernel_release: str | None = None
 
 
 class VariantRequest(BaseModel):
@@ -402,6 +411,39 @@ def add_feed_index(
         return pw.add_feed_index(
             feed_id, body.package_name, body.version, cache_key=body.cache_key, db_url=_db(request)
         )
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+@router.get("/package-feeds/{feed_id}")
+def get_feed(feed_id: str, request: Request) -> dict[str, Any]:
+    try:
+        return pw.get_feed(feed_id, db_url=_db(request))
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+@router.post("/package-feeds/{feed_id}/scope", status_code=201)
+def scope_feed(
+    feed_id: str, body: FeedScopeRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
+    try:
+        return pw.scope_feed(
+            feed_id,
+            distribution=body.distribution,
+            arch=body.arch,
+            libc=body.libc,
+            kernel_release=body.kernel_release,
+            db_url=_db(request),
+        )
+    except ValueError as exc:
+        raise _guard(exc) from exc
+
+
+@router.post("/package-feeds/{feed_id}/publish", status_code=201)
+def publish_feed(feed_id: str, request: Request, _auth: WriteAuthDep = None) -> dict[str, Any]:
+    try:
+        return pw.publish_feed(feed_id, db_url=_db(request))
     except ValueError as exc:
         raise _guard(exc) from exc
 

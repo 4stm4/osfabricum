@@ -1599,6 +1599,61 @@ class PackagePromotion(Base):
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 
 
+# ---------------------------------------------------------------------------
+# M37 — Package Feed / Repository Publisher
+# ---------------------------------------------------------------------------
+
+
+class FeedChannel(Base):
+    """Scope filter for a feed — narrows delivery to distribution/arch/libc/kernel."""
+
+    __tablename__ = "feed_channels"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    feed_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_feeds.id"), nullable=False, index=True
+    )
+    distribution: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    arch: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    libc: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    kernel_release: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class FeedSignature(Base):
+    """SHA-256 content signature for a published feed index snapshot."""
+
+    __tablename__ = "feed_signatures"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    feed_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_feeds.id"), nullable=False, index=True
+    )
+    algorithm: Mapped[str] = mapped_column(sa.String(16), nullable=False, default="sha256")
+    index_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    entry_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    signed_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class FeedPublishJob(Base):
+    """Record of a publish run: index → sign → done/failed."""
+
+    __tablename__ = "feed_publish_jobs"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    feed_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("package_feeds.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="pending"
+    )  # pending | running | done | failed
+    index_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    entry_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    triggered_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    completed_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
 class PackageInstallPlan(Base):
     """A resolved, layer-ordered install plan record (artifact kind=install-plan)."""
 
