@@ -16,6 +16,7 @@ import typer
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.board import board_app
 from apps.cli.commands.bootchain import bootchain_app
+from apps.cli.commands.branding import branding_app
 from apps.cli.commands.builds import builds_app
 from apps.cli.commands.catalog import catalog_app
 from apps.cli.commands.compose import compose_app
@@ -241,6 +242,7 @@ def _register_groups() -> None:
     app.add_typer(imagedesign_app, name="imagedesign")
     app.add_typer(packageworkspace_app, name="packageworkspace")
     app.add_typer(feed_app, name="feed")
+    app.add_typer(branding_app, name="branding")
 
 
 _register_groups()

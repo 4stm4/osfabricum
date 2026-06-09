@@ -194,6 +194,26 @@ Severity scale:
 - **Closed by:** **M39** (branding), **M40** (graphical shell), **M41**
   (application catalog), **M42** (default apps/desktop integration), **M43**
   (themes/icons/fonts).
+- **M39 (branding / identity designer) done.** `BrandingProfile` is extended
+  with 11 OS-release identity fields (`os_name`, `os_id`, `os_version`,
+  `os_pretty_name`, `os_home_url`, `vendor_name`, `vendor_url`, `support_url`,
+  `bug_report_url`, `logo_asset_id`, `icon_asset_id`) plus rendered-artifact
+  columns. Seven new tables: `branding_assets` (logo/icon/favicon/wallpaper/
+  splash/login-bg/font/sound), `branding_targets` (one row per build stage —
+  bootloader / plymouth / initramfs / login-screen / desktop-session /
+  os-release / motd / about-dialog / web-ui / installer), `os_release_templates`,
+  `motd_templates`, `wallpaper_sets`, `boot_splash_themes`, `login_screen_themes`.
+  `render_os_release` generates deterministic `/etc/os-release` content from
+  profile identity fields with a `sha256:` content hash (same convention as
+  `plan_hash`/`index_hash`); a custom Python `{field}`-format template is
+  supported via `OsReleaseTemplate`. `render_motd` renders from `MotdTemplate`
+  or falls back to a default welcome string. Migration `0015_branding_designer`
+  extends `branding_profiles` with per-column guards and uses a `fresh` sentinel
+  for the 7 new tables. Exposed over 13 HTTP endpoints under
+  `/v1/branding-profiles/…`, the `osfabricumctl branding` CLI and the
+  `/branding` designer UI page (7 tabs: Profiles, Assets, Stage Targets, Boot
+  Splash, Login Theme, OS-Release, MOTD). 32 unit tests. Follow-on:
+  graphical-shell (M40), application catalog (M41).
 
 ### G-08 — Boards are shallow (no BSP depth)
 - **Evidence:** `boards` row carries `boot_scheme`, `firmware_required`,

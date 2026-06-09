@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Branding Designer</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; --yellow:#d29922; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    nav { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    nav button { background:none; border:none; color:var(--muted); padding:12px 16px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+    nav button.active { color:var(--fg); border-bottom-color:var(--accent); }
+    main { padding:24px; max-width:1040px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { font-size:12px; color:var(--muted); }
+    input,select,textarea { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; font-family:inherit; }
+    textarea { resize:vertical; width:100%; min-height:120px; }
+    button.act { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button.act:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+    .msg { font-size:13px; min-height:18px; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    pre { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+    .mono { font-family:"SF Mono",Menlo,monospace; } .hint { color:var(--muted); font-size:11px; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    .hash { color:var(--muted); font-size:11px; font-family:monospace; word-break:break-all; }
+    .tag { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; border:1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <header><h1>🎨 Branding Designer</h1><a href="/">← Dashboard</a></header>
+  <nav>
+    <button data-tab="profiles" class="active">Profiles</button>
+    <button data-tab="assets">Assets</button>
+    <button data-tab="targets">Stage Targets</button>
+    <button data-tab="splash">Boot Splash</button>
+    <button data-tab="login">Login Theme</button>
+    <button data-tab="osrelease">OS-Release</button>
+    <button data-tab="motd">MOTD</button>
+  </nav>
+  <main id="content"></main>
+
+  <script>
+    let tab = "profiles";
+    let _selId = null;
+    const $ = (id) => document.getElementById(id);
+    async function api(p,o){ const r=await fetch(p,o); if(!r.ok){ let d=`${r.status}`; try{ d=(await r.json()).detail||d; }catch{} throw new Error(d);} return r.status===204?null:r.json(); }
+    const j = (body) => ({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const patch = (body) => ({method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+
+    // -----------------------------------------------------------------------
+    // Views
+    // -----------------------------------------------------------------------
+    const views = {
+      async profiles() {
+        const profiles = await api("/v1/branding-profiles");
+        const rows = profiles.map(p => `<tr>
+          <td class="mono">${p.id.substring(0,8)}</td>
+          <td>${p.name}</td>
+          <td>${p.os_name||'—'}</td>
+          <td>${p.os_id||'—'}</td>
+          <td>${p.os_version||'—'}</td>
+          <td>${p.content_hash ? '<span class="tag">rendered</span>' : '—'}</td>
+          <td><button class="act" onclick="selectProfile('${p.id}')">Open</button></td>
+        </tr>`).join('');
+
+        return `
+        <div class="panel"><h2>Create Branding Profile</h2>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Name</label><input id="bp-name" placeholder="my-distro-branding"></div>
+            <div class="field"><label>Distribution ID (optional)</label><input id="bp-dist" placeholder="uuid"></div>
+          </div>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>OS Name</label><input id="bp-osname" placeholder="MyDistro"></div>
+            <div class="field"><label>OS ID</label><input id="bp-osid" placeholder="mydistro"></div>
+            <div class="field"><label>OS Version</label><input id="bp-osver" placeholder="1.0"></div>
+          </div>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Pretty Name</label><input id="bp-pretty" placeholder="MyDistro 1.0 (Stable)"></div>
+            <div class="field"><label>Vendor Name</label><input id="bp-vendor" placeholder="MyOrg"></div>
+          </div>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Home URL</label><input id="bp-home" placeholder="https://mydistro.org"></div>
+            <div class="field"><label>Support URL</label><input id="bp-support" placeholder="https://mydistro.org/support"></div>
+          </div>
+          <div class="row">
+            <button class="act primary" onclick="createProfile()">Create Profile</button>
+            <span class="msg" id="bp-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Existing Profiles</h2>
+          <table><thead><tr><th>ID</th><th>Name</th><th>OS Name</th><th>OS ID</th><th>Version</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="7" style="color:var(--muted)">No profiles yet</td></tr>'}</tbody></table>
+        </div>
+        ${_selId ? await profileDetail() : ''}`;
+      },
+
+      async assets() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        const kinds = ["logo","icon","favicon","wallpaper","splash","login-bg","font","sound"];
+        const rows = (p.assets||[]).map(a=>`<tr>
+          <td>${a.name}</td><td><span class="tag">${a.asset_kind}</span></td>
+          <td class="mono">${a.source_path||'—'}</td><td>${a.mime_type||'—'}</td>
+          <td>${a.width_px&&a.height_px?`${a.width_px}×${a.height_px}`:'—'}</td>
+        </tr>`).join('');
+        return `
+        <div class="panel"><h2>Add Asset — ${p.name}</h2>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>Asset Name</label><input id="a-name" placeholder="logo-main"></div>
+            <div class="field"><label>Kind</label><select id="a-kind">${kinds.map(k=>`<option>${k}</option>`).join('')}</select></div>
+            <div class="field"><label>Source Path</label><input id="a-src" placeholder="/assets/logo.svg"></div>
+          </div>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>MIME Type</label><input id="a-mime" placeholder="image/svg+xml"></div>
+            <div class="field"><label>Width (px)</label><input id="a-w" type="number" placeholder="256"></div>
+            <div class="field"><label>Height (px)</label><input id="a-h" type="number" placeholder="256"></div>
+          </div>
+          <div class="row">
+            <button class="act primary" onclick="addAsset()">Add Asset</button>
+            <span class="msg" id="a-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Assets</h2>
+          <table><thead><tr><th>Name</th><th>Kind</th><th>Source Path</th><th>MIME</th><th>Dimensions</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="5" style="color:var(--muted)">No assets</td></tr>'}</tbody></table>
+        </div>`;
+      },
+
+      async targets() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        const stages = ["bootloader","plymouth","initramfs","login-screen","desktop-session","os-release","motd","about-dialog","web-ui","installer"];
+        const rows = (p.targets||[]).map(t=>`<tr><td><span class="tag">${t.stage}</span></td><td class="mono">${t.asset_id||'—'}</td><td>${t.config?JSON.stringify(t.config):'—'}</td></tr>`).join('');
+        return `
+        <div class="panel"><h2>Set Stage Target — ${p.name}</h2>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Stage</label><select id="t-stage">${stages.map(s=>`<option>${s}</option>`).join('')}</select></div>
+            <div class="field"><label>Asset ID (optional)</label><input id="t-assetid" placeholder="uuid"></div>
+          </div>
+          <div class="field" style="margin-bottom:8px"><label>Config JSON (optional)</label><textarea id="t-config" placeholder='{"key":"value"}'></textarea></div>
+          <div class="row">
+            <button class="act primary" onclick="setTarget()">Set Target</button>
+            <span class="msg" id="t-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Stage Targets</h2>
+          <table><thead><tr><th>Stage</th><th>Asset ID</th><th>Config</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="3" style="color:var(--muted)">No targets set</td></tr>'}</tbody></table>
+        </div>`;
+      },
+
+      async splash() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        const cur = p.boot_splash;
+        return `
+        <div class="panel"><h2>Plymouth Boot Splash — ${p.name}</h2>
+          <p class="hint">Configure the Plymouth theme that appears during kernel boot.</p>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Theme Name</label>
+              <select id="sp-theme">
+                <option>spinner</option><option>bgrt</option><option>details</option><option>text</option><option>custom</option>
+              </select>
+            </div>
+            <div class="field"><label>Package Name (optional)</label><input id="sp-pkg" placeholder="plymouth-theme-spinner" value="${cur?.package_name||''}"></div>
+          </div>
+          <div class="row">
+            <button class="act primary" onclick="setBootSplash()">Save Boot Splash</button>
+            <span class="msg" id="sp-msg"></span>
+          </div>
+          ${cur ? `<div class="hint" style="margin-top:8px">Current: <strong>${cur.theme_name}</strong> pkg: ${cur.package_name||'—'}</div>` : ''}
+        </div>`;
+      },
+
+      async login() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        const cur = p.login_theme;
+        return `
+        <div class="panel"><h2>Login Screen Theme — ${p.name}</h2>
+          <p class="hint">Greeter theme for the display manager (LightDM / GDM / SDDM / greetd).</p>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Theme Name</label><input id="lt-theme" placeholder="default" value="${cur?.theme_name||''}"></div>
+            <div class="field"><label>Display Manager</label>
+              <select id="lt-dm">
+                <option value="">— none —</option>
+                <option>lightdm</option><option>gdm</option><option>sddm</option><option>greetd</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <button class="act primary" onclick="setLoginTheme()">Save Login Theme</button>
+            <span class="msg" id="lt-msg"></span>
+          </div>
+          ${cur ? `<div class="hint" style="margin-top:8px">Current: <strong>${cur.theme_name}</strong> dm: ${cur.display_manager||'—'}</div>` : ''}
+        </div>`;
+      },
+
+      async osrelease() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        return `
+        <div class="panel"><h2>/etc/os-release — ${p.name}</h2>
+          <p class="hint">OSFabricum generates a deterministic os-release from the profile identity fields. You can also supply a custom template with <code>{os_name}</code>, <code>{os_id}</code>, <code>{os_version}</code>, <code>{os_pretty_name}</code>, <code>{os_home_url}</code>, <code>{support_url}</code>, <code>{bug_report_url}</code> placeholders.</p>
+          <div class="field" style="margin-bottom:8px"><label>Custom Template (leave blank for default)</label>
+            <textarea id="or-tmpl" placeholder='NAME="{os_name}"\nVERSION="{os_version}"\nID={os_id}\n...'></textarea>
+          </div>
+          <div class="row">
+            <button class="act" onclick="saveOsReleaseTemplate()">Save Template</button>
+            <button class="act primary" onclick="renderOsRelease()">Render</button>
+            <span class="msg" id="or-msg"></span>
+          </div>
+          ${p.rendered_os_release ? `
+          <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:16px">Rendered Output</h2>
+          <pre id="or-rendered">${p.rendered_os_release}</pre>
+          <div class="hash">${p.content_hash||''}</div>` : '<pre id="or-rendered" style="color:var(--muted)">Not yet rendered</pre>'}
+        </div>`;
+      },
+
+      async motd() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/branding-profiles/${_selId}`);
+        return `
+        <div class="panel"><h2>/etc/motd — ${p.name}</h2>
+          <p class="hint">Message of the day shown at login. Template placeholders: <code>{os_name}</code>, <code>{os_pretty_name}</code>, <code>{os_version}</code>, <code>{vendor_name}</code>.</p>
+          <div class="field" style="margin-bottom:8px"><label>Template (leave blank for default)</label>
+            <textarea id="mt-tmpl" placeholder="Welcome to {os_pretty_name}\n"></textarea>
+          </div>
+          <div class="row">
+            <button class="act" onclick="saveMotdTemplate()">Save Template</button>
+            <button class="act primary" onclick="renderMotd()">Render</button>
+            <span class="msg" id="mt-msg"></span>
+          </div>
+          ${p.rendered_motd ? `
+          <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:16px">Rendered Output</h2>
+          <pre id="mt-rendered">${p.rendered_motd}</pre>` : '<pre id="mt-rendered" style="color:var(--muted)">Not yet rendered</pre>'}
+        </div>`;
+      }
+    };
+
+    async function profileDetail() {
+      const p = await api(`/v1/branding-profiles/${_selId}`);
+      return `<div class="panel" style="border-color:var(--accent)">
+        <h2>Selected: ${p.name}</h2>
+        <div class="grid3">
+          <div><label>OS Name</label><div>${p.os_name||'—'}</div></div>
+          <div><label>OS ID</label><div>${p.os_id||'—'}</div></div>
+          <div><label>Version</label><div>${p.os_version||'—'}</div></div>
+        </div>
+        <div style="margin-top:8px"><label>Content Hash</label><div class="hash">${p.content_hash||'not rendered'}</div></div>
+      </div>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Actions
+    // -----------------------------------------------------------------------
+    function msg(id, text, ok=true) {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = text;
+      el.className = 'msg ' + (ok ? 'ok' : 'err');
+    }
+
+    async function createProfile() {
+      try {
+        await api("/v1/branding-profiles", j({
+          name: $("bp-name").value,
+          distribution_id: $("bp-dist").value || null,
+          os_name: $("bp-osname").value || null,
+          os_id: $("bp-osid").value || null,
+          os_version: $("bp-osver").value || null,
+          os_pretty_name: $("bp-pretty").value || null,
+          vendor_name: $("bp-vendor").value || null,
+          os_home_url: $("bp-home").value || null,
+          support_url: $("bp-support").value || null,
+        }));
+        msg("bp-msg", "Created!", true);
+        await render();
+      } catch(e) { msg("bp-msg", e.message, false); }
+    }
+
+    function selectProfile(id) {
+      _selId = id;
+      render();
+    }
+
+    async function addAsset() {
+      try {
+        await api(`/v1/branding-profiles/${_selId}/assets`, j({
+          name: $("a-name").value,
+          asset_kind: $("a-kind").value,
+          source_path: $("a-src").value || null,
+          mime_type: $("a-mime").value || null,
+          width_px: parseInt($("a-w").value)||null,
+          height_px: parseInt($("a-h").value)||null,
+        }));
+        msg("a-msg", "Asset added!", true);
+        await render();
+      } catch(e) { msg("a-msg", e.message, false); }
+    }
+
+    async function setTarget() {
+      const cfgStr = $("t-config").value.trim();
+      let cfg = null;
+      if (cfgStr) { try { cfg = JSON.parse(cfgStr); } catch { msg("t-msg","Invalid JSON",false); return; } }
+      try {
+        await api(`/v1/branding-profiles/${_selId}/targets/${$("t-stage").value}`, j({
+          asset_id: $("t-assetid").value || null,
+          config: cfg,
+        }));
+        msg("t-msg", "Target set!", true);
+        await render();
+      } catch(e) { msg("t-msg", e.message, false); }
+    }
+
+    async function setBootSplash() {
+      try {
+        await api(`/v1/branding-profiles/${_selId}/boot-splash`, j({
+          theme_name: $("sp-theme").value,
+          package_name: $("sp-pkg").value || null,
+        }));
+        msg("sp-msg", "Saved!", true);
+        await render();
+      } catch(e) { msg("sp-msg", e.message, false); }
+    }
+
+    async function setLoginTheme() {
+      try {
+        await api(`/v1/branding-profiles/${_selId}/login-theme`, j({
+          theme_name: $("lt-theme").value,
+          display_manager: $("lt-dm").value || null,
+        }));
+        msg("lt-msg", "Saved!", true);
+        await render();
+      } catch(e) { msg("lt-msg", e.message, false); }
+    }
+
+    async function saveOsReleaseTemplate() {
+      const tmpl = $("or-tmpl").value;
+      if (!tmpl) return;
+      try {
+        await api(`/v1/branding-profiles/${_selId}/os-release-template`, j({template_text: tmpl}));
+        msg("or-msg", "Template saved!", true);
+      } catch(e) { msg("or-msg", e.message, false); }
+    }
+
+    async function renderOsRelease() {
+      try {
+        const r = await api(`/v1/branding-profiles/${_selId}/render-os-release`, {method:"POST"});
+        const el = $("or-rendered");
+        if (el) el.textContent = r.rendered_os_release;
+        msg("or-msg", `Hash: ${r.content_hash}`, true);
+      } catch(e) { msg("or-msg", e.message, false); }
+    }
+
+    async function saveMotdTemplate() {
+      const tmpl = $("mt-tmpl").value;
+      if (!tmpl) return;
+      try {
+        await api(`/v1/branding-profiles/${_selId}/motd-template`, j({template_text: tmpl}));
+        msg("mt-msg", "Template saved!", true);
+      } catch(e) { msg("mt-msg", e.message, false); }
+    }
+
+    async function renderMotd() {
+      try {
+        const r = await api(`/v1/branding-profiles/${_selId}/render-motd`, {method:"POST"});
+        const el = $("mt-rendered");
+        if (el) el.textContent = r.rendered_motd;
+        msg("mt-msg", "Rendered!", true);
+      } catch(e) { msg("mt-msg", e.message, false); }
+    }
+
+    // -----------------------------------------------------------------------
+    // Navigation
+    // -----------------------------------------------------------------------
+    async function render() {
+      try {
+        $("content").innerHTML = await views[tab]();
+      } catch(e) {
+        $("content").innerHTML = `<div class="panel"><p style="color:var(--red)">${e.message}</p></div>`;
+      }
+    }
+
+    document.querySelector("nav").addEventListener("click", e => {
+      const btn = e.target.closest("[data-tab]");
+      if (!btn) return;
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      tab = btn.dataset.tab;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

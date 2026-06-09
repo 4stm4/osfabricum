@@ -1011,7 +1011,7 @@ class ImageRecipe(Base):
 
 
 class BrandingProfile(Base):
-    """A branding/identity definition; M39 adds targets/assets."""
+    """A branding/identity definition (M39: full os-release, assets, targets)."""
 
     __tablename__ = "branding_profiles"
 
@@ -1020,11 +1020,163 @@ class BrandingProfile(Base):
     distribution_id: Mapped[str | None] = mapped_column(
         sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
     )
+    # OS identity — fields for /etc/os-release (M39)
+    os_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    os_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    os_version: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    os_pretty_name: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    os_home_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    vendor_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    vendor_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    support_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    bug_report_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    # Plain String references to BrandingAsset rows (no FK for SQLite safety)
+    logo_asset_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    icon_asset_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    # Rendered artifacts
+    rendered_os_release: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_motd: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
 
     __table_args__ = (
         sa.UniqueConstraint("distribution_id", "name", name="uq_branding_profiles_dist_name"),
     )
+
+
+class BrandingAsset(Base):
+    """A branding asset file: logo, icon, wallpaper, splash screen, font, etc."""
+
+    __tablename__ = "branding_assets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    asset_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # logo|icon|favicon|wallpaper|splash|login-bg|font|sound
+    source_path: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    artifact_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    width_px: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    height_px: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "branding_profile_id", "name", name="uq_branding_assets_profile_name"
+        ),
+    )
+
+
+class BrandingTarget(Base):
+    """Maps a build stage to a branding asset (one row per stage per profile)."""
+
+    __tablename__ = "branding_targets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, index=True
+    )
+    # Stage: bootloader|plymouth|initramfs|login-screen|desktop-session|
+    #        os-release|motd|about-dialog|web-ui|installer
+    stage: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    config_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "branding_profile_id", "stage", name="uq_branding_targets_profile_stage"
+        ),
+    )
+
+
+class OsReleaseTemplate(Base):
+    """Custom /etc/os-release template (one per branding profile)."""
+
+    __tablename__ = "os_release_templates"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, unique=True
+    )
+    template_text: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    rendered_text: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class MotdTemplate(Base):
+    """Custom /etc/motd template (one per branding profile)."""
+
+    __tablename__ = "motd_templates"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, unique=True
+    )
+    template_text: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    rendered_text: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class WallpaperSet(Base):
+    """A wallpaper entry at a specific resolution for a branding profile."""
+
+    __tablename__ = "wallpaper_sets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    resolution: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)  # e.g. 1920x1080
+    asset_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class BootSplashTheme(Base):
+    """Plymouth / bootsplash theme attached to a branding profile."""
+
+    __tablename__ = "boot_splash_themes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, unique=True
+    )
+    theme_name: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="spinner"
+    )  # spinner|bgrt|details|text|custom
+    package_name: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    config_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+class LoginScreenTheme(Base):
+    """Display-manager greeter theme attached to a branding profile."""
+
+    __tablename__ = "login_screen_themes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    branding_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("branding_profiles.id"), nullable=False, unique=True
+    )
+    theme_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    display_manager: Mapped[str | None] = mapped_column(
+        sa.String(32), nullable=True
+    )  # lightdm|gdm|sddm|greetd
+    config_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 
 
 class GraphicalProfile(Base):
