@@ -31,6 +31,7 @@ from osfabricum.db.models import (
     DistributionClass,
     PackageKind,
     PackageLayer,
+    RuntimePackageBackend,
     SocFamily,
 )
 
@@ -153,6 +154,56 @@ def seed_package_layers(session: Session) -> int:
         if name in existing:
             continue
         session.add(PackageLayer(name=name, position=position, description=description))
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+# M38: runtime package backends. (name, description, config_template)
+# {feed_name}, {feed_url}, {channel} are substituted by render_policy.
+RUNTIME_BACKENDS: list[tuple[str, str, str]] = [
+    ("none", "No package manager — immutable or build-time-only image", ""),
+    (
+        "osf-pkg",
+        "OSFabricum native package manager",
+        "# OSFabricum package feed\nfeed {feed_name} {feed_url}\nchannel {channel}\n",
+    ),
+    (
+        "opkg",
+        "opkg (OpenWRT-compatible lightweight package manager)",
+        "src/gz {feed_name} {feed_url}\n",
+    ),
+    (
+        "apk",
+        "Alpine Package Keeper (apk) — used by Alpine and musl-based images",
+        "{feed_url}\n",
+    ),
+    (
+        "dpkg",
+        "dpkg/apt-compatible package manager (Debian/Ubuntu style)",
+        "deb {feed_url} {channel} main\n",
+    ),
+    (
+        "rpm",
+        "rpm/dnf-compatible package manager (Red Hat style)",
+        "[{feed_name}]\nbaseurl={feed_url}\nenabled=1\ngpgcheck=1\n",
+    ),
+]
+
+
+def seed_runtime_backends(session: Session) -> int:
+    """Insert any missing runtime package backends (M38). Returns the number added."""
+    existing = {b.name for b in session.scalars(select(RuntimePackageBackend)).all()}
+    added = 0
+    for name, description, config_template in RUNTIME_BACKENDS:
+        if name in existing:
+            continue
+        session.add(
+            RuntimePackageBackend(
+                name=name, description=description, config_template=config_template
+            )
+        )
         added += 1
     if added:
         session.flush()

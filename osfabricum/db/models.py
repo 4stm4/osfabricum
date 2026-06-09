@@ -479,6 +479,8 @@ class Profile(Base):
     validation_profile_id: Mapped[str | None] = mapped_column(
         sa.String(36), sa.ForeignKey("validation_profiles.id"), nullable=True
     )
+    # Plain String — no ForeignKey() to avoid SQLite drop-column issues (M38).
+    runtime_policy_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("distribution_id", "name", name="uq_profiles_dist_name"),)
 
@@ -1743,3 +1745,44 @@ class PackageVariantArtifact(Base):
     )
     arch: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+
+# ---------------------------------------------------------------------------
+# M38 — Runtime Package Policy
+# ---------------------------------------------------------------------------
+
+
+class RuntimePackageBackend(Base):
+    """A supported runtime package manager backend (seeded; never distribution-specific)."""
+
+    __tablename__ = "runtime_package_backends"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(32), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    # Template for the PM config file.  Placeholders: {feed_name} {feed_url} {channel}
+    config_template: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+
+class RuntimePackagePolicy(Base):
+    """Per-profile decision: can packages be installed inside the built OS?"""
+
+    __tablename__ = "runtime_package_policies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    # Intentionally plain String — no ForeignKey() avoids SQLite DROP COLUMN issues.
+    profile_id: Mapped[str] = mapped_column(sa.String(36), nullable=False, unique=True)
+    policy: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # immutable|build-time|runtime-install|signed-only|feed-enabled|overlay-rootfs|offline-only
+    backend_name: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="none")
+    feed_ids: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False, default=list)
+    config_path: Mapped[str] = mapped_column(
+        sa.String(256), nullable=False, default="/etc/package-manager.conf"
+    )
+    rendered_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )

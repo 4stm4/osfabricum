@@ -16,6 +16,7 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from osfabricum import packagepolicy as pp
 from osfabricum import profile as svc
 from osfabricum.profile.schema import REF_FIELDS
 
@@ -237,6 +238,94 @@ def import_cmd(
     typer.secho(
         f"Imported profile '{result['distribution']}/{result['name']}'", fg=typer.colors.GREEN
     )
+
+
+@profile_app.command("runtime-policy")
+def runtime_policy_show(
+    distribution: str,
+    name: str,
+    db_url: _DbUrl = None,
+) -> None:
+    """Show the runtime package policy for a profile."""
+    try:
+        p = svc.get_profile(distribution, name, db_url=db_url)
+        pol = pp.get_policy(p["id"], db_url=db_url)
+    except ValueError as exc:
+        _fail(str(exc))
+    typer.echo(f"Policy:   {pol['policy']}")
+    typer.echo(f"Backend:  {pol['backend_name']}")
+    typer.echo(f"Path:     {pol['config_path']}")
+    typer.echo(f"Feeds:    {', '.join(pol['feed_ids']) or '(none)'}")
+    if pol["rendered_at"]:
+        typer.echo(f"Rendered: {pol['rendered_at']}")
+        typer.echo("--- config ---")
+        typer.echo(pol["rendered_config"] or "(empty)")
+    else:
+        typer.echo("Rendered: (not yet rendered)")
+
+
+@profile_app.command("runtime-policy-set")
+def runtime_policy_set(
+    distribution: str,
+    name: str,
+    policy: str = typer.Argument(
+        ...,
+        help="immutable|build-time|runtime-install|signed-only|feed-enabled|overlay-rootfs|offline-only",
+    ),
+    backend: str = typer.Option("none", "--backend", "-b", help="Package manager backend"),
+    feed_id: list[str] | None = typer.Option(None, "--feed", "-f", help="Feed ID (repeatable)"),  # noqa: B008
+    config_path: str = typer.Option("/etc/package-manager.conf", "--config-path"),
+    render: bool = typer.Option(False, "--render", help="Render config immediately after setting"),
+    db_url: _DbUrl = None,
+) -> None:
+    """Set the runtime package policy for a profile."""
+    try:
+        p = svc.get_profile(distribution, name, db_url=db_url)
+        result = pp.set_policy(
+            p["id"],
+            policy,
+            backend,
+            feed_ids=feed_id or [],
+            config_path=config_path,
+            db_url=db_url,
+        )
+    except ValueError as exc:
+        _fail(str(exc))
+    typer.secho(
+        f"Set policy={result['policy']}  backend={result['backend_name']}", fg=typer.colors.GREEN
+    )
+    if render:
+        try:
+            rendered = pp.render_policy(p["id"], db_url=db_url)
+        except ValueError as exc:
+            _fail(str(exc))
+        typer.echo("--- rendered config ---")
+        typer.echo(rendered["rendered_config"] or "(empty)")
+
+
+@profile_app.command("runtime-policy-render")
+def runtime_policy_render(
+    distribution: str,
+    name: str,
+    db_url: _DbUrl = None,
+) -> None:
+    """Render the package-manager config for a profile's runtime policy."""
+    try:
+        p = svc.get_profile(distribution, name, db_url=db_url)
+        result = pp.render_policy(p["id"], db_url=db_url)
+    except ValueError as exc:
+        _fail(str(exc))
+    typer.echo(f"Rendered at: {result['rendered_at']}")
+    typer.echo("--- config ---")
+    typer.echo(result["rendered_config"] or "(empty for this policy)")
+
+
+@profile_app.command("runtime-backends")
+def runtime_backends(db_url: _DbUrl = None) -> None:
+    """List available runtime package manager backends."""
+    backends = pp.list_backends(db_url=db_url)
+    for b in backends:
+        typer.echo(f"{b['name']:<12} {b['description']}")
 
 
 @profile_app.command("export")

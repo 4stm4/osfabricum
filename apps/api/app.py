@@ -19,6 +19,7 @@ from apps.api.routes.imagedesign_api import router as imagedesign_router
 from apps.api.routes.initramfs_api import router as initramfs_router
 from apps.api.routes.kerneldesign_api import router as kerneldesign_router
 from apps.api.routes.model_api import router as model_router
+from apps.api.routes.packagepolicy_api import router as packagepolicy_router
 from apps.api.routes.packages_api import router as packages_router
 from apps.api.routes.plan_api import prefetch_router
 from apps.api.routes.plan_api import router as plan_router
@@ -70,6 +71,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(imagedesign_router)
     # M35: package workspace / package manager (write API)
     app.include_router(packages_router)
+    # M38: runtime package policy (write API)
+    app.include_router(packagepolicy_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

@@ -124,8 +124,21 @@ Severity scale:
   `POST /v1/package-feeds/{id}/publish`, `POST /v1/package-feeds/{id}/scope`,
   the `osfabricumctl feed list|create|show|index-add|scope|promote|publish` CLI
   and the `/packages` Feeds tab. Follow-on: asymmetric signing (M48), feed
-  *serve/mirror* endpoint and OTA client integration (M49). **M38** (runtime
-  package policy) remains.
+  *serve/mirror* endpoint and OTA client integration (M49).
+- **M38 (runtime package policy) done.** Seven policies (`immutable` /
+  `build-time` / `runtime-install` / `signed-only` / `feed-enabled` /
+  `overlay-rootfs` / `offline-only`) govern whether a PM is baked into the
+  image and what it may install. Six backends (`none` / `osf-pkg` / `opkg` /
+  `apk` / `dpkg` / `rpm`) are seeded at migration time. `set_policy` validates
+  the policy/backend combination and upserts a `RuntimePackagePolicy` keyed by
+  `profile_id`. `render_policy` expands the backend's `config_template` against
+  attached M37 feeds and stores the rendered text deterministically. Exposed
+  over `GET /v1/runtime-package-backends`,
+  `GET/POST /v1/profiles/{dist}/{name}/runtime-policy`,
+  `POST /v1/profiles/{dist}/{name}/runtime-policy/render`, the
+  `osfabricumctl profile runtime-policy|runtime-policy-set|runtime-policy-render|runtime-backends`
+  CLI and a Policy drawer in the `/profiles` designer. Follow-on: feeding
+  the rendered config into the rootfs compose step (M46/pipeline).
 
 ### G-05 — Kernel config is an opaque blob, not a Kconfig model
 - **Evidence:** `KernelConfig` references a `config_artifact_id` blob. No Kconfig

@@ -64,6 +64,38 @@
       <div class="msg" id="list-msg"></div>
       <div id="list"><div class="empty">—</div></div>
     </div>
+
+    <div class="panel" id="policy-panel" style="display:none">
+      <h2>Runtime Package Policy — <span id="pol-profile-name" style="color:var(--accent)"></span></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <label>Policy
+          <select id="pol-policy">
+            <option>immutable</option>
+            <option>build-time</option>
+            <option>runtime-install</option>
+            <option>signed-only</option>
+            <option>feed-enabled</option>
+            <option>overlay-rootfs</option>
+            <option>offline-only</option>
+          </select>
+        </label>
+        <label>Backend
+          <select id="pol-backend"><option value="none">none</option></select>
+        </label>
+        <label>Config path
+          <input id="pol-path" value="/etc/package-manager.conf">
+        </label>
+        <label>Feed IDs (comma-separated)
+          <input id="pol-feeds" placeholder="feed-id1, feed-id2">
+        </label>
+      </div>
+      <div class="row">
+        <button class="primary" onclick="setPolicy()">Save policy</button>
+        <button onclick="renderPolicy()">Render config</button>
+        <span class="msg" id="pol-msg"></span>
+      </div>
+      <pre id="pol-rendered" style="margin-top:12px;background:var(--panel);padding:10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-height:40px;white-space:pre-wrap"></pre>
+    </div>
   </main>
 
   <script>
@@ -79,12 +111,17 @@
     }
     function dist() { return document.getElementById("dist").value; }
 
+    let _polDist = "", _polName = "";
+
     async function init() {
       try {
         for (const d of await api("/v1/distributions"))
           document.getElementById("dist").add(new Option(d.name, d.name));
         for (const c of await api("/v1/distribution-classes"))
           document.getElementById("f-class").add(new Option(c.name, c.name));
+        const backends = await api("/v1/runtime-package-backends");
+        const sel = document.getElementById("pol-backend");
+        sel.innerHTML = backends.map(b => `<option value="${b.name}">${b.name}</option>`).join("");
       } catch (e) {}
     }
 
@@ -108,6 +145,7 @@
             <td><div class="row-acts">
               <button onclick="snap('${p.name}')">Version</button>
               <button onclick="cloneP('${p.name}')">Clone</button>
+              <button onclick="openPolicy('${p.name}')">Policy</button>
               <button onclick="delP('${p.name}')">Delete</button>
             </div></td></tr>`).join("") + `</tbody></table>`;
       } catch (e) { box.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
@@ -152,6 +190,44 @@
       try { await api(`/v1/profiles/${encodeURIComponent(dist())}/${encodeURIComponent(name)}`, { method: "DELETE" });
         msg("list-msg", `Deleted '${name}'`, true); loadList(); }
       catch (e) { msg("list-msg", e.message, false); }
+    }
+
+    async function openPolicy(name) {
+      _polDist = dist(); _polName = name;
+      document.getElementById("pol-profile-name").textContent = `${_polDist}/${name}`;
+      document.getElementById("pol-rendered").textContent = "";
+      msg("pol-msg", "", true);
+      document.getElementById("policy-panel").style.display = "block";
+      try {
+        const pol = await api(`/v1/profiles/${encodeURIComponent(_polDist)}/${encodeURIComponent(name)}/runtime-policy`);
+        document.getElementById("pol-policy").value = pol.policy;
+        document.getElementById("pol-backend").value = pol.backend_name;
+        document.getElementById("pol-path").value = pol.config_path;
+        document.getElementById("pol-feeds").value = (pol.feed_ids || []).join(", ");
+        if (pol.rendered_config) document.getElementById("pol-rendered").textContent = pol.rendered_config;
+      } catch (e) { /* no policy set yet — fine */ }
+    }
+    async function setPolicy() {
+      const feed_ids = document.getElementById("pol-feeds").value.split(",").map(s=>s.trim()).filter(Boolean);
+      try {
+        await api(`/v1/profiles/${encodeURIComponent(_polDist)}/${encodeURIComponent(_polName)}/runtime-policy`, {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            policy: document.getElementById("pol-policy").value,
+            backend_name: document.getElementById("pol-backend").value,
+            config_path: document.getElementById("pol-path").value,
+            feed_ids,
+          })
+        });
+        msg("pol-msg", "Saved", true);
+      } catch(e) { msg("pol-msg", e.message, false); }
+    }
+    async function renderPolicy() {
+      try {
+        const r = await api(`/v1/profiles/${encodeURIComponent(_polDist)}/${encodeURIComponent(_polName)}/runtime-policy/render`, {method:"POST"});
+        document.getElementById("pol-rendered").textContent = r.rendered_config || "(empty for this policy)";
+        msg("pol-msg", "Rendered", true);
+      } catch(e) { msg("pol-msg", e.message, false); }
     }
 
     init();
