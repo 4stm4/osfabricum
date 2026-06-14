@@ -254,7 +254,30 @@ Severity scale:
   list/create/show/update/app-add/group-add/member-add/role-set/render) and
   the `/appcatalog` designer UI page (6 tabs: Profiles, Categories, Apps,
   Groups, Default Roles, Render). 39 unit tests, all passing. Follow-on:
-  default apps / desktop integration (M42).
+  default apps / desktop integration (M42) — done.
+- **M42 (desktop integration designer) done.** Five new tables:
+  `mime_type_definitions` (seeded — 21 entries: text/html/plain/x-python/
+  x-shellscript/markdown, image/jpeg/png/gif/webp/svg+xml, audio/mpeg/ogg/
+  flac, video/mp4/webm/x-matroska, application/pdf/zip/x-tar/
+  x-7z-compressed, inode/directory), `desktop_integration_profiles`
+  (xdg_data_dirs/xdg_config_dirs/rendered_mimeapps/rendered_user_dirs/
+  content_hash/rendered_at), `mime_associations` (mime_type → desktop_file
+  with association_type: default|added|removed and priority),
+  `autostart_entries` (exec_cmd/condition: always|graphical|wayland|x11/
+  is_enabled; auto-generates XDG `[Desktop Entry]` text with OnlyShowIn
+  for non-always conditions), `xdg_user_dirs` (upsert by dir_name:
+  DESKTOP/DOWNLOAD/DOCUMENTS/MUSIC/PICTURES/VIDEOS/TEMPLATES/PUBLICSHARE).
+  `render_desktop_integration` generates `/etc/xdg/mimeapps.list`
+  (`[Default Applications]`, `[Added Associations]`, `[Removed Associations]`
+  sections) and `/etc/xdg/user-dirs.defaults` (8 dirs with fallback defaults),
+  concatenates both for a `sha256:` content hash. `set_user_dir` is an upsert.
+  Migration `0018_desktop_integration` uses a `fresh` sentinel and seeds
+  21 MIME type definitions idempotently. Exposed over 9 HTTP endpoints under
+  `/v1/desktop-integration-profiles/…` + `/v1/mime-types`, the
+  `osfabricumctl desktopint` CLI (mime-list/list/create/show/update/mime-add/
+  autostart-add/userdir-set/render) and the `/desktopint` designer UI page
+  (6 tabs: Profiles, MIME Types, MIME Associations, Autostart, User Dirs,
+  Render). 44 unit tests, all passing. Follow-on: themes/icons/fonts (M43).
 
 ### G-08 — Boards are shallow (no BSP depth)
 - **Evidence:** `boards` row carries `boot_scheme`, `firmware_required`,

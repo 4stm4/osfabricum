@@ -2179,3 +2179,122 @@ class DefaultAppRole(Base):
             "catalog_profile_id", "role", name="uq_default_app_roles_profile_role"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M42: Desktop Integration Designer
+# ---------------------------------------------------------------------------
+
+
+class MimeTypeDefinition(Base):
+    """Seeded common MIME type reference (M42)."""
+
+    __tablename__ = "mime_type_definitions"
+
+    name: Mapped[str] = mapped_column(sa.String(128), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    parent: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    icon: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class DesktopIntegrationProfile(Base):
+    """Per-distribution desktop integration profile (M42)."""
+
+    __tablename__ = "desktop_integration_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    xdg_data_dirs: Mapped[list[str]] = mapped_column(
+        sa.JSON, nullable=False, default=list
+    )
+    xdg_config_dirs: Mapped[list[str]] = mapped_column(
+        sa.JSON, nullable=False, default=list
+    )
+    rendered_mimeapps: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_user_dirs: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_desktop_integration_profiles_dist_name"
+        ),
+    )
+
+
+class MimeAssociation(Base):
+    """MIME type → .desktop file binding for a desktop integration profile (M42)."""
+
+    __tablename__ = "mime_associations"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("desktop_integration_profiles.id"), nullable=False
+    )
+    mime_type: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    desktop_file: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    association_type: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="default"
+    )  # default | added | removed
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "mime_type", "desktop_file",
+            name="uq_mime_associations_profile_mime_desktop",
+        ),
+    )
+
+
+class AutostartEntry(Base):
+    """XDG autostart entry for a desktop integration profile (M42)."""
+
+    __tablename__ = "autostart_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("desktop_integration_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    exec_cmd: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    comment: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    condition: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="always"
+    )  # always | graphical | wayland | x11
+    is_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    desktop_entry: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_autostart_entries_profile_name"
+        ),
+    )
+
+
+class XdgUserDir(Base):
+    """XDG user directory path override for a desktop integration profile (M42)."""
+
+    __tablename__ = "xdg_user_dirs"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("desktop_integration_profiles.id"), nullable=False
+    )
+    dir_name: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # DESKTOP | DOWNLOAD | DOCUMENTS | MUSIC | PICTURES | VIDEOS | TEMPLATES | PUBLICSHARE
+    path: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "dir_name", name="uq_xdg_user_dirs_profile_dir"
+        ),
+    )

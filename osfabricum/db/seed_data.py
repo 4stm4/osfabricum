@@ -22,6 +22,7 @@ from sqlalchemy import select
 from osfabricum.db.models import (
     AppCategory,
     Board,
+    MimeTypeDefinition,
     BoardDeviceTree,
     BoardFirmware,
     BoardFlashMethod,
@@ -403,6 +404,51 @@ def seed_display_manager_backends(session: Session) -> int:
 # ---------------------------------------------------------------------------
 
 
+# M42: common MIME type definitions (name, description, parent, icon, display_order)
+MIME_TYPE_DEFINITIONS: list[tuple[str, str, str | None, str | None, int]] = [
+    ("text/html", "HTML document", "text/xml", "text-html", 0),
+    ("text/plain", "Plain text file", None, "text-x-generic", 1),
+    ("text/x-python", "Python source file", "text/plain", "text-x-python", 2),
+    ("text/x-shellscript", "Shell script", "text/plain", "text-x-script", 3),
+    ("text/markdown", "Markdown document", "text/plain", "text-x-generic", 4),
+    ("image/jpeg", "JPEG image", None, "image-jpeg", 5),
+    ("image/png", "PNG image", None, "image-png", 6),
+    ("image/gif", "GIF image", None, "image-gif", 7),
+    ("image/webp", "WebP image", None, "image-webp", 8),
+    ("image/svg+xml", "SVG image", "text/xml", "image-svg+xml", 9),
+    ("audio/mpeg", "MP3 audio", None, "audio-mpeg", 10),
+    ("audio/ogg", "OGG audio", None, "audio-ogg", 11),
+    ("audio/flac", "FLAC audio", None, "audio-x-flac", 12),
+    ("video/mp4", "MP4 video", None, "video-mp4", 13),
+    ("video/webm", "WebM video", None, "video-webm", 14),
+    ("video/x-matroska", "Matroska video", None, "video-x-generic", 15),
+    ("application/pdf", "PDF document", None, "application-pdf", 16),
+    ("application/zip", "ZIP archive", None, "application-zip", 17),
+    ("application/x-tar", "TAR archive", None, "application-x-tar", 18),
+    ("application/x-7z-compressed", "7-Zip archive", None, "application-x-7z-compressed", 19),
+    ("inode/directory", "Directory / folder", None, "folder", 20),
+]
+
+# M42: XDG user directory names and their default paths
+XDG_USER_DIR_DEFAULTS: list[tuple[str, str]] = [
+    ("DESKTOP", "Desktop"),
+    ("DOWNLOAD", "Downloads"),
+    ("DOCUMENTS", "Documents"),
+    ("MUSIC", "Music"),
+    ("PICTURES", "Pictures"),
+    ("VIDEOS", "Videos"),
+    ("TEMPLATES", "Templates"),
+    ("PUBLICSHARE", "Public"),
+]
+
+# M42: valid autostart conditions and MIME association types
+AUTOSTART_CONDITIONS = ("always", "graphical", "wayland", "x11")
+MIME_ASSOCIATION_TYPES = ("default", "added", "removed")
+
+# M42: valid XDG user directory names
+XDG_DIR_NAMES = tuple(name for name, _ in XDG_USER_DIR_DEFAULTS)
+
+
 def seed_app_categories(session: Session) -> int:
     """Insert any missing app categories (M41). Returns the number added."""
     existing = {c.name for c in session.scalars(select(AppCategory)).all()}
@@ -414,6 +460,28 @@ def seed_app_categories(session: Session) -> int:
             AppCategory(
                 name=name,
                 description=description,
+                icon=icon,
+                display_order=display_order,
+            )
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_mime_type_definitions(session: Session) -> int:
+    """Insert any missing MIME type definitions (M42). Returns the number added."""
+    existing = {m.name for m in session.scalars(select(MimeTypeDefinition)).all()}
+    added = 0
+    for name, description, parent, icon, display_order in MIME_TYPE_DEFINITIONS:
+        if name in existing:
+            continue
+        session.add(
+            MimeTypeDefinition(
+                name=name,
+                description=description,
+                parent=parent,
                 icon=icon,
                 display_order=display_order,
             )

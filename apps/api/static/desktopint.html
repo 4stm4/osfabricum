@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Desktop Integration Designer — OSFabricum</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8f9fa; color: #212529; }
+    header { background: #1a1a2e; color: #eee; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+    header a { color: #adf; text-decoration: none; font-size: 0.85rem; }
+    h1 { margin: 0; font-size: 1.2rem; }
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #dee2e6; background: #fff; padding: 0 16px; }
+    .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 0.9rem; }
+    .tab.active { border-bottom-color: #0d6efd; color: #0d6efd; font-weight: 600; }
+    .pane { display: none; padding: 20px; }
+    .pane.active { display: block; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    th { background: #f1f3f5; text-align: left; padding: 10px 14px; font-size: 0.82rem; color: #495057; }
+    td { padding: 9px 14px; border-top: 1px solid #e9ecef; font-size: 0.88rem; vertical-align: top; }
+    tr:hover td { background: #f8f9fa; }
+    .btn { display: inline-block; padding: 7px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-success { background: #198754; color: #fff; }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+    form { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.1); max-width: 620px; margin-bottom: 20px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 500; }
+    input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+    .badge-blue { background: #cfe2ff; color: #084298; }
+    .badge-green { background: #d1e7dd; color: #0a3622; }
+    .badge-orange { background: #fff3cd; color: #664d03; }
+    .badge-red { background: #f8d7da; color: #58151c; }
+    pre { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; font-size: 0.82rem; overflow-x: auto; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: 0.85rem; }
+    .msg-ok { background: #d1e7dd; color: #0a3622; }
+    .msg-err { background: #f8d7da; color: #58151c; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+    .col { flex: 1; min-width: 180px; }
+    .section-title { font-size: 0.9rem; font-weight: 600; color: #495057; margin: 16px 0 8px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Desktop Integration Designer</h1>
+  <a href="/">← Dashboard</a>
+  <span style="flex:1"></span>
+  <span style="font-size:0.75rem;color:#aaa">M42</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="profiles">Profiles</div>
+  <div class="tab" data-tab="mime-ref">MIME Types</div>
+  <div class="tab" data-tab="assoc">MIME Associations</div>
+  <div class="tab" data-tab="autostart">Autostart</div>
+  <div class="tab" data-tab="userdirs">User Dirs</div>
+  <div class="tab" data-tab="render">Render</div>
+</div>
+
+<!-- ===== Profiles ===== -->
+<div class="pane active" id="pane-profiles">
+  <div class="row" style="margin-bottom:16px">
+    <button class="btn btn-primary" onclick="loadProfiles()">Refresh</button>
+    <button class="btn btn-secondary" onclick="toggleForm('create-profile-form')">+ New Profile</button>
+  </div>
+  <form id="create-profile-form" style="display:none" onsubmit="createProfile(event)">
+    <div class="row">
+      <div class="col"><label>Name</label><input id="cp-name" required></div>
+      <div class="col"><label>Distribution ID</label><input id="cp-dist"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create</button>
+    <div id="cp-msg"></div>
+  </form>
+  <table id="profiles-table">
+    <thead><tr><th>ID</th><th>Name</th><th>Distribution</th><th>Hash</th><th>Actions</th></tr></thead>
+    <tbody id="profiles-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== MIME type reference ===== -->
+<div class="pane" id="pane-mime-ref">
+  <table>
+    <thead><tr><th>#</th><th>MIME Type</th><th>Description</th><th>Parent</th></tr></thead>
+    <tbody id="mime-ref-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== MIME Associations ===== -->
+<div class="pane" id="pane-assoc">
+  <div class="row" style="margin-bottom:12px">
+    <input id="assoc-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-primary" onclick="loadAssoc()">Load</button>
+    <button class="btn btn-secondary" onclick="toggleForm('add-assoc-form')">+ Add Association</button>
+  </div>
+  <form id="add-assoc-form" style="display:none" onsubmit="addAssoc(event)">
+    <div class="row">
+      <div class="col"><label>MIME Type</label><input id="aa-mime" placeholder="e.g. text/html" required></div>
+      <div class="col"><label>.desktop File</label><input id="aa-desktop" placeholder="e.g. firefox.desktop" required></div>
+      <div class="col">
+        <label>Type</label>
+        <select id="aa-type">
+          <option value="default">default</option>
+          <option value="added">added</option>
+          <option value="removed">removed</option>
+        </select>
+      </div>
+      <div class="col"><label>Priority</label><input id="aa-priority" type="number" value="0"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Add Association</button>
+    <div id="aa-msg"></div>
+  </form>
+  <table id="assoc-table">
+    <thead><tr><th>MIME Type</th><th>Desktop File</th><th>Type</th><th>Priority</th></tr></thead>
+    <tbody id="assoc-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Autostart ===== -->
+<div class="pane" id="pane-autostart">
+  <div class="row" style="margin-bottom:12px">
+    <input id="as-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-primary" onclick="loadAutostart()">Load</button>
+    <button class="btn btn-secondary" onclick="toggleForm('add-as-form')">+ Add Entry</button>
+  </div>
+  <form id="add-as-form" style="display:none" onsubmit="addAutostart(event)">
+    <div class="row">
+      <div class="col"><label>Name</label><input id="as-name" required></div>
+      <div class="col"><label>Exec Command</label><input id="as-exec" required></div>
+      <div class="col">
+        <label>Condition</label>
+        <select id="as-cond">
+          <option value="always">always</option>
+          <option value="graphical">graphical</option>
+          <option value="wayland">wayland</option>
+          <option value="x11">x11</option>
+        </select>
+      </div>
+    </div>
+    <label>Comment</label><input id="as-comment">
+    <label><input type="checkbox" id="as-enabled" checked> Enabled</label><br><br>
+    <button class="btn btn-primary" type="submit">Add Autostart Entry</button>
+    <div id="as-msg"></div>
+  </form>
+  <table id="autostart-table">
+    <thead><tr><th>Name</th><th>Exec</th><th>Condition</th><th>Enabled</th></tr></thead>
+    <tbody id="autostart-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== User Dirs ===== -->
+<div class="pane" id="pane-userdirs">
+  <div class="row" style="margin-bottom:12px">
+    <input id="ud-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-primary" onclick="loadUserDirs()">Load</button>
+    <button class="btn btn-secondary" onclick="toggleForm('set-ud-form')">Set Dir</button>
+  </div>
+  <form id="set-ud-form" style="display:none" onsubmit="setUserDir(event)">
+    <div class="row">
+      <div class="col">
+        <label>Directory</label>
+        <select id="ud-dir">
+          <option>DESKTOP</option><option>DOWNLOAD</option><option>DOCUMENTS</option>
+          <option>MUSIC</option><option>PICTURES</option><option>VIDEOS</option>
+          <option>TEMPLATES</option><option>PUBLICSHARE</option>
+        </select>
+      </div>
+      <div class="col"><label>Path</label><input id="ud-path" placeholder="e.g. Downloads" required></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Set</button>
+    <div id="ud-msg"></div>
+  </form>
+  <table id="userdirs-table">
+    <thead><tr><th>Directory</th><th>Path</th></tr></thead>
+    <tbody id="userdirs-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Render ===== -->
+<div class="pane" id="pane-render">
+  <div class="row" style="margin-bottom:16px">
+    <input id="render-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-success" onclick="renderProfile()">Render</button>
+  </div>
+  <div id="render-msg"></div>
+  <div id="render-meta" style="font-size:0.82rem;color:#495057;margin-bottom:12px"></div>
+  <div class="section-title">mimeapps.list</div>
+  <pre id="render-mimeapps"></pre>
+  <div class="section-title">user-dirs.defaults</div>
+  <pre id="render-userdirs"></pre>
+</div>
+
+<script>
+const BASE = '';
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('pane-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'mime-ref') loadMimeRef();
+  });
+});
+
+function toggleForm(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function setMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'msg-ok' : 'msg-err');
+  el.textContent = text;
+}
+
+function selectProfile(id) {
+  document.getElementById('assoc-profile-id').value = id;
+  document.getElementById('as-profile-id').value = id;
+  document.getElementById('ud-profile-id').value = id;
+  document.getElementById('render-profile-id').value = id;
+}
+
+// ---- Profiles ----
+async function loadProfiles() {
+  const res = await fetch(BASE + '/v1/desktop-integration-profiles');
+  const data = await res.json();
+  const tbody = document.getElementById('profiles-body');
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    const hash = p.content_hash ? p.content_hash.slice(0, 20) + '…' : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="font-size:0.78rem;color:#6c757d">${p.id.slice(0,8)}…</td>
+      <td><strong>${p.name}</strong></td><td>${p.distribution_id || '—'}</td>
+      <td style="font-family:monospace;font-size:0.78rem">${hash}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="selectProfile('${p.id}')">Select</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function createProfile(e) {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('cp-name').value,
+    distribution_id: document.getElementById('cp-dist').value || null,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/desktop-integration-profiles', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('cp-msg', `Created: ${data.id}`, true);
+    loadProfiles();
+  } catch(err) { setMsg('cp-msg', err.message, false); }
+}
+
+// ---- MIME type reference ----
+async function loadMimeRef() {
+  const res = await fetch(BASE + '/v1/mime-types');
+  const data = await res.json();
+  const tbody = document.getElementById('mime-ref-body');
+  tbody.innerHTML = '';
+  data.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.display_order}</td>
+      <td style="font-family:monospace">${m.name}</td>
+      <td>${m.description}</td>
+      <td style="font-family:monospace;font-size:0.8rem">${m.parent || '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---- MIME Associations ----
+async function loadAssoc() {
+  const pid = document.getElementById('assoc-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('assoc-body');
+  tbody.innerHTML = '';
+  const typeColors = { default: 'badge-green', added: 'badge-blue', removed: 'badge-red' };
+  (data.mime_associations || []).forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="font-family:monospace">${a.mime_type}</td>
+      <td style="font-family:monospace">${a.desktop_file}</td>
+      <td><span class="badge ${typeColors[a.association_type] || 'badge-blue'}">${a.association_type}</span></td>
+      <td>${a.priority}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addAssoc(e) {
+  e.preventDefault();
+  const pid = document.getElementById('assoc-profile-id').value.trim();
+  const body = {
+    mime_type: document.getElementById('aa-mime').value,
+    desktop_file: document.getElementById('aa-desktop').value,
+    association_type: document.getElementById('aa-type').value,
+    priority: parseInt(document.getElementById('aa-priority').value) || 0,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid + '/mime-associations', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('aa-msg', `Added: ${data.mime_type} → ${data.desktop_file}`, true);
+    loadAssoc();
+  } catch(err) { setMsg('aa-msg', err.message, false); }
+}
+
+// ---- Autostart ----
+async function loadAutostart() {
+  const pid = document.getElementById('as-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('autostart-body');
+  tbody.innerHTML = '';
+  (data.autostart_entries || []).forEach(e => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${e.name}</strong></td>
+      <td style="font-family:monospace;font-size:0.82rem">${e.exec_cmd}</td>
+      <td><span class="badge badge-blue">${e.condition}</span></td>
+      <td>${e.is_enabled ? '<span class="badge badge-green">yes</span>' : '<span class="badge badge-red">no</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addAutostart(e) {
+  e.preventDefault();
+  const pid = document.getElementById('as-profile-id').value.trim();
+  const body = {
+    name: document.getElementById('as-name').value,
+    exec_cmd: document.getElementById('as-exec').value,
+    comment: document.getElementById('as-comment').value || null,
+    condition: document.getElementById('as-cond').value,
+    is_enabled: document.getElementById('as-enabled').checked,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid + '/autostart', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('as-msg', `Added autostart: ${data.name}`, true);
+    loadAutostart();
+  } catch(err) { setMsg('as-msg', err.message, false); }
+}
+
+// ---- User Dirs ----
+async function loadUserDirs() {
+  const pid = document.getElementById('ud-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('userdirs-body');
+  tbody.innerHTML = '';
+  (data.user_dirs || []).forEach(d => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="badge badge-orange">${d.dir_name}</span></td>
+      <td style="font-family:monospace">${d.path}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function setUserDir(e) {
+  e.preventDefault();
+  const pid = document.getElementById('ud-profile-id').value.trim();
+  const body = {
+    dir_name: document.getElementById('ud-dir').value,
+    path: document.getElementById('ud-path').value,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid + '/user-dirs', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('ud-msg', `Set ${data.dir_name}=${data.path}`, true);
+    loadUserDirs();
+  } catch(err) { setMsg('ud-msg', err.message, false); }
+}
+
+// ---- Render ----
+async function renderProfile() {
+  const pid = document.getElementById('render-profile-id').value.trim();
+  if (!pid) { setMsg('render-msg', 'Enter a Profile ID', false); return; }
+  try {
+    const res = await fetch(BASE + '/v1/desktop-integration-profiles/' + pid + '/render', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('render-msg',
+      `Rendered — ${data.association_count} assocs, ${data.autostart_count} autostart, ${data.user_dir_count} user dirs`, true);
+    document.getElementById('render-meta').textContent =
+      `Hash: ${data.content_hash}  |  At: ${data.rendered_at}`;
+    document.getElementById('render-mimeapps').textContent = data.rendered_mimeapps;
+    document.getElementById('render-userdirs').textContent = data.rendered_user_dirs;
+  } catch(err) { setMsg('render-msg', err.message, false); }
+}
+
+loadProfiles();
+</script>
+</body>
+</html>
