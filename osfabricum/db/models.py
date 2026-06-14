@@ -2548,3 +2548,157 @@ class SecretVariable(Base):
             "profile_id", "name", name="uq_secret_variables_profile_name"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M45 — Network Designer
+# ---------------------------------------------------------------------------
+
+
+class NetworkInterfaceKind(Base):
+    """Seeded lookup of network interface kinds (M45)."""
+
+    __tablename__ = "network_interface_kinds"
+
+    name: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class NetworkProfile(Base):
+    """Top-level network configuration profile for a distribution image (M45)."""
+
+    __tablename__ = "network_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    hostname: Mapped[str] = mapped_column(
+        sa.String(253), nullable=False, default="localhost"
+    )
+    rendered_networkd: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_resolv_conf: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_hosts: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_network_profiles_dist_name"
+        ),
+    )
+
+
+class NetInterface(Base):
+    """A network interface to be configured in the image (M45)."""
+
+    __tablename__ = "net_interfaces"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("network_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(
+        sa.String(15), nullable=False
+    )  # Linux ifname limit: 15 chars
+    kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="ethernet"
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    mtu: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    mac_address: Mapped[str | None] = mapped_column(sa.String(17), nullable=True)
+    is_dhcp4: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    is_dhcp6: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    static_addresses: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # JSON-encoded list[str] of CIDR strings, e.g. ["192.168.1.1/24"]
+    gateway4: Mapped[str | None] = mapped_column(sa.String(45), nullable=True)
+    metric: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    parent_name: Mapped[str | None] = mapped_column(
+        sa.String(15), nullable=True
+    )  # for VLAN / bridge member
+    vlan_id: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_net_interfaces_profile_name"
+        ),
+    )
+
+
+class NetDnsEntry(Base):
+    """A DNS nameserver attached to a network profile (M45)."""
+
+    __tablename__ = "net_dns_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("network_profiles.id"), nullable=False
+    )
+    nameserver: Mapped[str] = mapped_column(sa.String(45), nullable=False)
+    search_domain: Mapped[str | None] = mapped_column(sa.String(253), nullable=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "nameserver", name="uq_net_dns_entries_profile_ns"
+        ),
+    )
+
+
+class NetRoute(Base):
+    """A static IP route in a network profile (M45)."""
+
+    __tablename__ = "net_routes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("network_profiles.id"), nullable=False
+    )
+    destination: Mapped[str] = mapped_column(sa.String(49), nullable=False)
+    gateway: Mapped[str] = mapped_column(sa.String(45), nullable=False)
+    metric: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    interface_name: Mapped[str | None] = mapped_column(sa.String(15), nullable=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "destination", "gateway",
+            name="uq_net_routes_profile_dest_gw",
+        ),
+    )
+
+
+class NetFirewallRule(Base):
+    """A firewall rule in a network profile (M45)."""
+
+    __tablename__ = "net_firewall_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("network_profiles.id"), nullable=False
+    )
+    chain: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False
+    )  # INPUT | OUTPUT | FORWARD
+    protocol: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, default="any"
+    )  # tcp | udp | icmp | any
+    source_cidr: Mapped[str | None] = mapped_column(sa.String(49), nullable=True)
+    destination_cidr: Mapped[str | None] = mapped_column(sa.String(49), nullable=True)
+    dport: Mapped[str | None] = mapped_column(
+        sa.String(16), nullable=True
+    )  # "80" or "8080:9090"
+    action: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, default="ACCEPT"
+    )  # ACCEPT | DROP | REJECT
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    comment: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)

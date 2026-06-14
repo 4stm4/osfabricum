@@ -23,6 +23,7 @@ from osfabricum.db.models import (
     AppCategory,
     Board,
     MimeTypeDefinition,
+    NetworkInterfaceKind,
     ThemeAssetKind,
     UserShellKind,
     BoardDeviceTree,
@@ -492,6 +493,37 @@ def seed_theme_asset_kinds(session: Session) -> int:
             continue
         session.add(
             ThemeAssetKind(name=name, description=description, display_order=display_order)
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+NETWORK_INTERFACE_KINDS: list[tuple[str, str, int]] = [
+    ("ethernet", "Wired Ethernet interface", 0),
+    ("wifi", "Wireless LAN interface (802.11)", 1),
+    ("loopback", "Loopback interface", 2),
+    ("vlan", "IEEE 802.1Q VLAN sub-interface", 3),
+    ("bridge", "Software bridge (L2 switch)", 4),
+    ("bond", "NIC bonding / link aggregation (802.3ad)", 5),
+    ("dummy", "Dummy virtual interface", 6),
+    ("wireguard", "WireGuard VPN tunnel", 7),
+    ("veth", "Virtual Ethernet pair (containers)", 8),
+]
+
+
+def seed_network_interface_kinds(session: Session) -> int:
+    """Insert any missing network interface kinds (M45). Returns the number added."""
+    existing = {k.name for k in session.scalars(select(NetworkInterfaceKind)).all()}
+    added = 0
+    for name, description, display_order in NETWORK_INTERFACE_KINDS:
+        if name in existing:
+            continue
+        session.add(
+            NetworkInterfaceKind(
+                name=name, description=description, display_order=display_order
+            )
         )
         added += 1
     if added:
