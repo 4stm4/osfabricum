@@ -469,6 +469,31 @@ Severity scale:
   untestable; no A/B or OTA.
 - **Closed by:** **M49** (update/OTA/recovery), **M60** (generations/rollback),
   **M61** (attended upgrade), **M69** (public repo/publishing).
+- **M49 (update / OTA / recovery designer) done.** Five new tables:
+  `update_strategy_kinds` (seeded — 6 strategies: full / a-b / delta / recovery /
+  rollback / manual), `update_profiles` (strategy / signing_required /
+  rollback_enabled / rollback_window_days / max_delta_size_mb /
+  verification_mode: strict|relaxed|skip / rendered_update_config /
+  rendered_recovery_config / content_hash / rendered_at; unique per
+  distribution+name), `update_channels` (url / signing_key_id / priority /
+  is_default; upsert by profile+name), `recovery_targets` (target_type:
+  minimal|factory-reset|emergency-shell|network-boot|user-data-wipe /
+  kernel_args / initramfs_hint / is_default / priority; upsert by profile+name),
+  `update_hooks` (hook_point: pre-download|post-download|pre-apply|post-apply|
+  post-reboot|rollback / script_content / is_enabled / priority; upsert by
+  profile+hook_point+priority). `render_update_config` generates
+  `rendered_update_config` (INI-style `[strategy]` / `[channels]` / `[hooks]`
+  sections with enabled hooks inlined) and `rendered_recovery_config` (`[recovery]`
+  section with targets ordered by priority, DEFAULT marker on is_default target),
+  combined sha256: hash. Mutating any sub-resource (add_update_channel /
+  add_recovery_target / add_update_hook / update_update_profile) clears
+  content_hash. Migration `0025_update_ota_recovery` with fresh sentinel seeds 6
+  strategy kinds. Module at `osfabricum/updates/`. Exposed over 12 HTTP endpoints
+  under `/v1/update-profiles/…` + `/v1/update-strategy-kinds`, the
+  `osfabricumctl updates` CLI (strategy-list / list / create / show / update /
+  channel-add / recovery-add / hook-add / render) and the `/updates` designer UI
+  page (6 tabs: Profiles, Strategies, Channels, Recovery Targets, Hooks, Render).
+  60 unit tests, all passing.
 
 ### G-12 — Competitive features absent
 - **Evidence:** No layers/extensions, override/masking engine, patch queue,

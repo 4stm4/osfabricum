@@ -28,6 +28,7 @@ from osfabricum.db.models import (
     SecurityMacKind,
     SpdxLicenseKind,
     ThemeAssetKind,
+    UpdateStrategyKind,
     UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
@@ -1195,3 +1196,78 @@ def seed_initramfs_profiles(session: Session, yaml_path: Path | None = None) -> 
         session.flush()
 
     return counts
+
+
+# ---------------------------------------------------------------------------
+# M49 — Update / OTA / Recovery seed data
+# ---------------------------------------------------------------------------
+
+UPDATE_STRATEGY_KINDS: list[tuple[str, str, str, int]] = [
+    (
+        "full",
+        "Full Image Update",
+        "Replace the entire OS image in a single atomic write. Simplest and most reliable; "
+        "requires A/B partitions or temporary storage for zero-downtime.",
+        0,
+    ),
+    (
+        "a-b",
+        "A/B Partition Update",
+        "Maintain two OS slots (A and B). Apply the new image to the inactive slot while "
+        "the device runs from the active slot, then switch boot targets on the next reboot.",
+        1,
+    ),
+    (
+        "delta",
+        "Delta / Incremental Update",
+        "Compute and ship only the binary difference between the current and target image. "
+        "Reduces bandwidth and update time; requires a delta-patch runtime on the device.",
+        2,
+    ),
+    (
+        "recovery",
+        "Recovery-Boot Update",
+        "Reboot into a minimal recovery environment that applies the update bundle and "
+        "validates the result before handing control back to the main OS.",
+        3,
+    ),
+    (
+        "rollback",
+        "Rollback / Generation Revert",
+        "Revert the active OS slot to the previous known-good generation. Useful after a "
+        "failed update or user-initiated downgrade; requires generation tracking.",
+        4,
+    ),
+    (
+        "manual",
+        "Manual / Out-of-Band Update",
+        "No automatic update mechanism. Updates are applied by an operator via CLI or "
+        "external tooling. Suitable for air-gapped or tightly controlled environments.",
+        5,
+    ),
+]
+
+
+def seed_update_strategy_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(
+            select(UpdateStrategyKind.kind)
+        ).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in UPDATE_STRATEGY_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            UpdateStrategyKind(
+                kind=kind,
+                label=label,
+                description=description,
+                display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted

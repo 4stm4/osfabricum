@@ -3095,3 +3095,133 @@ class SbomEntry(Base):
             name="uq_sbom_entries_profile_pkg_ver",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Update / OTA / Recovery Designer (M49)
+# ---------------------------------------------------------------------------
+
+
+class UpdateStrategyKind(Base):
+    """Lookup table for update delivery strategies (M49)."""
+
+    __tablename__ = "update_strategy_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class UpdateProfile(Base):
+    """Per-distribution update / OTA / recovery configuration (M49)."""
+
+    __tablename__ = "update_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    strategy: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="full"
+    )  # FK by value to update_strategy_kinds.kind
+    signing_required: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    rollback_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    rollback_window_days: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=30
+    )
+    max_delta_size_mb: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    verification_mode: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="strict"
+    )  # strict | relaxed | skip
+    rendered_update_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_recovery_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_update_profiles_dist_name"
+        ),
+    )
+
+
+class UpdateChannel(Base):
+    """Named update channel within an update profile (M49)."""
+
+    __tablename__ = "update_channels"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("update_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False
+    )  # stable | lts | nightly | dev | custom
+    url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    signing_key_id: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_update_channels_profile_name"
+        ),
+    )
+
+
+class RecoveryTarget(Base):
+    """A recovery boot target entry within an update profile (M49)."""
+
+    __tablename__ = "recovery_targets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("update_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    target_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="minimal"
+    )  # minimal | factory-reset | emergency-shell | network-boot | user-data-wipe
+    kernel_args: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    initramfs_hint: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_recovery_targets_profile_name"
+        ),
+    )
+
+
+class UpdateHook(Base):
+    """Lifecycle hook script within an update profile (M49)."""
+
+    __tablename__ = "update_hooks"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("update_profiles.id"), nullable=False
+    )
+    hook_point: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # pre-download | post-download | pre-apply | post-apply | post-reboot | rollback
+    script_content: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    is_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "hook_point", "priority",
+            name="uq_update_hooks_profile_point_prio",
+        ),
+    )

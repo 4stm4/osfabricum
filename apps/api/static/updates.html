@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSFabricum — Update / OTA / Recovery Designer</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --border: #30363d; --text: #c9d1d9; --muted: #8b949e;
+    --accent: #0d5a9e; --accent2: #1a7fd4;
+    --danger: #c62828; --warn: #e65100; --ok: #2e7d32;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .badge { background: var(--accent); color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  nav button { background: none; border: none; color: var(--muted); padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 13px; }
+  nav button.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  nav button:hover:not(.active) { color: var(--text); }
+  main { padding: 24px; max-width: 1200px; }
+  .tab { display: none; } .tab.active { display: block; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin-bottom: 16px; color: var(--accent2); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input, select, textarea { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent2); }
+  textarea { resize: vertical; min-height: 80px; width: 100%; font-family: monospace; font-size: 12px; }
+  .btn { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; } .btn-primary:hover { background: var(--accent2); }
+  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); } .btn-secondary:hover { border-color: var(--accent2); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .pill-blue { background: rgba(13,90,158,.3); color: #58a6ff; }
+  .pill-green { background: rgba(46,125,50,.3); color: #66bb6a; }
+  .pill-red { background: rgba(198,40,40,.3); color: #ef5350; }
+  .pill-orange { background: rgba(230,81,0,.3); color: #ff9800; }
+  .pill-gray { background: rgba(139,148,158,.2); color: var(--muted); }
+  .pre-wrap { font-family: monospace; font-size: 12px; background: var(--bg3); padding: 14px; border-radius: 6px; white-space: pre-wrap; border: 1px solid var(--border); max-height: 500px; overflow-y: auto; }
+  .hash { font-family: monospace; font-size: 12px; color: var(--accent2); }
+  .status-bar { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+  .status-ok { background: rgba(46,125,50,.2); border: 1px solid rgba(46,125,50,.4); color: #66bb6a; }
+  .status-err { background: rgba(198,40,40,.2); border: 1px solid rgba(198,40,40,.4); color: #ef5350; }
+  .checkbox-row { display: flex; gap: 8px; align-items: center; }
+  .checkbox-row input[type=checkbox] { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OSFabricum</h1>
+  <span class="badge">Update / OTA / Recovery</span>
+  <span style="color:var(--muted);font-size:12px;margin-left:auto;">M49 · Update · OTA · Recovery</span>
+</header>
+<nav>
+  <button class="active" onclick="showTab('profiles')">Profiles</button>
+  <button onclick="showTab('strategies')">Strategies</button>
+  <button onclick="showTab('channels')">Channels</button>
+  <button onclick="showTab('recovery')">Recovery Targets</button>
+  <button onclick="showTab('hooks')">Hooks</button>
+  <button onclick="showTab('render')">Render</button>
+</nav>
+<main>
+  <div id="status-msg" style="display:none"></div>
+
+  <!-- ===== PROFILES ===== -->
+  <div id="tab-profiles" class="tab active">
+    <div class="card">
+      <h2>Create Update Profile</h2>
+      <div class="form-row">
+        <div class="field"><label>Name</label><input id="cp-name" placeholder="default-ota"></div>
+        <div class="field"><label>Strategy</label>
+          <select id="cp-strategy">
+            <option value="full">full</option>
+            <option value="a-b">a-b</option>
+            <option value="delta">delta</option>
+            <option value="recovery">recovery</option>
+            <option value="rollback">rollback</option>
+            <option value="manual">manual</option>
+          </select>
+        </div>
+        <div class="field"><label>Verification</label>
+          <select id="cp-verify">
+            <option value="strict">strict</option>
+            <option value="relaxed">relaxed</option>
+            <option value="skip">skip</option>
+          </select>
+        </div>
+        <div class="field"><label>Rollback Window (days)</label><input id="cp-rbdays" type="number" value="30" style="width:100px"></div>
+        <div class="field"><label>Distribution ID (opt)</label><input id="cp-dist" placeholder="leave blank"></div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="cp-signing" checked> Require signing</label>
+        </div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="cp-rollback" checked> Enable rollback</label>
+        </div>
+        <div class="field"><label>Max delta size (MB, opt)</label><input id="cp-delta" type="number" placeholder="—" style="width:140px"></div>
+        <div class="field"><label>Description</label><input id="cp-desc" style="width:280px"></div>
+      </div>
+      <button class="btn btn-primary" onclick="createProfile()">Create Profile</button>
+    </div>
+    <div class="card">
+      <h2>Profiles</h2>
+      <div style="margin-bottom:10px"><button class="btn btn-secondary" onclick="loadProfiles()">Refresh</button></div>
+      <table><thead><tr><th>Name</th><th>Strategy</th><th>Signing</th><th>Rollback</th><th>Verify</th><th>Hash</th><th>ID</th></tr></thead>
+      <tbody id="profiles-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== STRATEGIES ===== -->
+  <div id="tab-strategies" class="tab">
+    <div class="card">
+      <h2>Update Strategy Kinds</h2>
+      <div style="margin-bottom:10px"><button class="btn btn-secondary" onclick="loadStrategies()">Refresh</button></div>
+      <table><thead><tr><th>Kind</th><th>Label</th><th>Description</th></tr></thead>
+      <tbody id="strategies-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== CHANNELS ===== -->
+  <div id="tab-channels" class="tab">
+    <div class="card">
+      <h2>Update Channels</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="ch-profile" onchange="loadChannels()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Channel Name</label><input id="ch-name" placeholder="stable"></div>
+        <div class="field"><label>Priority</label><input id="ch-prio" type="number" value="0" style="width:80px"></div>
+        <div class="field"><label>URL (optional)</label><input id="ch-url" style="width:300px" placeholder="https://updates.example.com/stable"></div>
+        <div class="field"><label>Signing Key ID (opt)</label><input id="ch-key" style="width:200px"></div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="ch-default"> Default channel</label>
+        </div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="addChannel()">Add / Update</button></div>
+      </div>
+      <table><thead><tr><th>Name</th><th>Priority</th><th>Default?</th><th>URL</th><th>Key ID</th></tr></thead>
+      <tbody id="ch-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== RECOVERY ===== -->
+  <div id="tab-recovery" class="tab">
+    <div class="card">
+      <h2>Recovery Targets</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="rc-profile" onchange="loadRecovery()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Name</label><input id="rc-name" placeholder="factory-reset"></div>
+        <div class="field"><label>Type</label>
+          <select id="rc-type">
+            <option value="minimal">minimal</option>
+            <option value="factory-reset">factory-reset</option>
+            <option value="emergency-shell">emergency-shell</option>
+            <option value="network-boot">network-boot</option>
+            <option value="user-data-wipe">user-data-wipe</option>
+          </select>
+        </div>
+        <div class="field"><label>Priority</label><input id="rc-prio" type="number" value="0" style="width:80px"></div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="rc-default"> Default target</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Kernel Args (optional)</label><input id="rc-kargs" style="width:400px" placeholder="console=ttyS0 recovery=1"></div>
+        <div class="field"><label>Initramfs Hint (optional)</label><input id="rc-initramfs" style="width:240px" placeholder="/boot/initramfs-recovery.cpio.gz"></div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="addRecovery()">Add / Update</button></div>
+      </div>
+      <table><thead><tr><th>Name</th><th>Type</th><th>Default?</th><th>Priority</th><th>Kernel Args</th></tr></thead>
+      <tbody id="rc-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== HOOKS ===== -->
+  <div id="tab-hooks" class="tab">
+    <div class="card">
+      <h2>Lifecycle Hooks</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="hk-profile" onchange="loadHooks()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Hook Point</label>
+          <select id="hk-point">
+            <option value="pre-download">pre-download</option>
+            <option value="post-download">post-download</option>
+            <option value="pre-apply">pre-apply</option>
+            <option value="post-apply">post-apply</option>
+            <option value="post-reboot">post-reboot</option>
+            <option value="rollback">rollback</option>
+          </select>
+        </div>
+        <div class="field"><label>Priority</label><input id="hk-prio" type="number" value="0" style="width:80px"></div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="hk-enabled" checked> Enabled</label>
+        </div>
+      </div>
+      <div class="form-row" style="flex-direction:column;align-items:stretch">
+        <label style="font-size:12px;color:var(--muted);margin-bottom:4px">Script Content</label>
+        <textarea id="hk-script" rows="5" placeholder="#!/bin/sh&#10;# pre-download hook&#10;echo 'Preparing update...'"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="addHook()">Add / Update Hook</button>
+      <div style="margin-top:16px">
+        <table><thead><tr><th>Hook Point</th><th>Priority</th><th>Enabled</th><th>Script (preview)</th></tr></thead>
+        <tbody id="hk-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RENDER ===== -->
+  <div id="tab-render" class="tab">
+    <div class="card">
+      <h2>Render Update / Recovery Config</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="rn-profile"><option value="">— select —</option></select></div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="renderConfig()">Render</button></div>
+      </div>
+      <div id="rn-hash" style="display:none;margin-bottom:16px;"></div>
+      <div class="form-row" style="gap:8px;margin-bottom:12px;">
+        <button class="btn btn-secondary" onclick="toggleSection('rn-update-block')">Toggle Update Config</button>
+        <button class="btn btn-secondary" onclick="toggleSection('rn-recovery-block')">Toggle Recovery Config</button>
+      </div>
+      <div id="rn-update-block" style="display:none;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Update Configuration</div>
+        <div class="pre-wrap" id="rn-update"></div>
+      </div>
+      <div id="rn-recovery-block" style="display:none">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Recovery Configuration</div>
+        <div class="pre-wrap" id="rn-recovery"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = '';
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'strategies') loadStrategies();
+  if (name === 'channels') syncProfileSelect('ch-profile', loadChannels);
+  if (name === 'recovery') syncProfileSelect('rc-profile', loadRecovery);
+  if (name === 'hooks') syncProfileSelect('hk-profile', loadHooks);
+  if (name === 'render') syncProfileSelect('rn-profile', null);
+}
+
+function status(msg, ok=true) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = 'status-bar ' + (ok ? 'status-ok' : 'status-err');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display='none', 4000);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {} };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.json().catch(() => ({detail: r.statusText})); throw new Error(e.detail || r.statusText); }
+  return r.json();
+}
+
+function strategyPill(s) {
+  const colors = { full:'blue', 'a-b':'green', delta:'orange', recovery:'gray', rollback:'red', manual:'gray' };
+  return `<span class="pill pill-${colors[s]||'gray'}">${s}</span>`;
+}
+function yesNo(v) {
+  return v ? '<span class="pill pill-green">yes</span>' : '<span class="pill pill-gray">no</span>';
+}
+
+// ---- Profiles ----
+async function loadProfiles() {
+  const rows = await api('/v1/update-profiles');
+  document.getElementById('profiles-tbody').innerHTML = rows.map(p => `<tr>
+    <td>${p.name}</td>
+    <td>${strategyPill(p.strategy)}</td>
+    <td>${yesNo(p.signing_required)}</td>
+    <td>${yesNo(p.rollback_enabled)}</td>
+    <td><span class="pill pill-${p.verification_mode==='strict'?'green':p.verification_mode==='relaxed'?'orange':'red'}">${p.verification_mode}</span></td>
+    <td class="hash">${p.content_hash ? p.content_hash.slice(0,20)+'…' : '—'}</td>
+    <td style="color:var(--muted);font-size:11px">${p.id}</td>
+  </tr>`).join('');
+}
+
+async function createProfile() {
+  const delta = document.getElementById('cp-delta').value;
+  try {
+    await api('/v1/update-profiles', 'POST', {
+      name: document.getElementById('cp-name').value,
+      strategy: document.getElementById('cp-strategy').value,
+      distribution_id: document.getElementById('cp-dist').value || null,
+      description: document.getElementById('cp-desc').value,
+      signing_required: document.getElementById('cp-signing').checked,
+      rollback_enabled: document.getElementById('cp-rollback').checked,
+      rollback_window_days: parseInt(document.getElementById('cp-rbdays').value) || 30,
+      max_delta_size_mb: delta ? parseInt(delta) : null,
+      verification_mode: document.getElementById('cp-verify').value,
+    });
+    status('Profile created'); loadProfiles();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Strategies ----
+async function loadStrategies() {
+  const rows = await api('/v1/update-strategy-kinds');
+  document.getElementById('strategies-tbody').innerHTML = rows.map(k => `<tr>
+    <td>${strategyPill(k.kind)}</td>
+    <td>${k.label}</td>
+    <td style="color:var(--muted);font-size:12px">${k.description}</td>
+  </tr>`).join('');
+}
+
+// ---- Profile selector sync ----
+async function syncProfileSelect(selectId, onchange) {
+  const rows = await api('/v1/update-profiles');
+  const sel = document.getElementById(selectId);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select —</option>' +
+    rows.map(p => `<option value="${p.id}"${p.id===cur?' selected':''}>${p.name}</option>`).join('');
+  if (onchange && sel.value) onchange();
+}
+
+// ---- Channels ----
+async function loadChannels() {
+  const pid = document.getElementById('ch-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/update-profiles/${pid}/channels`);
+  document.getElementById('ch-tbody').innerHTML = rows.map(c => `<tr>
+    <td class="hash">${c.name}</td>
+    <td>${c.priority}</td>
+    <td>${yesNo(c.is_default)}</td>
+    <td style="font-size:11px;color:var(--muted)">${c.url || ''}</td>
+    <td style="font-size:11px;color:var(--muted)">${c.signing_key_id || ''}</td>
+  </tr>`).join('');
+}
+
+async function addChannel() {
+  const pid = document.getElementById('ch-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/update-profiles/${pid}/channels`, 'POST', {
+      name: document.getElementById('ch-name').value,
+      priority: parseInt(document.getElementById('ch-prio').value) || 0,
+      url: document.getElementById('ch-url').value || null,
+      signing_key_id: document.getElementById('ch-key').value || null,
+      is_default: document.getElementById('ch-default').checked,
+    });
+    status('Channel set'); loadChannels();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Recovery ----
+async function loadRecovery() {
+  const pid = document.getElementById('rc-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/update-profiles/${pid}/recovery-targets`);
+  document.getElementById('rc-tbody').innerHTML = rows.map(t => `<tr>
+    <td class="hash">${t.name}</td>
+    <td><span class="pill pill-blue">${t.target_type}</span></td>
+    <td>${yesNo(t.is_default)}</td>
+    <td>${t.priority}</td>
+    <td style="font-size:11px;color:var(--muted)">${t.kernel_args || ''}</td>
+  </tr>`).join('');
+}
+
+async function addRecovery() {
+  const pid = document.getElementById('rc-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/update-profiles/${pid}/recovery-targets`, 'POST', {
+      name: document.getElementById('rc-name').value,
+      target_type: document.getElementById('rc-type').value,
+      priority: parseInt(document.getElementById('rc-prio').value) || 0,
+      is_default: document.getElementById('rc-default').checked,
+      kernel_args: document.getElementById('rc-kargs').value || null,
+      initramfs_hint: document.getElementById('rc-initramfs').value || null,
+    });
+    status('Recovery target set'); loadRecovery();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Hooks ----
+async function loadHooks() {
+  const pid = document.getElementById('hk-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/update-profiles/${pid}/hooks`);
+  document.getElementById('hk-tbody').innerHTML = rows.map(h => `<tr>
+    <td class="hash">${h.hook_point}</td>
+    <td>${h.priority}</td>
+    <td>${yesNo(h.is_enabled)}</td>
+    <td style="font-size:11px;color:var(--muted)">${(h.script_content||'').slice(0,80).replace(/\n/g,' ')}…</td>
+  </tr>`).join('');
+}
+
+async function addHook() {
+  const pid = document.getElementById('hk-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/update-profiles/${pid}/hooks`, 'POST', {
+      hook_point: document.getElementById('hk-point').value,
+      script_content: document.getElementById('hk-script').value,
+      priority: parseInt(document.getElementById('hk-prio').value) || 0,
+      is_enabled: document.getElementById('hk-enabled').checked,
+    });
+    status('Hook set'); loadHooks();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Render ----
+async function renderConfig() {
+  const pid = document.getElementById('rn-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    const r = await api(`/v1/update-profiles/${pid}/render`, 'POST');
+    document.getElementById('rn-hash').innerHTML =
+      `<span class="hash">${r.content_hash}</span>  <span style="color:var(--muted);font-size:11px">rendered ${r.rendered_at}</span>`;
+    document.getElementById('rn-hash').style.display = 'block';
+    document.getElementById('rn-update').textContent = r.rendered_update_config || '';
+    document.getElementById('rn-recovery').textContent = r.rendered_recovery_config || '';
+    status('Rendered OK');
+  } catch(e) { status(e.message, false); }
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// init
+loadProfiles();
+</script>
+</body>
+</html>
