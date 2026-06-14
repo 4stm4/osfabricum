@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSFabricum — Compliance Designer</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --border: #30363d; --text: #c9d1d9; --muted: #8b949e;
+    --accent: #2e7d32; --accent2: #43a047;
+    --danger: #c62828; --warn: #e65100;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .badge { background: var(--accent); color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  nav button { background: none; border: none; color: var(--muted); padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 13px; }
+  nav button.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  nav button:hover:not(.active) { color: var(--text); }
+  main { padding: 24px; max-width: 1200px; }
+  .tab { display: none; } .tab.active { display: block; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin-bottom: 16px; color: var(--accent2); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input, select, textarea { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent2); }
+  textarea { resize: vertical; min-height: 80px; width: 100%; font-family: monospace; font-size: 12px; }
+  .btn { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; } .btn-primary:hover { background: var(--accent2); }
+  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); } .btn-secondary:hover { border-color: var(--accent2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .pill-green { background: rgba(46,125,50,.3); color: #66bb6a; }
+  .pill-red { background: rgba(198,40,40,.3); color: #ef5350; }
+  .pill-orange { background: rgba(230,81,0,.3); color: #ff9800; }
+  .pill-gray { background: rgba(139,148,158,.2); color: var(--muted); }
+  .pre-wrap { font-family: monospace; font-size: 12px; background: var(--bg3); padding: 14px; border-radius: 6px; white-space: pre-wrap; border: 1px solid var(--border); max-height: 500px; overflow-y: auto; }
+  .hash { font-family: monospace; font-size: 12px; color: var(--accent2); }
+  #profile-selector { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; min-width: 280px; }
+  .status-bar { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+  .status-ok { background: rgba(46,125,50,.2); border: 1px solid rgba(46,125,50,.4); color: #66bb6a; }
+  .status-err { background: rgba(198,40,40,.2); border: 1px solid rgba(198,40,40,.4); color: #ef5350; }
+  .checkbox-row { display: flex; gap: 8px; align-items: center; }
+  .checkbox-row input[type=checkbox] { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OSFabricum</h1>
+  <span class="badge">Compliance Designer</span>
+  <span style="color:var(--muted);font-size:12px;margin-left:auto;">M48 · License / SBOM / Vuln / Source</span>
+</header>
+<nav>
+  <button class="active" onclick="showTab('profiles')">Profiles</button>
+  <button onclick="showTab('spdx')">SPDX Licenses</button>
+  <button onclick="showTab('license-rules')">License Rules</button>
+  <button onclick="showTab('vuln-gates')">Vuln Gates</button>
+  <button onclick="showTab('sbom')">SBOM Entries</button>
+  <button onclick="showTab('render')">Render / Report</button>
+</nav>
+<main>
+  <div id="status-msg" style="display:none"></div>
+
+  <!-- ===== PROFILES ===== -->
+  <div id="tab-profiles" class="tab active">
+    <div class="card">
+      <h2>Create Compliance Profile</h2>
+      <div class="form-row">
+        <div class="field"><label>Name</label><input id="cp-name" placeholder="default-policy"></div>
+        <div class="field"><label>Distribution ID (optional)</label><input id="cp-dist" placeholder="leave blank for global"></div>
+        <div class="field"><label>Block Severity ≥</label>
+          <select id="cp-block">
+            <option value="critical">critical</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+            <option value="info">info</option>
+            <option value="none">none (never block)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Description</label><input id="cp-desc" style="width:360px" placeholder="optional"></div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="cp-copyleft" checked> Allow copyleft</label>
+        </div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="cp-proprietary"> Allow proprietary</label>
+        </div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="cp-sbom" checked> Require SBOM</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createProfile()">Create Profile</button>
+    </div>
+    <div class="card">
+      <h2>Profiles</h2>
+      <div style="margin-bottom:10px"><button class="btn btn-secondary" onclick="loadProfiles()">Refresh</button></div>
+      <table><thead><tr><th>Name</th><th>Copyleft</th><th>Proprietary</th><th>Block ≥</th><th>SBOM?</th><th>Hash</th><th>ID</th></tr></thead>
+      <tbody id="profiles-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== SPDX LICENSES ===== -->
+  <div id="tab-spdx" class="tab">
+    <div class="card">
+      <h2>SPDX License Identifiers</h2>
+      <div style="margin-bottom:10px"><button class="btn btn-secondary" onclick="loadSpdx()">Refresh</button></div>
+      <table><thead><tr><th>SPDX ID</th><th>Name</th><th>Copyleft</th><th>Permissive</th></tr></thead>
+      <tbody id="spdx-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== LICENSE RULES ===== -->
+  <div id="tab-license-rules" class="tab">
+    <div class="card">
+      <h2>License Policy Rules</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="lr-profile" onchange="loadLicenseRules()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>SPDX ID</label><input id="lr-spdx" placeholder="GPL-3.0-only"></div>
+        <div class="field"><label>Policy</label>
+          <select id="lr-policy">
+            <option value="allow">allow</option>
+            <option value="deny">deny</option>
+            <option value="warn">warn</option>
+          </select>
+        </div>
+        <div class="field"><label>Reason (optional)</label><input id="lr-reason" placeholder="license note"></div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="setLicenseRule()">Set Rule</button></div>
+      </div>
+      <table><thead><tr><th>SPDX ID</th><th>Policy</th><th>Reason</th></tr></thead>
+      <tbody id="lr-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== VULN GATES ===== -->
+  <div id="tab-vuln-gates" class="tab">
+    <div class="card">
+      <h2>Vulnerability Gates</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="vg-profile" onchange="loadVulnGates()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>CVE ID</label><input id="vg-cve" placeholder="CVE-2024-1234"></div>
+        <div class="field"><label>Severity</label>
+          <select id="vg-severity">
+            <option value="critical">critical</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+            <option value="info">info</option>
+          </select>
+        </div>
+        <div class="field"><label>Action</label>
+          <select id="vg-action">
+            <option value="block">block</option>
+            <option value="warn">warn</option>
+            <option value="ignore">ignore</option>
+          </select>
+        </div>
+        <div class="field"><label>Package (optional)</label><input id="vg-pkg" placeholder="openssl"></div>
+        <div class="field"><label>Version (optional)</label><input id="vg-ver" placeholder="3.0.0"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Reason (optional)</label><input id="vg-reason" style="width:400px"></div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="setVulnGate()">Set Gate</button></div>
+      </div>
+      <table><thead><tr><th>CVE</th><th>Severity</th><th>Action</th><th>Package</th><th>Version</th><th>Reason</th></tr></thead>
+      <tbody id="vg-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== SBOM ===== -->
+  <div id="tab-sbom" class="tab">
+    <div class="card">
+      <h2>SBOM Entries</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="sb-profile" onchange="loadSbomEntries()"><option value="">— select —</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Package Name</label><input id="sb-name" placeholder="openssl"></div>
+        <div class="field"><label>Version</label><input id="sb-ver" placeholder="3.0.7"></div>
+        <div class="field"><label>SPDX ID</label><input id="sb-spdx" placeholder="Apache-2.0"></div>
+        <div class="field"><label>PURL (optional)</label><input id="sb-purl" placeholder="pkg:deb/debian/openssl@3.0.7"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Supplier (optional)</label><input id="sb-supplier" placeholder="OpenSSL Foundation"></div>
+        <div class="field"><label>Source URL (optional)</label><input id="sb-src" style="width:300px" placeholder="https://..."></div>
+        <div class="field" style="padding-top:18px">
+          <label class="checkbox-row"><input type="checkbox" id="sb-avail" checked> Source available</label>
+        </div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="addSbomEntry()">Add / Update</button></div>
+      </div>
+      <table><thead><tr><th>Package</th><th>Version</th><th>SPDX</th><th>PURL</th><th>Supplier</th><th>Source?</th></tr></thead>
+      <tbody id="sb-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ===== RENDER ===== -->
+  <div id="tab-render" class="tab">
+    <div class="card">
+      <h2>Render Compliance Report</h2>
+      <div class="form-row">
+        <div class="field"><label>Profile</label><select id="rn-profile"><option value="">— select —</option></select></div>
+        <div class="field" style="padding-top:18px"><button class="btn btn-primary" onclick="renderReport()">Render</button></div>
+      </div>
+      <div id="rn-hash" style="display:none;margin-bottom:16px;"></div>
+      <div class="form-row" style="gap:8px;margin-bottom:12px;">
+        <button class="btn btn-secondary" onclick="toggleSection('rn-sbom-block')">Toggle SBOM</button>
+        <button class="btn btn-secondary" onclick="toggleSection('rn-vuln-block')">Toggle Vuln Report</button>
+        <button class="btn btn-secondary" onclick="toggleSection('rn-lic-block')">Toggle License Report</button>
+      </div>
+      <div id="rn-sbom-block" style="display:none;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">SPDX SBOM</div>
+        <div class="pre-wrap" id="rn-sbom"></div>
+      </div>
+      <div id="rn-vuln-block" style="display:none;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Vulnerability Gate Report</div>
+        <div class="pre-wrap" id="rn-vuln"></div>
+      </div>
+      <div id="rn-lic-block" style="display:none">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">License Compliance Report</div>
+        <div class="pre-wrap" id="rn-lic"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = '';
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'spdx') loadSpdx();
+  if (name === 'license-rules') syncProfileSelect('lr-profile', loadLicenseRules);
+  if (name === 'vuln-gates') syncProfileSelect('vg-profile', loadVulnGates);
+  if (name === 'sbom') syncProfileSelect('sb-profile', loadSbomEntries);
+  if (name === 'render') syncProfileSelect('rn-profile', null);
+}
+
+function status(msg, ok=true) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = 'status-bar ' + (ok ? 'status-ok' : 'status-err');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display='none', 4000);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {} };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.json().catch(() => ({detail: r.statusText})); throw new Error(e.detail || r.statusText); }
+  return r.json();
+}
+
+function policyPill(p) {
+  if (p === 'deny') return '<span class="pill pill-red">deny</span>';
+  if (p === 'warn') return '<span class="pill pill-orange">warn</span>';
+  return '<span class="pill pill-green">allow</span>';
+}
+function actionPill(a) {
+  if (a === 'block') return '<span class="pill pill-red">block</span>';
+  if (a === 'warn') return '<span class="pill pill-orange">warn</span>';
+  return '<span class="pill pill-gray">ignore</span>';
+}
+function yesNo(v, invert=false) {
+  const yes = invert ? !v : v;
+  return yes ? '<span class="pill pill-green">yes</span>' : '<span class="pill pill-gray">no</span>';
+}
+
+// ---- Profiles ----
+async function loadProfiles() {
+  const rows = await api('/v1/compliance-profiles');
+  const tb = document.getElementById('profiles-tbody');
+  tb.innerHTML = rows.map(p => `<tr>
+    <td>${p.name}</td>
+    <td>${yesNo(p.allow_copyleft)}</td>
+    <td>${yesNo(p.allow_proprietary)}</td>
+    <td><span class="pill pill-orange">${p.min_vuln_severity_to_block}</span></td>
+    <td>${yesNo(p.require_sbom)}</td>
+    <td class="hash">${p.content_hash ? p.content_hash.slice(0,20)+'…' : '—'}</td>
+    <td style="color:var(--muted);font-size:11px">${p.id}</td>
+  </tr>`).join('');
+}
+
+async function createProfile() {
+  try {
+    await api('/v1/compliance-profiles', 'POST', {
+      name: document.getElementById('cp-name').value,
+      distribution_id: document.getElementById('cp-dist').value || null,
+      description: document.getElementById('cp-desc').value,
+      allow_copyleft: document.getElementById('cp-copyleft').checked,
+      allow_proprietary: document.getElementById('cp-proprietary').checked,
+      min_vuln_severity_to_block: document.getElementById('cp-block').value,
+      require_sbom: document.getElementById('cp-sbom').checked,
+    });
+    status('Profile created'); loadProfiles();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- SPDX ----
+async function loadSpdx() {
+  const rows = await api('/v1/spdx-license-kinds');
+  document.getElementById('spdx-tbody').innerHTML = rows.map(k => `<tr>
+    <td class="hash">${k.spdx_id}</td>
+    <td>${k.name}</td>
+    <td>${yesNo(k.is_copyleft)}</td>
+    <td>${yesNo(k.is_permissive)}</td>
+  </tr>`).join('');
+}
+
+// ---- Profile selector sync ----
+async function syncProfileSelect(selectId, onchange) {
+  const rows = await api('/v1/compliance-profiles');
+  const sel = document.getElementById(selectId);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select —</option>' +
+    rows.map(p => `<option value="${p.id}"${p.id===cur?' selected':''}>${p.name}</option>`).join('');
+  if (onchange && sel.value) onchange();
+}
+
+// ---- License Rules ----
+async function loadLicenseRules() {
+  const pid = document.getElementById('lr-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/compliance-profiles/${pid}/license-rules`);
+  document.getElementById('lr-tbody').innerHTML = rows.map(r => `<tr>
+    <td class="hash">${r.spdx_id}</td>
+    <td>${policyPill(r.policy)}</td>
+    <td>${r.reason || ''}</td>
+  </tr>`).join('');
+}
+
+async function setLicenseRule() {
+  const pid = document.getElementById('lr-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/compliance-profiles/${pid}/license-rules`, 'POST', {
+      spdx_id: document.getElementById('lr-spdx').value,
+      policy: document.getElementById('lr-policy').value,
+      reason: document.getElementById('lr-reason').value || null,
+    });
+    status('License rule set'); loadLicenseRules();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Vuln Gates ----
+async function loadVulnGates() {
+  const pid = document.getElementById('vg-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/compliance-profiles/${pid}/vuln-gates`);
+  document.getElementById('vg-tbody').innerHTML = rows.map(g => `<tr>
+    <td class="hash">${g.cve_id}</td>
+    <td><span class="pill pill-${g.severity==='critical'?'red':g.severity==='high'?'orange':'gray'}">${g.severity}</span></td>
+    <td>${actionPill(g.action)}</td>
+    <td>${g.package_name || ''}</td>
+    <td>${g.affected_version || ''}</td>
+    <td>${g.reason || ''}</td>
+  </tr>`).join('');
+}
+
+async function setVulnGate() {
+  const pid = document.getElementById('vg-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/compliance-profiles/${pid}/vuln-gates`, 'POST', {
+      cve_id: document.getElementById('vg-cve').value,
+      severity: document.getElementById('vg-severity').value,
+      action: document.getElementById('vg-action').value,
+      package_name: document.getElementById('vg-pkg').value || null,
+      affected_version: document.getElementById('vg-ver').value || null,
+      reason: document.getElementById('vg-reason').value || null,
+    });
+    status('Vuln gate set'); loadVulnGates();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- SBOM ----
+async function loadSbomEntries() {
+  const pid = document.getElementById('sb-profile').value;
+  if (!pid) return;
+  const rows = await api(`/v1/compliance-profiles/${pid}/sbom-entries`);
+  document.getElementById('sb-tbody').innerHTML = rows.map(e => `<tr>
+    <td>${e.package_name}</td>
+    <td>${e.package_version}</td>
+    <td class="hash">${e.spdx_id || '—'}</td>
+    <td style="font-size:11px;color:var(--muted)">${e.purl || ''}</td>
+    <td>${e.supplier || ''}</td>
+    <td>${yesNo(e.is_source_available)}</td>
+  </tr>`).join('');
+}
+
+async function addSbomEntry() {
+  const pid = document.getElementById('sb-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    await api(`/v1/compliance-profiles/${pid}/sbom-entries`, 'POST', {
+      package_name: document.getElementById('sb-name').value,
+      package_version: document.getElementById('sb-ver').value,
+      spdx_id: document.getElementById('sb-spdx').value || null,
+      purl: document.getElementById('sb-purl').value || null,
+      supplier: document.getElementById('sb-supplier').value || null,
+      source_url: document.getElementById('sb-src').value || null,
+      is_source_available: document.getElementById('sb-avail').checked,
+    });
+    status('SBOM entry added'); loadSbomEntries();
+  } catch(e) { status(e.message, false); }
+}
+
+// ---- Render ----
+async function renderReport() {
+  const pid = document.getElementById('rn-profile').value;
+  if (!pid) { status('Select a profile first', false); return; }
+  try {
+    const r = await api(`/v1/compliance-profiles/${pid}/render`, 'POST');
+    document.getElementById('rn-hash').innerHTML =
+      `<span class="hash">${r.content_hash}</span>  <span style="color:var(--muted);font-size:11px">rendered ${r.rendered_at}</span>`;
+    document.getElementById('rn-hash').style.display = 'block';
+    document.getElementById('rn-sbom').textContent = r.rendered_sbom || '';
+    document.getElementById('rn-vuln').textContent = r.rendered_vuln_report || '';
+    document.getElementById('rn-lic').textContent = r.rendered_license_report || '';
+    status('Rendered OK');
+  } catch(e) { status(e.message, false); }
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// init
+loadProfiles();
+</script>
+</body>
+</html>

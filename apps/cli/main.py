@@ -16,6 +16,7 @@ import typer
 from apps.cli.commands.appcatalog import appcatalog_app
 from apps.cli.commands.desktopint import desktopint_app
 from apps.cli.commands.theme import theme_app
+from apps.cli.commands.compliance import app as compliance_app
 from apps.cli.commands.hardening import hardening_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
@@ -259,6 +260,7 @@ def _register_groups() -> None:
     app.add_typer(network_app, name="network")
     app.add_typer(services_app, name="services")
     app.add_typer(hardening_app, name="security")
+    app.add_typer(compliance_app, name="compliance")
 
 
 _register_groups()

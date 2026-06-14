@@ -2962,3 +2962,136 @@ class SystemdUnitOverride(Base):
             "profile_id", "unit_name", name="uq_systemd_unit_overrides_profile_unit"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M48 — License / SBOM / Vuln / Source Compliance Designer
+# ---------------------------------------------------------------------------
+
+
+class SpdxLicenseKind(Base):
+    """Seeded lookup: SPDX license identifiers (M48)."""
+
+    __tablename__ = "spdx_license_kinds"
+
+    spdx_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False, default="")
+    is_copyleft: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    is_permissive: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class ComplianceProfile(Base):
+    """Per-distribution license / SBOM / vuln compliance policy (M48)."""
+
+    __tablename__ = "compliance_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    allow_copyleft: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    allow_proprietary: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    min_vuln_severity_to_block: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="critical"
+    )  # none | info | low | medium | high | critical
+    require_sbom: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    rendered_sbom: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_vuln_report: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_license_report: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_compliance_profiles_dist_name"
+        ),
+    )
+
+
+class LicenseRule(Base):
+    """A license allow/deny/warn policy rule in a compliance profile (M48)."""
+
+    __tablename__ = "license_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("compliance_profiles.id"), nullable=False
+    )
+    spdx_id: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False
+    )  # SPDX identifier or "LicenseRef-*"
+    policy: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, default="allow"
+    )  # allow | deny | warn
+    reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "spdx_id", name="uq_license_rules_profile_spdx"
+        ),
+    )
+
+
+class VulnGate(Base):
+    """A CVE vulnerability gate in a compliance profile (M48)."""
+
+    __tablename__ = "vuln_gates"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("compliance_profiles.id"), nullable=False
+    )
+    cve_id: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # e.g. "CVE-2023-12345"
+    severity: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="high"
+    )  # critical | high | medium | low | info
+    action: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, default="block"
+    )  # block | warn | ignore
+    package_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    affected_version: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "cve_id", name="uq_vuln_gates_profile_cve"
+        ),
+    )
+
+
+class SbomEntry(Base):
+    """A package entry in the SBOM inventory of a compliance profile (M48)."""
+
+    __tablename__ = "sbom_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("compliance_profiles.id"), nullable=False
+    )
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    package_version: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    spdx_id: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )  # SPDX license identifier
+    purl: Mapped[str | None] = mapped_column(
+        sa.String(256), nullable=True
+    )  # Package URL, e.g. "pkg:apk/musl@1.2.3"
+    supplier: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    is_source_available: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "package_name", "package_version",
+            name="uq_sbom_entries_profile_pkg_ver",
+        ),
+    )

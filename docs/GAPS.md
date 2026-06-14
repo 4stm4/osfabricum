@@ -350,6 +350,37 @@ Severity scale:
   service topology, hardening, or compliance gates.
 - **Closed by:** **M45** (network), **M46** (service/init/device manager),
   **M47** (security/hardening), **M48** (license/SBOM/vuln/source compliance).
+- **M48 (license / SBOM / vuln / source compliance designer) done.** Five new
+  tables: `spdx_license_kinds` (seeded — 14 identifiers: MIT / Apache-2.0 /
+  BSD-2-Clause / BSD-3-Clause / ISC / MPL-2.0 / LGPL-2.1-only / LGPL-3.0-only /
+  GPL-2.0-only / GPL-3.0-only / AGPL-3.0-only / CC0-1.0 / Proprietary /
+  LicenseRef-Unknown; each tagged is_copyleft + is_permissive),
+  `compliance_profiles` (allow_copyleft / allow_proprietary /
+  min_vuln_severity_to_block: critical|high|medium|low|info|none / require_sbom /
+  rendered_sbom / rendered_vuln_report / rendered_license_report / content_hash /
+  rendered_at; unique per distribution+name), `license_rules` (spdx_id, policy:
+  allow|deny|warn, reason; upsert; unique per profile+spdx_id), `vuln_gates`
+  (cve_id, severity, action: block|warn|ignore, package_name, affected_version,
+  reason; upsert; unique per profile+cve_id), `sbom_entries` (package_name,
+  package_version, spdx_id, purl, supplier, source_url, is_source_available;
+  upsert; unique per profile+pkg+ver). `render_compliance_report` generates three
+  artefacts concatenated for sha256: hash — `rendered_sbom` (SPDX-2.3 document
+  with SPDXVersion / DataLicense / DocumentName / PackageName / PackageVersion /
+  PackageLicenseDeclared / ExternalRef purl / PackageSupplier /
+  PackageDownloadLocation / FilesAnalyzed per entry), `rendered_vuln_report` (CVE
+  gate report with block-threshold annotation, per-gate
+  severity/action/package/reason, BUILD BLOCKED summary when gates match
+  threshold), `rendered_license_report` (per-package verdict: PASS/FAIL/WARN based
+  on license_rules policy map + profile allow_copyleft / allow_proprietary flags;
+  LICENSE DENIED summary). Mutating any sub-resource (set_license_rule /
+  set_vuln_gate / add_sbom_entry / update_compliance_profile) clears content_hash.
+  Migration `0024_compliance_designer` with fresh sentinel seeds 14 SPDX kinds.
+  Module at `osfabricum/compliance/`. Exposed over 12 HTTP endpoints under
+  `/v1/compliance-profiles/…` + `/v1/spdx-license-kinds`, the
+  `osfabricumctl compliance` CLI (spdx-list / list / create / show / update /
+  license-set / vuln-set / sbom-add / render) and the `/compliance` designer UI
+  page (6 tabs: Profiles, SPDX Licenses, License Rules, Vuln Gates, SBOM Entries,
+  Render / Report). 58 unit tests, all passing.
 - **M47 (security / hardening designer) done.** Extended the existing
   `security_profiles` stub (removed `metadata_json`, added `mac_policy`,
   `description`, `rendered_sysctl`, `rendered_mac_rules`, `rendered_pam_config`,

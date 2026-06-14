@@ -12,6 +12,7 @@ from apps.api.routes.appcatalog_api import router as appcatalog_router
 from apps.api.routes.desktopint_api import router as desktopint_router
 from apps.api.routes.theme_api import router as theme_router
 from apps.api.routes.network_api import router as network_router
+from apps.api.routes.compliance_api import router as compliance_router
 from apps.api.routes.security_hardening_api import router as security_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
@@ -100,6 +101,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(services_router)
     # M47: security / hardening designer
     app.include_router(security_router)
+    # M48: license / SBOM / vuln / source compliance designer
+    app.include_router(compliance_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -231,6 +234,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/security", include_in_schema=False)
         def security_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "security.html"))
+
+        # M48: Compliance Designer page
+        @app.get("/compliance", include_in_schema=False)
+        def compliance_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "compliance.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

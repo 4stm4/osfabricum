@@ -26,6 +26,7 @@ from osfabricum.db.models import (
     MimeTypeDefinition,
     NetworkInterfaceKind,
     SecurityMacKind,
+    SpdxLicenseKind,
     ThemeAssetKind,
     UserShellKind,
     BoardDeviceTree,
@@ -553,6 +554,47 @@ def seed_user_shell_kinds(session: Session) -> int:
             continue
         session.add(
             UserShellKind(path=path, description=description, display_order=display_order)
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+# (spdx_id, name, is_copyleft, is_permissive, display_order)
+SPDX_LICENSE_KINDS: list[tuple[str, str, bool, bool, int]] = [
+    ("MIT", "MIT License", False, True, 0),
+    ("Apache-2.0", "Apache License 2.0", False, True, 1),
+    ("BSD-2-Clause", "BSD 2-Clause \"Simplified\" License", False, True, 2),
+    ("BSD-3-Clause", "BSD 3-Clause \"New\" or \"Revised\" License", False, True, 3),
+    ("ISC", "ISC License", False, True, 4),
+    ("MPL-2.0", "Mozilla Public License 2.0", True, False, 5),
+    ("LGPL-2.1-only", "GNU Lesser General Public License v2.1 only", True, False, 6),
+    ("LGPL-3.0-only", "GNU Lesser General Public License v3.0 only", True, False, 7),
+    ("GPL-2.0-only", "GNU General Public License v2.0 only", True, False, 8),
+    ("GPL-3.0-only", "GNU General Public License v3.0 only", True, False, 9),
+    ("AGPL-3.0-only", "GNU Affero General Public License v3.0 only", True, False, 10),
+    ("CC0-1.0", "Creative Commons Zero v1.0 Universal", False, True, 11),
+    ("Proprietary", "Proprietary / Closed-source", False, False, 12),
+    ("LicenseRef-Unknown", "Unknown or unclassified license", False, False, 13),
+]
+
+
+def seed_spdx_license_kinds(session: Session) -> int:
+    """Insert any missing SPDX license kinds (M48). Returns the number added."""
+    existing = {k.spdx_id for k in session.scalars(select(SpdxLicenseKind)).all()}
+    added = 0
+    for spdx_id, name, is_copyleft, is_permissive, display_order in SPDX_LICENSE_KINDS:
+        if spdx_id in existing:
+            continue
+        session.add(
+            SpdxLicenseKind(
+                spdx_id=spdx_id,
+                name=name,
+                is_copyleft=is_copyleft,
+                is_permissive=is_permissive,
+                display_order=display_order,
+            )
         )
         added += 1
     if added:
