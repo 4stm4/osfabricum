@@ -1302,7 +1302,7 @@ class GraphicalSession(Base):
 
 
 class NetworkProfile(Base):
-    """A networking definition; M45 adds interfaces/firewall/wifi."""
+    """Top-level network configuration profile for a distribution image (M45)."""
 
     __tablename__ = "network_profiles"
 
@@ -1311,10 +1311,25 @@ class NetworkProfile(Base):
     distribution_id: Mapped[str | None] = mapped_column(
         sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
     )
-    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    hostname: Mapped[str] = mapped_column(
+        sa.String(253), nullable=False, default="localhost"
+    )
+    rendered_networkd: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_resolv_conf: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_hosts: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
 
     __table_args__ = (
-        sa.UniqueConstraint("distribution_id", "name", name="uq_network_profiles_dist_name"),
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_network_profiles_dist_name"
+        ),
     )
 
 
@@ -2563,38 +2578,6 @@ class NetworkInterfaceKind(Base):
     name: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
     description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
     display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
-
-
-class NetworkProfile(Base):
-    """Top-level network configuration profile for a distribution image (M45)."""
-
-    __tablename__ = "network_profiles"
-
-    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
-    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
-    distribution_id: Mapped[str | None] = mapped_column(
-        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
-    )
-    hostname: Mapped[str] = mapped_column(
-        sa.String(253), nullable=False, default="localhost"
-    )
-    rendered_networkd: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    rendered_resolv_conf: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    rendered_hosts: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
-    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        sa.DateTime, nullable=False, default=_now
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        sa.DateTime, nullable=False, default=_now, onupdate=_now
-    )
-
-    __table_args__ = (
-        sa.UniqueConstraint(
-            "distribution_id", "name", name="uq_network_profiles_dist_name"
-        ),
-    )
 
 
 class NetInterface(Base):

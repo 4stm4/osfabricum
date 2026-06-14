@@ -350,6 +350,32 @@ Severity scale:
   service topology, hardening, or compliance gates.
 - **Closed by:** **M45** (network), **M46** (service/init/device manager),
   **M47** (security/hardening), **M48** (license/SBOM/vuln/source compliance).
+- **M45 (network designer) done.** Extended the existing `network_profiles`
+  stub with M45 columns (hostname, rendered_networkd, rendered_resolv_conf,
+  rendered_hosts, content_hash, rendered_at, created_at, updated_at). Five new
+  tables: `network_interface_kinds` (seeded — 9 kinds: ethernet/wifi/loopback/
+  vlan/bridge/bond/dummy/wireguard/veth), `net_interfaces` (name, kind,
+  description, mtu, mac_address, is_dhcp4, is_dhcp6, static_addresses JSON
+  list, gateway4, metric, parent_name, vlan_id; unique per profile+name),
+  `net_dns_entries` (nameserver, search_domain, priority; unique per
+  profile+nameserver), `net_routes` (destination CIDR, gateway, metric,
+  interface_name; unique per profile+destination+gateway), `net_firewall_rules`
+  (chain: INPUT/OUTPUT/FORWARD, protocol: tcp/udp/icmp/any, source_cidr,
+  destination_cidr, dport, action: ACCEPT/DROP/REJECT, priority, comment).
+  `render_network_config` generates systemd-networkd .network + .netdev files
+  (virtual kinds: vlan/bridge/bond/dummy/wireguard/veth get a [NetDev] block;
+  loopback gets LinkLocalAddressing=yes; interface-specific static routes
+  rendered as [Route] sections), /etc/resolv.conf (nameservers sorted by
+  priority, search domains deduplicated), /etc/hosts (127.0.0.1 + ::1 +
+  127.0.1.1 with hostname), and an iptables-style firewall summary — all four
+  concatenated for sha256: hash. `update_network_profile` clears cache.
+  Migration `0021_network_designer` with fresh sentinel seeds 9 kinds. Exposed
+  over 10 HTTP endpoints under `/v1/network-profiles/…` + `/v1/network-
+  interface-kinds`, the `osfabricumctl network` CLI (kind-list/list/create/
+  show/update/iface-add/dns-add/route-add/rule-add/render) and the `/network`
+  designer UI page (6 tabs: Profiles, Interface Kinds, Interfaces, DNS &
+  Routes, Firewall, Render). 60 unit tests, all passing. Follow-on:
+  service / init / device manager (M46).
 
 ### G-11 — Releases / promotion / OTA / generations missing
 - **Evidence:** `Release`/`ReleaseArtifact` models exist but no CLI command, no

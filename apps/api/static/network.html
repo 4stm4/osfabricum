@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Designer — OSFabricum M45</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+  header{background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.1rem;font-weight:600;color:#fff}
+  header span{font-size:.75rem;background:#3b3f52;padding:2px 8px;border-radius:10px;color:#aaa}
+  nav{display:flex;gap:4px;padding:12px 24px;background:#141720;border-bottom:1px solid #1e2130;flex-wrap:wrap}
+  nav button{padding:6px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:.85rem;transition:.15s}
+  nav button.active,nav button:hover{background:#252839;border-color:#3a3d52;color:#fff}
+  .tab{display:none;padding:24px;max-width:1000px;margin:0 auto}
+  .tab.active{display:block}
+  h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:#fff}
+  .card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:20px;margin-bottom:16px}
+  label{font-size:.8rem;color:#888;display:block;margin-bottom:4px;margin-top:12px}
+  label:first-child{margin-top:0}
+  input,select,textarea{width:100%;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:.85rem;outline:none}
+  input:focus,select:focus{border-color:#0097a7}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .row3{display:grid;gap:12px;grid-template-columns:1fr 1fr 1fr}
+  .cb-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem;color:#bbb}
+  .cb-row input[type=checkbox]{width:auto}
+  button.btn{margin-top:14px;padding:8px 18px;background:#00838f;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:.85rem}
+  button.btn:hover{background:#0097a7}
+  button.btn-sm{padding:5px 12px;font-size:.8rem;background:#2a2d3a;border:1px solid #3a3d52;border-radius:5px;color:#ccc;cursor:pointer;margin-top:6px}
+  button.btn-sm:hover{background:#333650}
+  .msg{margin-top:10px;font-size:.8rem;padding:8px 12px;border-radius:6px}
+  .msg.ok{background:#1b3a2d;color:#6fcf97}
+  .msg.err{background:#3a1d1d;color:#eb5757}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{text-align:left;color:#888;font-weight:500;padding:6px 8px;border-bottom:1px solid #252839}
+  td{padding:7px 8px;border-bottom:1px solid #1e2130;vertical-align:top}
+  .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;font-weight:500}
+  .badge-dhcp{background:#1f2a3f;color:#6fb3f2}
+  .badge-static{background:#1f3a2d;color:#6fcf97}
+  .badge-virt{background:#2a1f3a;color:#ce93d8}
+  .chip-chain{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#1a2040;color:#7986cb}
+  .chip-action-accept{background:#1b3a2d;color:#6fcf97;padding:2px 7px;border-radius:10px;font-size:.72rem}
+  .chip-action-drop{background:#3a1d1d;color:#eb5757;padding:2px 7px;border-radius:10px;font-size:.72rem}
+  .chip-action-reject{background:#3a2a1d;color:#f2a26f;padding:2px 7px;border-radius:10px;font-size:.72rem}
+  pre{font-size:.78rem;background:#0a0c12;border:1px solid #1e2130;border-radius:6px;padding:14px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#c5d0e6;max-height:340px;overflow-y:auto}
+  .hash{font-size:.78rem;color:#6fcf97;background:#1b3a2d;padding:6px 10px;border-radius:6px;margin-top:10px;word-break:break-all}
+  .empty{color:#555;font-size:.83rem;padding:12px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Network Designer</h1>
+  <span>M45</span>
+</header>
+<nav>
+  <button class="active" onclick="show('profiles')">Profiles</button>
+  <button onclick="show('kinds')">Interface Kinds</button>
+  <button onclick="show('interfaces')">Interfaces</button>
+  <button onclick="show('dns')">DNS &amp; Routes</button>
+  <button onclick="show('firewall')">Firewall</button>
+  <button onclick="show('render')">Render</button>
+</nav>
+
+<!-- PROFILES -->
+<div id="tab-profiles" class="tab active">
+  <h2>Network Profiles</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Create Profile</h2>
+    <div class="row">
+      <div><label>Name</label><input id="p-name" placeholder="Server Network"></div>
+      <div><label>Hostname</label><input id="p-hostname" value="localhost"></div>
+    </div>
+    <label>Distribution ID (optional)</label><input id="p-dist">
+    <button class="btn" onclick="createProfile()">Create</button>
+    <div id="p-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">All Profiles</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Hostname</th><th>Distribution</th><th>Rendered</th><th>ID</th></tr></thead>
+      <tbody id="profiles-list"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- INTERFACE KINDS -->
+<div id="tab-kinds" class="tab">
+  <h2>Interface Kinds</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>Kind</th><th>Description</th></tr></thead>
+      <tbody id="kinds-list"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- INTERFACES -->
+<div id="tab-interfaces" class="tab">
+  <h2>Network Interfaces</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Interface</h2>
+    <label>Profile ID</label><input id="if-profile-id" placeholder="Profile UUID">
+    <div class="row">
+      <div><label>Name</label><input id="if-name" placeholder="eth0"></div>
+      <div>
+        <label>Kind</label>
+        <select id="if-kind">
+          <option value="ethernet">ethernet</option>
+          <option value="wifi">wifi</option>
+          <option value="loopback">loopback</option>
+          <option value="vlan">vlan</option>
+          <option value="bridge">bridge</option>
+          <option value="bond">bond</option>
+          <option value="dummy">dummy</option>
+          <option value="wireguard">wireguard</option>
+          <option value="veth">veth</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>MTU (optional)</label><input id="if-mtu" type="number" placeholder="1500"></div>
+      <div><label>MAC Address (optional)</label><input id="if-mac" placeholder="aa:bb:cc:dd:ee:ff"></div>
+    </div>
+    <div style="display:flex;gap:24px;margin-top:8px">
+      <div class="cb-row"><input type="checkbox" id="if-dhcp4" checked><label for="if-dhcp4" style="margin:0">DHCP IPv4</label></div>
+      <div class="cb-row"><input type="checkbox" id="if-dhcp6"><label for="if-dhcp6" style="margin:0">DHCP IPv6</label></div>
+    </div>
+    <label>Static Addresses (comma-separated CIDRs, e.g. 192.168.1.10/24)</label>
+    <input id="if-addrs" placeholder="192.168.1.10/24, 10.0.0.1/8">
+    <div class="row">
+      <div><label>Default Gateway (IPv4)</label><input id="if-gw" placeholder="192.168.1.1"></div>
+      <div><label>Metric (optional)</label><input id="if-metric" type="number" placeholder="100"></div>
+    </div>
+    <div class="row">
+      <div><label>Parent Interface (VLAN/bridge)</label><input id="if-parent" placeholder="eth0"></div>
+      <div><label>VLAN ID (optional)</label><input id="if-vlan" type="number" placeholder="100"></div>
+    </div>
+    <label>Description</label><input id="if-description">
+    <button class="btn" onclick="addInterface()">Add Interface</button>
+    <div id="if-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Interfaces in Profile</h2>
+    <div style="display:flex;gap:8px">
+      <input id="if-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadInterfaces()">Load</button>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr><th>Name</th><th>Kind</th><th>Addressing</th><th>Addresses</th><th>Gateway</th></tr></thead>
+      <tbody id="interfaces-list"><tr><td colspan="5" class="empty">Enter a profile ID above</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- DNS & ROUTES -->
+<div id="tab-dns" class="tab">
+  <h2>DNS &amp; Static Routes</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add DNS Nameserver</h2>
+    <label>Profile ID</label><input id="dns-profile-id" placeholder="Profile UUID">
+    <div class="row">
+      <div><label>Nameserver IP</label><input id="dns-ns" placeholder="8.8.8.8"></div>
+      <div><label>Search Domain (optional)</label><input id="dns-search" placeholder="example.com"></div>
+    </div>
+    <label>Priority</label><input id="dns-priority" type="number" value="100">
+    <button class="btn" onclick="addDns()">Add Nameserver</button>
+    <div id="dns-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Static Route</h2>
+    <label>Profile ID</label><input id="rt-profile-id" placeholder="Profile UUID">
+    <div class="row3">
+      <div><label>Destination CIDR</label><input id="rt-dest" placeholder="0.0.0.0/0"></div>
+      <div><label>Gateway</label><input id="rt-gw" placeholder="192.168.1.1"></div>
+      <div><label>Metric</label><input id="rt-metric" type="number" value="0"></div>
+    </div>
+    <div class="row">
+      <div><label>Interface (optional)</label><input id="rt-iface" placeholder="eth0"></div>
+      <div><label>Description</label><input id="rt-desc"></div>
+    </div>
+    <button class="btn" onclick="addRoute()">Add Route</button>
+    <div id="rt-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">DNS &amp; Routes in Profile</h2>
+    <div style="display:flex;gap:8px">
+      <input id="dns-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadDnsRoutes()">Load</button>
+    </div>
+    <h2 style="font-size:.8rem;color:#888;margin:14px 0 6px">DNS</h2>
+    <table>
+      <thead><tr><th>Nameserver</th><th>Search Domain</th><th>Priority</th></tr></thead>
+      <tbody id="dns-list"><tr><td colspan="3" class="empty">—</td></tr></tbody>
+    </table>
+    <h2 style="font-size:.8rem;color:#888;margin:14px 0 6px">Routes</h2>
+    <table>
+      <thead><tr><th>Destination</th><th>Gateway</th><th>Metric</th><th>Interface</th></tr></thead>
+      <tbody id="routes-list"><tr><td colspan="4" class="empty">—</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- FIREWALL -->
+<div id="tab-firewall" class="tab">
+  <h2>Firewall Rules</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Rule</h2>
+    <label>Profile ID</label><input id="fw-profile-id" placeholder="Profile UUID">
+    <div class="row3">
+      <div>
+        <label>Chain</label>
+        <select id="fw-chain">
+          <option value="INPUT">INPUT</option>
+          <option value="OUTPUT">OUTPUT</option>
+          <option value="FORWARD">FORWARD</option>
+        </select>
+      </div>
+      <div>
+        <label>Protocol</label>
+        <select id="fw-protocol">
+          <option value="any">any</option>
+          <option value="tcp">tcp</option>
+          <option value="udp">udp</option>
+          <option value="icmp">icmp</option>
+        </select>
+      </div>
+      <div>
+        <label>Action</label>
+        <select id="fw-action">
+          <option value="ACCEPT">ACCEPT</option>
+          <option value="DROP">DROP</option>
+          <option value="REJECT">REJECT</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Source CIDR (optional)</label><input id="fw-src" placeholder="0.0.0.0/0"></div>
+      <div><label>Destination CIDR (optional)</label><input id="fw-dst" placeholder="0.0.0.0/0"></div>
+    </div>
+    <div class="row">
+      <div><label>Destination Port (optional, e.g. 80 or 8080:9090)</label><input id="fw-dport" placeholder="443"></div>
+      <div><label>Priority</label><input id="fw-priority" type="number" value="100"></div>
+    </div>
+    <label>Comment (optional)</label><input id="fw-comment" placeholder="Allow HTTPS">
+    <button class="btn" onclick="addRule()">Add Rule</button>
+    <div id="fw-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Rules in Profile</h2>
+    <div style="display:flex;gap:8px">
+      <input id="fw-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadRules()">Load</button>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr><th>Chain</th><th>Protocol</th><th>Source</th><th>Dst Port</th><th>Action</th><th>Comment</th></tr></thead>
+      <tbody id="rules-list"><tr><td colspan="6" class="empty">Enter a profile ID above</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- RENDER -->
+<div id="tab-render" class="tab">
+  <h2>Render Network Config</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="r-profile-id" placeholder="Profile UUID">
+    <button class="btn" onclick="doRender()">Render</button>
+    <div id="r-msg" class="msg" style="display:none"></div>
+  </div>
+  <div id="r-results" style="display:none">
+    <div class="card">
+      <div class="hash" id="r-hash"></div>
+      <div style="font-size:.8rem;color:#888;margin-top:6px" id="r-counts"></div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">systemd-networkd</h2>
+      <pre id="r-networkd"></pre>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">/etc/resolv.conf</h2>
+      <pre id="r-resolv"></pre>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">/etc/hosts</h2>
+      <pre id="r-hosts"></pre>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">Firewall Summary</h2>
+      <pre id="r-firewall"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function show(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'profiles') loadProfiles();
+  if (id === 'kinds') loadKinds();
+}
+
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.style.display = 'block';
+}
+
+function actionChip(action) {
+  const cls = action === 'ACCEPT' ? 'chip-action-accept' : action === 'DROP' ? 'chip-action-drop' : 'chip-action-reject';
+  return `<span class="${cls}">${action}</span>`;
+}
+
+// ----- Profiles -----
+async function loadProfiles() {
+  const r = await fetch(`${API}/v1/network-profiles`);
+  const data = await r.json();
+  const tbody = document.getElementById('profiles-list');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No profiles yet</td></tr>'; return; }
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.hostname}</td>
+      <td>${p.distribution_id || '—'}</td>
+      <td>${p.content_hash ? '✓' : ''}</td>
+      <td style="font-size:.75rem;color:#555">${p.id}</td>
+    </tr>`).join('');
+}
+
+async function createProfile() {
+  const name = document.getElementById('p-name').value.trim();
+  const hostname = document.getElementById('p-hostname').value.trim() || 'localhost';
+  const dist = document.getElementById('p-dist').value.trim() || null;
+  if (!name) { msg('p-msg', 'Name is required', false); return; }
+  const r = await fetch(`${API}/v1/network-profiles`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, hostname, distribution_id: dist})
+  });
+  const data = await r.json();
+  if (r.ok) { msg('p-msg', `Created: ${data.id}`, true); loadProfiles(); }
+  else msg('p-msg', data.detail || 'Error', false);
+}
+
+// ----- Kinds -----
+async function loadKinds() {
+  const r = await fetch(`${API}/v1/network-interface-kinds`);
+  const data = await r.json();
+  document.getElementById('kinds-list').innerHTML = data.map(k => `
+    <tr><td>${k.display_order}</td><td><code>${k.name}</code></td><td>${k.description}</td></tr>`).join('');
+}
+
+// ----- Interfaces -----
+async function addInterface() {
+  const profile_id = document.getElementById('if-profile-id').value.trim();
+  const name = document.getElementById('if-name').value.trim();
+  const kind = document.getElementById('if-kind').value;
+  const mtu = document.getElementById('if-mtu').value;
+  const mac_address = document.getElementById('if-mac').value.trim() || null;
+  const is_dhcp4 = document.getElementById('if-dhcp4').checked;
+  const is_dhcp6 = document.getElementById('if-dhcp6').checked;
+  const addrsRaw = document.getElementById('if-addrs').value.trim();
+  const static_addresses = addrsRaw ? addrsRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+  const gateway4 = document.getElementById('if-gw').value.trim() || null;
+  const metric = document.getElementById('if-metric').value;
+  const parent_name = document.getElementById('if-parent').value.trim() || null;
+  const vlan_id = document.getElementById('if-vlan').value;
+  const description = document.getElementById('if-description').value.trim();
+  if (!profile_id || !name) { msg('if-msg', 'Profile ID and name are required', false); return; }
+  const body = {name, kind, description, is_dhcp4, is_dhcp6};
+  if (mtu) body.mtu = parseInt(mtu);
+  if (mac_address) body.mac_address = mac_address;
+  if (static_addresses) body.static_addresses = static_addresses;
+  if (gateway4) body.gateway4 = gateway4;
+  if (metric) body.metric = parseInt(metric);
+  if (parent_name) body.parent_name = parent_name;
+  if (vlan_id) body.vlan_id = parseInt(vlan_id);
+  const r = await fetch(`${API}/v1/network-profiles/${profile_id}/interfaces`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (r.ok) msg('if-msg', `Added interface ${data.name} (${data.kind})`, true);
+  else msg('if-msg', data.detail || 'Error', false);
+}
+
+async function loadInterfaces() {
+  const id = document.getElementById('if-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/network-profiles/${id}`);
+  if (!r.ok) { document.getElementById('interfaces-list').innerHTML = '<tr><td colspan="5" class="empty">Not found</td></tr>'; return; }
+  const data = await r.json();
+  const tbody = document.getElementById('interfaces-list');
+  if (!data.interfaces.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No interfaces yet</td></tr>'; return; }
+  const virtualKinds = new Set(['vlan','bridge','bond','dummy','wireguard','veth']);
+  tbody.innerHTML = data.interfaces.map(i => {
+    const addrMode = i.is_dhcp4 && i.is_dhcp6 ? '<span class="badge badge-dhcp">DHCP4+6</span>'
+      : i.is_dhcp4 ? '<span class="badge badge-dhcp">DHCP4</span>'
+      : i.is_dhcp6 ? '<span class="badge badge-dhcp">DHCP6</span>'
+      : '<span class="badge badge-static">static</span>';
+    const kindChip = virtualKinds.has(i.kind) ? `<span class="badge badge-virt">${i.kind}</span>` : i.kind;
+    return `<tr>
+      <td>${i.name}</td>
+      <td>${kindChip}</td>
+      <td>${addrMode}</td>
+      <td>${(i.static_addresses || []).join(', ') || '—'}</td>
+      <td>${i.gateway4 || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ----- DNS & Routes -----
+async function addDns() {
+  const profile_id = document.getElementById('dns-profile-id').value.trim();
+  const nameserver = document.getElementById('dns-ns').value.trim();
+  const search_domain = document.getElementById('dns-search').value.trim() || null;
+  const priority = parseInt(document.getElementById('dns-priority').value) || 100;
+  if (!profile_id || !nameserver) { msg('dns-msg', 'Profile ID and nameserver are required', false); return; }
+  const r = await fetch(`${API}/v1/network-profiles/${profile_id}/dns`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({nameserver, search_domain, priority})
+  });
+  const data = await r.json();
+  if (r.ok) msg('dns-msg', `Added nameserver ${data.nameserver}`, true);
+  else msg('dns-msg', data.detail || 'Error', false);
+}
+
+async function addRoute() {
+  const profile_id = document.getElementById('rt-profile-id').value.trim();
+  const destination = document.getElementById('rt-dest').value.trim();
+  const gateway = document.getElementById('rt-gw').value.trim();
+  const metric = parseInt(document.getElementById('rt-metric').value) || 0;
+  const interface_name = document.getElementById('rt-iface').value.trim() || null;
+  const description = document.getElementById('rt-desc').value.trim();
+  if (!profile_id || !destination || !gateway) { msg('rt-msg', 'Profile ID, destination and gateway are required', false); return; }
+  const r = await fetch(`${API}/v1/network-profiles/${profile_id}/routes`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({destination, gateway, metric, interface_name, description})
+  });
+  const data = await r.json();
+  if (r.ok) msg('rt-msg', `Added route to ${data.destination}`, true);
+  else msg('rt-msg', data.detail || 'Error', false);
+}
+
+async function loadDnsRoutes() {
+  const id = document.getElementById('dns-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/network-profiles/${id}`);
+  if (!r.ok) return;
+  const data = await r.json();
+  document.getElementById('dns-list').innerHTML = data.dns.length
+    ? data.dns.map(d => `<tr><td>${d.nameserver}</td><td>${d.search_domain || '—'}</td><td>${d.priority}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">No DNS entries</td></tr>';
+  document.getElementById('routes-list').innerHTML = data.routes.length
+    ? data.routes.map(r => `<tr><td>${r.destination}</td><td>${r.gateway}</td><td>${r.metric}</td><td>${r.interface_name || '—'}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">No routes</td></tr>';
+}
+
+// ----- Firewall -----
+async function addRule() {
+  const profile_id = document.getElementById('fw-profile-id').value.trim();
+  const chain = document.getElementById('fw-chain').value;
+  const protocol = document.getElementById('fw-protocol').value;
+  const action = document.getElementById('fw-action').value;
+  const source_cidr = document.getElementById('fw-src').value.trim() || null;
+  const destination_cidr = document.getElementById('fw-dst').value.trim() || null;
+  const dport = document.getElementById('fw-dport').value.trim() || null;
+  const priority = parseInt(document.getElementById('fw-priority').value) || 100;
+  const comment = document.getElementById('fw-comment').value.trim() || null;
+  if (!profile_id) { msg('fw-msg', 'Profile ID is required', false); return; }
+  const r = await fetch(`${API}/v1/network-profiles/${profile_id}/firewall-rules`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({chain, protocol, action, source_cidr, destination_cidr, dport, priority, comment})
+  });
+  const data = await r.json();
+  if (r.ok) msg('fw-msg', `Added ${action} rule on ${chain}`, true);
+  else msg('fw-msg', data.detail || 'Error', false);
+}
+
+async function loadRules() {
+  const id = document.getElementById('fw-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/network-profiles/${id}`);
+  if (!r.ok) { document.getElementById('rules-list').innerHTML = '<tr><td colspan="6" class="empty">Not found</td></tr>'; return; }
+  const data = await r.json();
+  const tbody = document.getElementById('rules-list');
+  if (!data.firewall_rules.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No rules yet</td></tr>'; return; }
+  tbody.innerHTML = data.firewall_rules.map(fw => `
+    <tr>
+      <td><span class="chip-chain">${fw.chain}</span></td>
+      <td>${fw.protocol}</td>
+      <td>${fw.source_cidr || 'any'}</td>
+      <td>${fw.dport || '—'}</td>
+      <td>${actionChip(fw.action)}</td>
+      <td>${fw.comment || ''}</td>
+    </tr>`).join('');
+}
+
+// ----- Render -----
+async function doRender() {
+  const id = document.getElementById('r-profile-id').value.trim();
+  if (!id) { msg('r-msg', 'Profile ID is required', false); return; }
+  const r = await fetch(`${API}/v1/network-profiles/${id}/render`, {method: 'POST'});
+  const data = await r.json();
+  if (!r.ok) { msg('r-msg', data.detail || 'Error', false); document.getElementById('r-results').style.display = 'none'; return; }
+  document.getElementById('r-msg').style.display = 'none';
+  document.getElementById('r-results').style.display = 'block';
+  document.getElementById('r-hash').textContent = data.content_hash;
+  document.getElementById('r-counts').textContent =
+    `interfaces: ${data.interface_count}  dns: ${data.dns_count}  routes: ${data.route_count}  rules: ${data.firewall_rule_count}`;
+  document.getElementById('r-networkd').textContent = data.rendered_networkd || '(no interfaces)';
+  document.getElementById('r-resolv').textContent = data.rendered_resolv_conf;
+  document.getElementById('r-hosts').textContent = data.rendered_hosts;
+  document.getElementById('r-firewall').textContent = data.rendered_firewall;
+}
+
+loadProfiles();
+</script>
+</body>
+</html>
