@@ -2413,3 +2413,138 @@ class GsettingsOverride(Base):
             "profile_id", "schema", "key", name="uq_gsettings_overrides_profile_schema_key"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M44 — Users / Groups / Credentials / Secrets Designer
+# ---------------------------------------------------------------------------
+
+
+class UserShellKind(Base):
+    """Seeded lookup of valid login shells (M44)."""
+
+    __tablename__ = "user_shell_kinds"
+
+    path: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class OsUserProfile(Base):
+    """Top-level users-and-groups profile for a distribution image (M44)."""
+
+    __tablename__ = "os_user_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    rendered_passwd: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_group: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_secrets_manifest: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_os_user_profiles_dist_name"
+        ),
+    )
+
+
+class OsGroup(Base):
+    """An OS group to be written to /etc/group in the image (M44)."""
+
+    __tablename__ = "os_groups"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("os_user_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    gid: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint("profile_id", "name", name="uq_os_groups_profile_name"),
+    )
+
+
+class OsUser(Base):
+    """An OS user account to be written to /etc/passwd in the image (M44)."""
+
+    __tablename__ = "os_users"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("os_user_profiles.id"), nullable=False
+    )
+    username: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    uid: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    primary_group: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="users"
+    )
+    home_dir: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    shell: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="/bin/bash"
+    )
+    gecos: Mapped[str] = mapped_column(sa.String(128), nullable=False, default="")
+    is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    is_locked: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    password_hash: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "username", name="uq_os_users_profile_username"
+        ),
+    )
+
+
+class UserSupplementaryGroup(Base):
+    """Supplementary group membership for an OS user (M44)."""
+
+    __tablename__ = "user_supplementary_groups"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("os_users.id"), nullable=False
+    )
+    group_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "user_id", "group_name", name="uq_user_supplementary_groups_user_group"
+        ),
+    )
+
+
+class SecretVariable(Base):
+    """A named build-time secret reference attached to a user profile (M44)."""
+
+    __tablename__ = "secret_variables"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("os_user_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # env-var | file | ssh-key | api-key | certificate | gpg-key
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    masked_value: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    is_required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_secret_variables_profile_name"
+        ),
+    )

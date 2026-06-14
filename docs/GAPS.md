@@ -319,6 +319,29 @@ Severity scale:
 - **Impact:** Secrets are not masked or injected safely; no user/group/SSH-key
   generation.
 - **Closed by:** **M44** (Users / Groups / Credentials / Secrets Designer).
+- **Status: ✅ Resolved (M44 done).** Six new tables: `user_shell_kinds`
+  (seeded — 7 shells: /bin/sh/bash/zsh/fish/dash, /usr/sbin/nologin,
+  /bin/false), `os_user_profiles` (rendered_passwd/rendered_group/
+  rendered_secrets_manifest/content_hash/rendered_at), `os_groups` (name,
+  gid, is_system, description; unique per profile+name), `os_users`
+  (username, uid, primary_group, home_dir, shell, gecos, is_system,
+  is_locked, password_hash; unique per profile+username; locked accounts
+  get /usr/sbin/nologin in rendered /etc/passwd), `user_supplementary_groups`
+  (user → group_name bridge), `secret_variables` (name, kind:
+  env-var/file/ssh-key/api-key/certificate/gpg-key, description,
+  masked_value, is_required; unique per profile+name).
+  `render_user_config` generates /etc/passwd (username:x:uid:gid:gecos:
+  home:shell, sorted system→regular), /etc/group (groupname:x:gid:members,
+  members from supplementary-group bridge), and a secrets manifest (JSON
+  array of {name, kind, description, is_required, masked_value}) — all
+  three concatenated for sha256: hash. `update_user_profile` clears cache.
+  Migration `0020_user_designer` with fresh sentinel seeds 7 shell kinds
+  idempotently. Exposed over 10 HTTP endpoints under `/v1/user-profiles/…`
+  + `/v1/user-shell-kinds`, the `osfabricumctl users` CLI (shell-list/
+  list/create/show/update/group-add/user-add/supp-group-add/secret-add/
+  render) and the `/users` designer UI page (6 tabs: Profiles, Shell Kinds,
+  Groups, Users, Secrets, Render). 49 unit tests, all passing. Follow-on:
+  network designer (M45).
 
 ### G-10 — No network / service-init / security / compliance designers
 - **Evidence:** `Service` is a thin row (no ordering, deps, healthchecks); no

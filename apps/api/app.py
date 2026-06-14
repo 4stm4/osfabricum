@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from apps.api.routes.appcatalog_api import router as appcatalog_router
 from apps.api.routes.desktopint_api import router as desktopint_router
 from apps.api.routes.theme_api import router as theme_router
+from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.boards_api import router as boards_router
 from apps.api.routes.bootchain_api import router as bootchain_router
@@ -88,6 +89,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(desktopint_router)
     # M43: themes / icons / fonts designer
     app.include_router(theme_router)
+    # M44: users / groups / credentials / secrets designer
+    app.include_router(users_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -199,6 +202,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/theme", include_in_schema=False)
         def theme_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "theme.html"))
+
+        # M44: Users / Groups / Credentials / Secrets Designer page
+        @app.get("/users", include_in_schema=False)
+        def users_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "users.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

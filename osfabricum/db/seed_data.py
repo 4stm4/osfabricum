@@ -24,6 +24,7 @@ from osfabricum.db.models import (
     Board,
     MimeTypeDefinition,
     ThemeAssetKind,
+    UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
     BoardFlashMethod,
@@ -491,6 +492,33 @@ def seed_theme_asset_kinds(session: Session) -> int:
             continue
         session.add(
             ThemeAssetKind(name=name, description=description, display_order=display_order)
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+USER_SHELL_KINDS: list[tuple[str, str, int]] = [
+    ("/bin/sh", "POSIX shell", 0),
+    ("/bin/bash", "Bourne Again shell", 1),
+    ("/bin/zsh", "Z shell", 2),
+    ("/bin/fish", "Friendly interactive shell", 3),
+    ("/bin/dash", "Dash shell (lightweight)", 4),
+    ("/usr/sbin/nologin", "No interactive login", 5),
+    ("/bin/false", "Deny login (always exits 1)", 6),
+]
+
+
+def seed_user_shell_kinds(session: Session) -> int:
+    """Insert any missing login shell kinds (M44). Returns the number added."""
+    existing = {k.path for k in session.scalars(select(UserShellKind)).all()}
+    added = 0
+    for path, description, display_order in USER_SHELL_KINDS:
+        if path in existing:
+            continue
+        session.add(
+            UserShellKind(path=path, description=description, display_order=display_order)
         )
         added += 1
     if added:

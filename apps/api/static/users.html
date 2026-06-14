@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users / Groups / Secrets Designer — OSFabricum M44</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+  header{background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.1rem;font-weight:600;color:#fff}
+  header span{font-size:.75rem;background:#3b3f52;padding:2px 8px;border-radius:10px;color:#aaa}
+  nav{display:flex;gap:4px;padding:12px 24px;background:#141720;border-bottom:1px solid #1e2130;flex-wrap:wrap}
+  nav button{padding:6px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:.85rem;transition:.15s}
+  nav button.active,nav button:hover{background:#252839;border-color:#3a3d52;color:#fff}
+  .tab{display:none;padding:24px;max-width:1000px;margin:0 auto}
+  .tab.active{display:block}
+  h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:#fff}
+  .card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:20px;margin-bottom:16px}
+  label{font-size:.8rem;color:#888;display:block;margin-bottom:4px;margin-top:12px}
+  label:first-child{margin-top:0}
+  input,select,textarea{width:100%;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:.85rem;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:#5c6bc0}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .row3{display:grid;gap:12px;grid-template-columns:1fr 1fr 1fr}
+  .cb-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem;color:#bbb}
+  .cb-row input[type=checkbox]{width:auto}
+  button.btn{margin-top:14px;padding:8px 18px;background:#3f51b5;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:.85rem}
+  button.btn:hover{background:#5c6bc0}
+  button.btn-sm{padding:5px 12px;font-size:.8rem;background:#2a2d3a;border:1px solid #3a3d52;border-radius:5px;color:#ccc;cursor:pointer;margin-top:6px}
+  button.btn-sm:hover{background:#333650}
+  .msg{margin-top:10px;font-size:.8rem;padding:8px 12px;border-radius:6px}
+  .msg.ok{background:#1b3a2d;color:#6fcf97}
+  .msg.err{background:#3a1d1d;color:#eb5757}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{text-align:left;color:#888;font-weight:500;padding:6px 8px;border-bottom:1px solid #252839}
+  td{padding:7px 8px;border-bottom:1px solid #1e2130;vertical-align:top}
+  .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;font-weight:500}
+  .badge-sys{background:#1f2a3f;color:#6fb3f2}
+  .badge-locked{background:#3a2a1d;color:#f2a26f}
+  .badge-req{background:#1f2a1f;color:#6fcf97}
+  pre{font-size:.78rem;background:#0a0c12;border:1px solid #1e2130;border-radius:6px;padding:14px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#c5d0e6;max-height:340px;overflow-y:auto}
+  .hash{font-size:.78rem;color:#6fcf97;background:#1b3a2d;padding:6px 10px;border-radius:6px;margin-top:10px;word-break:break-all}
+  .empty{color:#555;font-size:.83rem;padding:12px 0}
+  .chip-kind{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#272040;color:#b39ddb}
+</style>
+</head>
+<body>
+<header>
+  <h1>Users / Groups / Secrets Designer</h1>
+  <span>M44</span>
+</header>
+<nav>
+  <button class="active" onclick="show('profiles')">Profiles</button>
+  <button onclick="show('shells')">Shell Kinds</button>
+  <button onclick="show('groups')">Groups</button>
+  <button onclick="show('userstab')">Users</button>
+  <button onclick="show('secrets')">Secrets</button>
+  <button onclick="show('render')">Render</button>
+</nav>
+
+<!-- PROFILES -->
+<div id="tab-profiles" class="tab active">
+  <h2>User Profiles</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Create Profile</h2>
+    <label>Name</label><input id="p-name" placeholder="Base Users">
+    <label>Distribution ID (optional)</label><input id="p-dist">
+    <button class="btn" onclick="createProfile()">Create</button>
+    <div id="p-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">All Profiles</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Distribution</th><th>Rendered</th><th>ID</th></tr></thead>
+      <tbody id="profiles-list"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SHELL KINDS -->
+<div id="tab-shells" class="tab">
+  <h2>Login Shell Kinds</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody id="shells-list"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- GROUPS -->
+<div id="tab-groups" class="tab">
+  <h2>OS Groups</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Group</h2>
+    <label>Profile ID</label><input id="grp-profile-id" placeholder="Profile UUID">
+    <div class="row">
+      <div><label>Group Name</label><input id="grp-name" placeholder="sudo"></div>
+      <div><label>GID (optional)</label><input id="grp-gid" type="number" placeholder="auto"></div>
+    </div>
+    <div class="cb-row">
+      <input type="checkbox" id="grp-system"><label for="grp-system" style="margin:0">System group</label>
+    </div>
+    <label>Description</label><input id="grp-description" placeholder="Sudoers group">
+    <button class="btn" onclick="addGroup()">Add Group</button>
+    <div id="grp-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Groups in Profile</h2>
+    <label>Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="grp-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadGroups()">Load</button>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr><th>Name</th><th>GID</th><th>System</th><th>Description</th></tr></thead>
+      <tbody id="groups-list"><tr><td colspan="4" class="empty">Enter a profile ID above</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- USERS -->
+<div id="tab-userstab" class="tab">
+  <h2>OS Users</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add User</h2>
+    <label>Profile ID</label><input id="usr-profile-id" placeholder="Profile UUID">
+    <div class="row">
+      <div><label>Username</label><input id="usr-username" placeholder="alice"></div>
+      <div><label>UID (optional)</label><input id="usr-uid" type="number" placeholder="auto"></div>
+    </div>
+    <div class="row">
+      <div><label>Primary Group</label><input id="usr-primary-group" value="users"></div>
+      <div><label>Home Directory</label><input id="usr-home" placeholder="/home/alice"></div>
+    </div>
+    <div class="row">
+      <div><label>Shell</label><input id="usr-shell" value="/bin/bash"></div>
+      <div><label>GECOS</label><input id="usr-gecos" placeholder="Alice Smith"></div>
+    </div>
+    <div style="display:flex;gap:24px;margin-top:8px">
+      <div class="cb-row"><input type="checkbox" id="usr-system"><label for="usr-system" style="margin:0">System user</label></div>
+      <div class="cb-row"><input type="checkbox" id="usr-locked"><label for="usr-locked" style="margin:0">Locked account</label></div>
+    </div>
+    <button class="btn" onclick="addUser()">Add User</button>
+    <div id="usr-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Supplementary Group</h2>
+    <div class="row">
+      <div><label>User ID</label><input id="supp-user-id" placeholder="User UUID"></div>
+      <div><label>Group Name</label><input id="supp-group" placeholder="docker"></div>
+    </div>
+    <button class="btn" onclick="addSuppGroup()">Add Membership</button>
+    <div id="supp-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Users in Profile</h2>
+    <label>Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="usr-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadUsers()">Load</button>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr><th>Username</th><th>UID</th><th>Primary Group</th><th>Shell</th><th>Flags</th><th>Supplementary</th></tr></thead>
+      <tbody id="users-list"><tr><td colspan="6" class="empty">Enter a profile ID above</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SECRETS -->
+<div id="tab-secrets" class="tab">
+  <h2>Secret Variables</h2>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Add Secret</h2>
+    <label>Profile ID</label><input id="sec-profile-id" placeholder="Profile UUID">
+    <div class="row">
+      <div><label>Name</label><input id="sec-name" placeholder="ROOT_PASSWORD"></div>
+      <div>
+        <label>Kind</label>
+        <select id="sec-kind">
+          <option value="env-var">env-var</option>
+          <option value="file">file</option>
+          <option value="ssh-key">ssh-key</option>
+          <option value="api-key">api-key</option>
+          <option value="certificate">certificate</option>
+          <option value="gpg-key">gpg-key</option>
+        </select>
+      </div>
+    </div>
+    <label>Description</label><input id="sec-description" placeholder="Root account password">
+    <label>Masked Value (optional, shown in logs)</label><input id="sec-masked" placeholder="***">
+    <div class="cb-row">
+      <input type="checkbox" id="sec-required" checked><label for="sec-required" style="margin:0">Required</label>
+    </div>
+    <button class="btn" onclick="addSecret()">Add Secret</button>
+    <div id="sec-msg" class="msg" style="display:none"></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:.9rem;margin-bottom:12px">Secrets in Profile</h2>
+    <label>Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="sec-view-id" placeholder="Profile UUID" style="flex:1">
+      <button class="btn-sm" onclick="loadSecrets()">Load</button>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr><th>Name</th><th>Kind</th><th>Required</th><th>Masked Value</th><th>Description</th></tr></thead>
+      <tbody id="secrets-list"><tr><td colspan="5" class="empty">Enter a profile ID above</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- RENDER -->
+<div id="tab-render" class="tab">
+  <h2>Render User Config</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="r-profile-id" placeholder="Profile UUID">
+    <button class="btn" onclick="doRender()">Render</button>
+    <div id="r-msg" class="msg" style="display:none"></div>
+  </div>
+  <div id="r-results" style="display:none">
+    <div class="card">
+      <div class="hash" id="r-hash"></div>
+      <div style="font-size:.8rem;color:#888;margin-top:6px" id="r-counts"></div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">/etc/passwd</h2>
+      <pre id="r-passwd"></pre>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">/etc/group</h2>
+      <pre id="r-group"></pre>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.85rem;margin-bottom:10px">Secrets Manifest</h2>
+      <pre id="r-secrets"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function show(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'profiles') loadProfiles();
+  if (id === 'shells') loadShells();
+}
+
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.style.display = 'block';
+}
+
+// ----- Profiles -----
+async function loadProfiles() {
+  const r = await fetch(`${API}/v1/user-profiles`);
+  const data = await r.json();
+  const tbody = document.getElementById('profiles-list');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No profiles yet</td></tr>'; return; }
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.distribution_id || '—'}</td>
+      <td>${p.content_hash ? '✓' : ''}</td>
+      <td style="font-size:.75rem;color:#555">${p.id}</td>
+    </tr>`).join('');
+}
+
+async function createProfile() {
+  const name = document.getElementById('p-name').value.trim();
+  const dist = document.getElementById('p-dist').value.trim() || null;
+  if (!name) { msg('p-msg', 'Name is required', false); return; }
+  const r = await fetch(`${API}/v1/user-profiles`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, distribution_id: dist})
+  });
+  const data = await r.json();
+  if (r.ok) { msg('p-msg', `Created: ${data.id}`, true); loadProfiles(); }
+  else msg('p-msg', data.detail || 'Error', false);
+}
+
+// ----- Shell kinds -----
+async function loadShells() {
+  const r = await fetch(`${API}/v1/user-shell-kinds`);
+  const data = await r.json();
+  document.getElementById('shells-list').innerHTML = data.map(k => `
+    <tr><td>${k.display_order}</td><td><code>${k.path}</code></td><td>${k.description}</td></tr>`).join('');
+}
+
+// ----- Groups -----
+async function addGroup() {
+  const profile_id = document.getElementById('grp-profile-id').value.trim();
+  const name = document.getElementById('grp-name').value.trim();
+  const gid = document.getElementById('grp-gid').value;
+  const is_system = document.getElementById('grp-system').checked;
+  const description = document.getElementById('grp-description').value.trim();
+  if (!profile_id || !name) { msg('grp-msg', 'Profile ID and group name are required', false); return; }
+  const body = {name, is_system, description};
+  if (gid) body.gid = parseInt(gid);
+  const r = await fetch(`${API}/v1/user-profiles/${profile_id}/groups`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (r.ok) msg('grp-msg', `Added group ${data.name}`, true);
+  else msg('grp-msg', data.detail || 'Error', false);
+}
+
+async function loadGroups() {
+  const id = document.getElementById('grp-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/user-profiles/${id}`);
+  if (!r.ok) { document.getElementById('groups-list').innerHTML = '<tr><td colspan="4" class="empty">Not found</td></tr>'; return; }
+  const data = await r.json();
+  const tbody = document.getElementById('groups-list');
+  if (!data.groups.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No groups yet</td></tr>'; return; }
+  tbody.innerHTML = data.groups.map(g => `
+    <tr>
+      <td>${g.name}</td>
+      <td>${g.gid ?? '?'}</td>
+      <td>${g.is_system ? '<span class="badge badge-sys">system</span>' : ''}</td>
+      <td>${g.description || ''}</td>
+    </tr>`).join('');
+}
+
+// ----- Users -----
+async function addUser() {
+  const profile_id = document.getElementById('usr-profile-id').value.trim();
+  const username = document.getElementById('usr-username').value.trim();
+  const uid = document.getElementById('usr-uid').value;
+  const primary_group = document.getElementById('usr-primary-group').value.trim() || 'users';
+  const home_dir = document.getElementById('usr-home').value.trim() || null;
+  const shell = document.getElementById('usr-shell').value.trim() || '/bin/bash';
+  const gecos = document.getElementById('usr-gecos').value.trim();
+  const is_system = document.getElementById('usr-system').checked;
+  const is_locked = document.getElementById('usr-locked').checked;
+  if (!profile_id || !username) { msg('usr-msg', 'Profile ID and username are required', false); return; }
+  const body = {username, primary_group, shell, gecos, is_system, is_locked};
+  if (uid) body.uid = parseInt(uid);
+  if (home_dir) body.home_dir = home_dir;
+  const r = await fetch(`${API}/v1/user-profiles/${profile_id}/users`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (r.ok) msg('usr-msg', `Added user ${data.username}`, true);
+  else msg('usr-msg', data.detail || 'Error', false);
+}
+
+async function addSuppGroup() {
+  const user_id = document.getElementById('supp-user-id').value.trim();
+  const group_name = document.getElementById('supp-group').value.trim();
+  if (!user_id || !group_name) { msg('supp-msg', 'User ID and group name are required', false); return; }
+  const r = await fetch(`${API}/v1/user-profiles/_/users/${user_id}/supplementary-groups`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({group_name})
+  });
+  const data = await r.json();
+  if (r.ok) msg('supp-msg', `Added ${group_name} to user`, true);
+  else msg('supp-msg', data.detail || 'Error', false);
+}
+
+async function loadUsers() {
+  const id = document.getElementById('usr-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/user-profiles/${id}`);
+  if (!r.ok) { document.getElementById('users-list').innerHTML = '<tr><td colspan="6" class="empty">Not found</td></tr>'; return; }
+  const data = await r.json();
+  const tbody = document.getElementById('users-list');
+  if (!data.users.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No users yet</td></tr>'; return; }
+  tbody.innerHTML = data.users.map(u => {
+    const flags = [
+      u.is_system ? '<span class="badge badge-sys">sys</span>' : '',
+      u.is_locked ? '<span class="badge badge-locked">locked</span>' : ''
+    ].filter(Boolean).join(' ');
+    return `<tr>
+      <td>${u.username}</td>
+      <td>${u.uid ?? '?'}</td>
+      <td>${u.primary_group}</td>
+      <td><code>${u.shell}</code></td>
+      <td>${flags || '—'}</td>
+      <td>${(u.supplementary_groups || []).join(', ') || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ----- Secrets -----
+async function addSecret() {
+  const profile_id = document.getElementById('sec-profile-id').value.trim();
+  const name = document.getElementById('sec-name').value.trim();
+  const kind = document.getElementById('sec-kind').value;
+  const description = document.getElementById('sec-description').value.trim();
+  const masked_value = document.getElementById('sec-masked').value.trim() || null;
+  const is_required = document.getElementById('sec-required').checked;
+  if (!profile_id || !name) { msg('sec-msg', 'Profile ID and name are required', false); return; }
+  const r = await fetch(`${API}/v1/user-profiles/${profile_id}/secrets`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, kind, description, masked_value, is_required})
+  });
+  const data = await r.json();
+  if (r.ok) msg('sec-msg', `Added secret ${data.name}`, true);
+  else msg('sec-msg', data.detail || 'Error', false);
+}
+
+async function loadSecrets() {
+  const id = document.getElementById('sec-view-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`${API}/v1/user-profiles/${id}`);
+  if (!r.ok) { document.getElementById('secrets-list').innerHTML = '<tr><td colspan="5" class="empty">Not found</td></tr>'; return; }
+  const data = await r.json();
+  const tbody = document.getElementById('secrets-list');
+  if (!data.secrets.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No secrets yet</td></tr>'; return; }
+  tbody.innerHTML = data.secrets.map(s => `
+    <tr>
+      <td><code>${s.name}</code></td>
+      <td><span class="chip-kind">${s.kind}</span></td>
+      <td>${s.is_required ? '<span class="badge badge-req">required</span>' : 'optional'}</td>
+      <td>${s.masked_value || '—'}</td>
+      <td>${s.description || ''}</td>
+    </tr>`).join('');
+}
+
+// ----- Render -----
+async function doRender() {
+  const id = document.getElementById('r-profile-id').value.trim();
+  if (!id) { msg('r-msg', 'Profile ID is required', false); return; }
+  const r = await fetch(`${API}/v1/user-profiles/${id}/render`, {method: 'POST'});
+  const data = await r.json();
+  if (!r.ok) { msg('r-msg', data.detail || 'Error', false); document.getElementById('r-results').style.display = 'none'; return; }
+  document.getElementById('r-msg').style.display = 'none';
+  document.getElementById('r-results').style.display = 'block';
+  document.getElementById('r-hash').textContent = data.content_hash;
+  document.getElementById('r-counts').textContent =
+    `users: ${data.user_count}  groups: ${data.group_count}  secrets: ${data.secret_count}`;
+  document.getElementById('r-passwd').textContent = data.rendered_passwd;
+  document.getElementById('r-group').textContent = data.rendered_group;
+  document.getElementById('r-secrets').textContent = data.rendered_secrets_manifest;
+}
+
+loadProfiles();
+</script>
+</body>
+</html>
