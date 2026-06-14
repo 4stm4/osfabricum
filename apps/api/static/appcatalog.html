@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Application Catalog Designer — OSFabricum</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8f9fa; color: #212529; }
+    header { background: #1a1a2e; color: #eee; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+    header a { color: #adf; text-decoration: none; font-size: 0.85rem; }
+    h1 { margin: 0; font-size: 1.2rem; }
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #dee2e6; background: #fff; padding: 0 16px; }
+    .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 0.9rem; }
+    .tab.active { border-bottom-color: #0d6efd; color: #0d6efd; font-weight: 600; }
+    .pane { display: none; padding: 20px; }
+    .pane.active { display: block; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    th { background: #f1f3f5; text-align: left; padding: 10px 14px; font-size: 0.82rem; color: #495057; }
+    td { padding: 9px 14px; border-top: 1px solid #e9ecef; font-size: 0.88rem; vertical-align: top; }
+    tr:hover td { background: #f8f9fa; }
+    .btn { display: inline-block; padding: 7px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-success { background: #198754; color: #fff; }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+    form { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.1); max-width: 560px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 500; }
+    input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+    .badge-blue { background: #cfe2ff; color: #084298; }
+    .badge-green { background: #d1e7dd; color: #0a3622; }
+    .badge-orange { background: #fff3cd; color: #664d03; }
+    pre { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; font-size: 0.82rem; overflow-x: auto; white-space: pre-wrap; max-height: 480px; overflow-y: auto; }
+    .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: 0.85rem; }
+    .msg-ok { background: #d1e7dd; color: #0a3622; }
+    .msg-err { background: #f8d7da; color: #58151c; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 200px; }
+    #selectedProfile { font-size: 0.8rem; color: #6c757d; margin-left: 8px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Application Catalog Designer</h1>
+  <a href="/">← Dashboard</a>
+  <span style="flex:1"></span>
+  <span style="font-size:0.75rem;color:#aaa">M41</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="profiles">Profiles</div>
+  <div class="tab" data-tab="categories">Categories</div>
+  <div class="tab" data-tab="apps">Apps</div>
+  <div class="tab" data-tab="groups">Groups</div>
+  <div class="tab" data-tab="roles">Default Roles</div>
+  <div class="tab" data-tab="render">Render</div>
+</div>
+
+<!-- ===== Profiles ===== -->
+<div class="pane active" id="pane-profiles">
+  <div class="row" style="margin-bottom:16px">
+    <button class="btn btn-primary" onclick="loadProfiles()">Refresh</button>
+    <button class="btn btn-secondary" onclick="showSection('create-profile')">+ New Profile</button>
+  </div>
+  <div id="create-profile" style="display:none;margin-bottom:20px">
+    <form onsubmit="createProfile(event)">
+      <label>Name</label><input id="cp-name" required>
+      <label>Distribution ID (optional)</label><input id="cp-dist">
+      <label>Description</label><textarea id="cp-desc" rows="2"></textarea>
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+    <div id="cp-msg"></div>
+  </div>
+  <table id="profiles-table">
+    <thead><tr><th>ID</th><th>Name</th><th>Distribution</th><th>Hash</th><th>Actions</th></tr></thead>
+    <tbody id="profiles-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Categories ===== -->
+<div class="pane" id="pane-categories">
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Description</th><th>Icon</th></tr></thead>
+    <tbody id="categories-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Apps ===== -->
+<div class="pane" id="pane-apps">
+  <p style="color:#6c757d;font-size:0.85rem">Select a profile first: <span id="apps-profile-hint">none</span></p>
+  <div class="row" style="margin-bottom:16px">
+    <input id="apps-profile-id" placeholder="Profile ID" style="max-width:320px">
+    <button class="btn btn-primary" onclick="loadApps()">Load Apps</button>
+    <button class="btn btn-secondary" onclick="showSection('add-app-form')">+ Add App</button>
+  </div>
+  <div id="add-app-form" style="display:none;margin-bottom:20px">
+    <form onsubmit="addApp(event)">
+      <div class="row">
+        <div class="col"><label>Name (internal)</label><input id="aa-name" required></div>
+        <div class="col"><label>Display Name</label><input id="aa-display" required></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Package Name</label><input id="aa-pkg" required></div>
+        <div class="col"><label>Category</label>
+          <select id="aa-cat">
+            <option value="utilities">utilities</option>
+            <option value="productivity">productivity</option>
+            <option value="internet">internet</option>
+            <option value="multimedia">multimedia</option>
+            <option value="graphics">graphics</option>
+            <option value="office">office</option>
+            <option value="development">development</option>
+            <option value="games">games</option>
+            <option value="system">system</option>
+            <option value="education">education</option>
+            <option value="accessibility">accessibility</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Version Constraint</label><input id="aa-ver" placeholder="e.g. >=3.0"></div>
+        <div class="col"><label>Icon Name</label><input id="aa-icon"></div>
+      </div>
+      <label>Description</label><textarea id="aa-desc" rows="2"></textarea>
+      <label>Tags (comma-separated)</label><input id="aa-tags">
+      <div class="row">
+        <label><input type="checkbox" id="aa-default" checked> Default install</label>
+        <label><input type="checkbox" id="aa-optional"> Optional</label>
+      </div>
+      <br>
+      <button class="btn btn-primary" type="submit">Add App</button>
+    </form>
+    <div id="aa-msg"></div>
+  </div>
+  <table id="apps-table">
+    <thead><tr><th>Name</th><th>Display Name</th><th>Category</th><th>Package</th><th>Default</th><th>Optional</th></tr></thead>
+    <tbody id="apps-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Groups ===== -->
+<div class="pane" id="pane-groups">
+  <div class="row" style="margin-bottom:16px">
+    <input id="groups-profile-id" placeholder="Profile ID" style="max-width:320px">
+    <button class="btn btn-primary" onclick="loadGroups()">Load Groups</button>
+    <button class="btn btn-secondary" onclick="showSection('add-group-form')">+ Add Group</button>
+    <button class="btn btn-secondary" onclick="showSection('add-member-form')">+ Add Member</button>
+  </div>
+  <div id="add-group-form" style="display:none;margin-bottom:20px">
+    <form onsubmit="addGroup(event)">
+      <div class="row">
+        <div class="col"><label>Group Name</label><input id="ag-name" required></div>
+        <div class="col"><label>Description</label><input id="ag-desc"></div>
+      </div>
+      <label><input type="checkbox" id="ag-default"> Default group</label><br><br>
+      <button class="btn btn-primary" type="submit">Add Group</button>
+    </form>
+    <div id="ag-msg"></div>
+  </div>
+  <div id="add-member-form" style="display:none;margin-bottom:20px">
+    <form onsubmit="addMember(event)">
+      <div class="row">
+        <div class="col"><label>Group Name</label><input id="am-group" required></div>
+        <div class="col"><label>App Name</label><input id="am-app" required></div>
+        <div class="col"><label>Position</label><input id="am-pos" type="number" value="0"></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Add Member</button>
+    </form>
+    <div id="am-msg"></div>
+  </div>
+  <table id="groups-table">
+    <thead><tr><th>Name</th><th>Description</th><th>Default</th><th>Members</th></tr></thead>
+    <tbody id="groups-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Default Roles ===== -->
+<div class="pane" id="pane-roles">
+  <div class="row" style="margin-bottom:16px">
+    <input id="roles-profile-id" placeholder="Profile ID" style="max-width:320px">
+    <button class="btn btn-primary" onclick="loadRoles()">Load Roles</button>
+    <button class="btn btn-secondary" onclick="showSection('set-role-form')">+ Set Role</button>
+  </div>
+  <div id="set-role-form" style="display:none;margin-bottom:20px">
+    <form onsubmit="setRole(event)">
+      <div class="row">
+        <div class="col"><label>Role</label>
+          <select id="sr-role">
+            <option>web-browser</option><option>text-editor</option>
+            <option>file-manager</option><option>terminal</option>
+            <option>email-client</option><option>music-player</option>
+            <option>video-player</option><option>image-viewer</option>
+            <option>pdf-viewer</option><option>archive-manager</option>
+            <option>calculator</option><option>calendar</option>
+            <option>contacts</option><option>camera</option>
+          </select>
+        </div>
+        <div class="col"><label>App Name</label><input id="sr-app" required></div>
+        <div class="col"><label>Package</label><input id="sr-pkg" required></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Set Role</button>
+    </form>
+    <div id="sr-msg"></div>
+  </div>
+  <table id="roles-table">
+    <thead><tr><th>Role</th><th>App</th><th>Package</th></tr></thead>
+    <tbody id="roles-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Render ===== -->
+<div class="pane" id="pane-render">
+  <div class="row" style="margin-bottom:16px">
+    <input id="render-profile-id" placeholder="Profile ID" style="max-width:320px">
+    <button class="btn btn-success" onclick="renderCatalog()">Render App List</button>
+  </div>
+  <div id="render-msg"></div>
+  <div id="render-meta" style="font-size:0.82rem;color:#495057;margin-bottom:8px"></div>
+  <pre id="render-out"></pre>
+</div>
+
+<script>
+const BASE = '';
+let _profiles = [];
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('pane-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'categories') loadCategories();
+  });
+});
+
+function showSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function setMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'msg-ok' : 'msg-err');
+  el.textContent = text;
+}
+
+// ---- Profiles ----
+async function loadProfiles() {
+  const res = await fetch(BASE + '/v1/app-catalog-profiles');
+  const data = await res.json();
+  _profiles = data;
+  const tbody = document.getElementById('profiles-body');
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    const tr = document.createElement('tr');
+    const hash = p.content_hash ? p.content_hash.slice(0, 20) + '…' : '—';
+    tr.innerHTML = `<td style="font-size:0.78rem;color:#6c757d">${p.id.slice(0,8)}…</td>
+      <td><strong>${p.name}</strong></td>
+      <td>${p.distribution_id || '—'}</td>
+      <td style="font-family:monospace;font-size:0.78rem">${hash}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="selectProfile('${p.id}')">Select</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function selectProfile(id) {
+  document.getElementById('apps-profile-id').value = id;
+  document.getElementById('groups-profile-id').value = id;
+  document.getElementById('roles-profile-id').value = id;
+  document.getElementById('render-profile-id').value = id;
+  document.getElementById('apps-profile-hint').textContent = id;
+}
+
+async function createProfile(e) {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('cp-name').value,
+    distribution_id: document.getElementById('cp-dist').value || null,
+    description: document.getElementById('cp-desc').value || null,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('cp-msg', `Created: ${data.id}`, true);
+    loadProfiles();
+  } catch(err) { setMsg('cp-msg', err.message, false); }
+}
+
+// ---- Categories ----
+async function loadCategories() {
+  const res = await fetch(BASE + '/v1/app-categories');
+  const data = await res.json();
+  const tbody = document.getElementById('categories-body');
+  tbody.innerHTML = '';
+  data.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.display_order}</td><td><strong>${c.name}</strong></td><td>${c.description}</td><td style="font-size:0.8rem">${c.icon || '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---- Apps ----
+async function loadApps() {
+  const pid = document.getElementById('apps-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('apps-body');
+  tbody.innerHTML = '';
+  (data.apps || []).forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${a.name}</strong></td><td>${a.display_name}</td>
+      <td><span class="badge badge-blue">${a.category_name}</span></td>
+      <td style="font-family:monospace;font-size:0.82rem">${a.package_name}</td>
+      <td>${a.is_default_install ? '✓' : ''}</td>
+      <td>${a.is_optional ? '✓' : ''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addApp(e) {
+  e.preventDefault();
+  const pid = document.getElementById('apps-profile-id').value.trim();
+  const tagsRaw = document.getElementById('aa-tags').value;
+  const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const body = {
+    name: document.getElementById('aa-name').value,
+    display_name: document.getElementById('aa-display').value,
+    package_name: document.getElementById('aa-pkg').value,
+    category_name: document.getElementById('aa-cat').value,
+    description: document.getElementById('aa-desc').value || null,
+    version_constraint: document.getElementById('aa-ver').value || null,
+    icon_name: document.getElementById('aa-icon').value || null,
+    is_default_install: document.getElementById('aa-default').checked,
+    is_optional: document.getElementById('aa-optional').checked,
+    tags,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid + '/apps', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('aa-msg', `Added app: ${data.name}`, true);
+    loadApps();
+  } catch(err) { setMsg('aa-msg', err.message, false); }
+}
+
+// ---- Groups ----
+async function loadGroups() {
+  const pid = document.getElementById('groups-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('groups-body');
+  tbody.innerHTML = '';
+  (data.groups || []).forEach(g => {
+    const memberNames = (g.members || []).map(m => m.app_name).join(', ') || '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${g.name}</strong></td><td>${g.description || '—'}</td>
+      <td>${g.is_default ? '<span class="badge badge-green">yes</span>' : ''}</td>
+      <td style="font-size:0.82rem">${memberNames}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addGroup(e) {
+  e.preventDefault();
+  const pid = document.getElementById('groups-profile-id').value.trim();
+  const body = {
+    name: document.getElementById('ag-name').value,
+    description: document.getElementById('ag-desc').value || null,
+    is_default: document.getElementById('ag-default').checked,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid + '/groups', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('ag-msg', `Added group: ${data.name}`, true);
+    loadGroups();
+  } catch(err) { setMsg('ag-msg', err.message, false); }
+}
+
+async function addMember(e) {
+  e.preventDefault();
+  const pid = document.getElementById('groups-profile-id').value.trim();
+  const groupName = document.getElementById('am-group').value;
+  const body = {
+    app_name: document.getElementById('am-app').value,
+    position: parseInt(document.getElementById('am-pos').value) || 0,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid + '/groups/' + encodeURIComponent(groupName) + '/members', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('am-msg', `Added ${data.app_name} to ${data.group_name}`, true);
+    loadGroups();
+  } catch(err) { setMsg('am-msg', err.message, false); }
+}
+
+// ---- Roles ----
+async function loadRoles() {
+  const pid = document.getElementById('roles-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('roles-body');
+  tbody.innerHTML = '';
+  (data.default_roles || []).forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="badge badge-orange">${r.role}</span></td>
+      <td>${r.app_name}</td><td style="font-family:monospace;font-size:0.82rem">${r.package_name}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function setRole(e) {
+  e.preventDefault();
+  const pid = document.getElementById('roles-profile-id').value.trim();
+  const body = {
+    role: document.getElementById('sr-role').value,
+    app_name: document.getElementById('sr-app').value,
+    package_name: document.getElementById('sr-pkg').value,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid + '/default-roles', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('sr-msg', `Set ${data.role} → ${data.app_name}`, true);
+    loadRoles();
+  } catch(err) { setMsg('sr-msg', err.message, false); }
+}
+
+// ---- Render ----
+async function renderCatalog() {
+  const pid = document.getElementById('render-profile-id').value.trim();
+  if (!pid) { setMsg('render-msg', 'Enter a Profile ID', false); return; }
+  try {
+    const res = await fetch(BASE + '/v1/app-catalog-profiles/' + pid + '/render', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('render-msg', `Rendered — ${data.app_count} apps, ${data.group_count} groups, ${data.role_count} roles`, true);
+    document.getElementById('render-meta').textContent =
+      `Hash: ${data.content_hash}  |  At: ${data.rendered_at}`;
+    document.getElementById('render-out').textContent = data.rendered_app_list;
+  } catch(err) { setMsg('render-msg', err.message, false); }
+}
+
+// Init
+loadProfiles();
+</script>
+</body>
+</html>

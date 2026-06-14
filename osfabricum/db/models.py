@@ -2042,3 +2042,140 @@ class RuntimePackagePolicy(Base):
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, default=_now, onupdate=_now
     )
+
+
+# ---------------------------------------------------------------------------
+# M41: Application Catalog Designer
+# ---------------------------------------------------------------------------
+
+
+class AppCategory(Base):
+    """Seeded application categories (M41)."""
+
+    __tablename__ = "app_categories"
+
+    name: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    icon: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class AppCatalogProfile(Base):
+    """Per-distribution application catalog profile (M41)."""
+
+    __tablename__ = "app_catalog_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_app_list: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_app_catalog_profiles_dist_name"
+        ),
+    )
+
+
+class CatalogApp(Base):
+    """An application entry in a catalog profile (M41)."""
+
+    __tablename__ = "catalog_apps"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    catalog_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("app_catalog_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    display_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    category_name: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="utilities"
+    )
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    version_constraint: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    icon_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    is_default_install: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    is_optional: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    tags: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "catalog_profile_id", "name", name="uq_catalog_apps_profile_name"
+        ),
+    )
+
+
+class AppGroup(Base):
+    """A named group of apps in a catalog profile (M41)."""
+
+    __tablename__ = "app_groups"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    catalog_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("app_catalog_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "catalog_profile_id", "name", name="uq_app_groups_profile_name"
+        ),
+    )
+
+
+class AppGroupMember(Base):
+    """Bridge: catalog_app → app_group (M41)."""
+
+    __tablename__ = "app_group_members"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    group_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("app_groups.id"), nullable=False
+    )
+    catalog_app_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("catalog_apps.id"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "group_id", "catalog_app_id", name="uq_app_group_members_group_app"
+        ),
+    )
+
+
+class DefaultAppRole(Base):
+    """MIME / functional role → app mapping per catalog profile (M41)."""
+
+    __tablename__ = "default_app_roles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    catalog_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("app_catalog_profiles.id"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    app_name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "catalog_profile_id", "role", name="uq_default_app_roles_profile_role"
+        ),
+    )

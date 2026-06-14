@@ -213,7 +213,7 @@ Severity scale:
   `/v1/branding-profiles/…`, the `osfabricumctl branding` CLI and the
   `/branding` designer UI page (7 tabs: Profiles, Assets, Stage Targets, Boot
   Splash, Login Theme, OS-Release, MOTD). 32 unit tests. Follow-on:
-  graphical-shell (M40), application catalog (M41).
+  graphical-shell (M40), application catalog (M41) — both done.
 - **M40 (graphical shell designer) done.** `GraphicalProfile` extended with 10
   new columns: `display_server` (none/x11/wayland/both), `compositor`,
   `display_manager`, `session_manager`, `toolkit_default`,
@@ -235,6 +235,26 @@ Severity scale:
   `/graphical` designer UI page (6 tabs: Profiles, Compositors, Display
   Managers, Components, Sessions, Render). 36 unit tests. Follow-on:
   application catalog (M41).
+- **M41 (application catalog designer) done.** Five new tables:
+  `app_categories` (seeded — 11 entries: productivity/internet/multimedia/
+  graphics/office/development/games/utilities/system/education/accessibility),
+  `app_catalog_profiles` (per-distribution catalog with render columns),
+  `catalog_apps` (name/display_name/package_name/category/version_constraint/
+  icon/is_default_install/is_optional/tags), `app_groups` (named collections),
+  `app_group_members` (bridge with position), `default_app_roles` (MIME/
+  functional role → app binding; 14 valid roles: web-browser/text-editor/
+  file-manager/terminal/email-client/music-player/video-player/image-viewer/
+  pdf-viewer/archive-manager/calculator/calendar/contacts/camera).
+  `render_app_list` generates a deterministic INI `[Catalog]`/`[App:*]`/
+  `[Group:*]`/`[Role:*]` manifest with a `sha256:` content hash; stores result
+  on the profile row. `set_default_role` is an upsert. Migration
+  `0017_app_catalog` uses a `fresh` sentinel and seeds 11 categories idempotently.
+  Exposed over 10 HTTP endpoints under `/v1/app-catalog-profiles/…` +
+  `/v1/app-categories`, the `osfabricumctl appcatalog` CLI (category-list/
+  list/create/show/update/app-add/group-add/member-add/role-set/render) and
+  the `/appcatalog` designer UI page (6 tabs: Profiles, Categories, Apps,
+  Groups, Default Roles, Render). 39 unit tests, all passing. Follow-on:
+  default apps / desktop integration (M42).
 
 ### G-08 — Boards are shallow (no BSP depth)
 - **Evidence:** `boards` row carries `boot_scheme`, `firmware_required`,

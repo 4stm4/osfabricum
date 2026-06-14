@@ -20,6 +20,7 @@ import yaml
 from sqlalchemy import select
 
 from osfabricum.db.models import (
+    AppCategory,
     Board,
     BoardDeviceTree,
     BoardFirmware,
@@ -342,6 +343,40 @@ def seed_compositor_backends(session: Session) -> int:
     return added
 
 
+# M41: application categories (name, description, icon, display_order)
+APP_CATEGORIES: list[tuple[str, str, str | None, int]] = [
+    ("productivity", "Word processors, spreadsheets, notes", "application-office", 0),
+    ("internet", "Web browsers, email clients, messaging", "applications-internet", 1),
+    ("multimedia", "Audio, video, photo and media tools", "applications-multimedia", 2),
+    ("graphics", "Image editors, viewers and design tools", "applications-graphics", 3),
+    ("office", "Office suites, PDF tools, document viewers", "applications-office", 4),
+    ("development", "IDEs, editors, debuggers, version control", "applications-development", 5),
+    ("games", "Games and entertainment", "applications-games", 6),
+    ("utilities", "System tools, file managers, archivers", "applications-utilities", 7),
+    ("system", "Core system administration tools", "applications-system", 8),
+    ("education", "Educational apps and language tools", "applications-education", 9),
+    ("accessibility", "Accessibility and assistive technologies", "preferences-desktop-accessibility", 10),
+]
+
+# M41: valid default-app role names
+DEFAULT_APP_ROLES = (
+    "web-browser",
+    "text-editor",
+    "file-manager",
+    "terminal",
+    "email-client",
+    "music-player",
+    "video-player",
+    "image-viewer",
+    "pdf-viewer",
+    "archive-manager",
+    "calculator",
+    "calendar",
+    "contacts",
+    "camera",
+)
+
+
 def seed_display_manager_backends(session: Session) -> int:
     """Insert any missing display manager backends (M40). Returns the number added."""
     existing = {b.name for b in session.scalars(select(DisplayManagerBackend)).all()}
@@ -366,6 +401,27 @@ def seed_display_manager_backends(session: Session) -> int:
 # ---------------------------------------------------------------------------
 # M30: BSP Seed Data Loaders
 # ---------------------------------------------------------------------------
+
+
+def seed_app_categories(session: Session) -> int:
+    """Insert any missing app categories (M41). Returns the number added."""
+    existing = {c.name for c in session.scalars(select(AppCategory)).all()}
+    added = 0
+    for name, description, icon, display_order in APP_CATEGORIES:
+        if name in existing:
+            continue
+        session.add(
+            AppCategory(
+                name=name,
+                description=description,
+                icon=icon,
+                display_order=display_order,
+            )
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
 
 
 def seed_soc_families_from_yaml(session: Session, yaml_path: Path | str) -> int:
