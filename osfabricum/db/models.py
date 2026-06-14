@@ -3225,3 +3225,189 @@ class UpdateHook(Base):
             name="uq_update_hooks_profile_point_prio",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M50 — SDK / dev-shell export
+# ---------------------------------------------------------------------------
+
+
+class SDKExportKind(Base):
+    """Enumeration of SDK export formats (M50)."""
+
+    __tablename__ = "sdk_export_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class SDKProfile(Base):
+    """SDK / dev-shell export profile for a distribution (M50)."""
+
+    __tablename__ = "sdk_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    export_format: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="shell-env"
+    )  # pip | conda | nix | shell-env | docker
+    python_version: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="3.11"
+    )
+    include_debug_symbols: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    rendered_setup_script: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_env_script: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_sdk_profiles_dist_name"
+        ),
+    )
+
+
+class SDKVariable(Base):
+    """Environment variable / configuration entry within an SDK profile (M50)."""
+
+    __tablename__ = "sdk_variables"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("sdk_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    key: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    value: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    description: Mapped[str] = mapped_column(
+        sa.String(256), nullable=False, default=""
+    )
+    is_secret: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "key", name="uq_sdk_variables_profile_key"
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# M51 — Cache / Mirror / Offline Designer
+# ---------------------------------------------------------------------------
+
+
+class CachePolicyKind(Base):
+    """Enumeration of fetch-cache policy modes (M51)."""
+
+    __tablename__ = "cache_policy_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class MirrorProfile(Base):
+    """Mirror / offline-cache profile for a distribution (M51)."""
+
+    __tablename__ = "mirror_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    offline_mode: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    max_cache_size_mb: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    cache_ttl_days: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=7
+    )
+    rendered_mirror_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_mirror_profiles_dist_name"
+        ),
+    )
+
+
+class MirrorEndpoint(Base):
+    """A upstream mirror URL within a mirror profile (M51)."""
+
+    __tablename__ = "mirror_endpoints"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("mirror_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    url: Mapped[str] = mapped_column(sa.String(512), nullable=False)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    requires_auth: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    auth_token_id: Mapped[str | None] = mapped_column(
+        sa.String(128), nullable=True
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "url", name="uq_mirror_endpoints_profile_url"
+        ),
+    )
+
+
+class CachePriorityRule(Base):
+    """Per-source-pattern cache policy rule within a mirror profile (M51)."""
+
+    __tablename__ = "cache_priority_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("mirror_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_pattern: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    cache_policy: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="prefer"
+    )  # always | prefer | bypass | offline-only
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "source_pattern", name="uq_cache_rules_profile_pattern"
+        ),
+    )

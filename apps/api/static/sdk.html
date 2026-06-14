@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDK Designer — OSFabricum</title>
+<style>
+  :root { --bg:#121212;--surface:#1e1e1e;--border:#333;--text:#e0e0e0;--muted:#888;
+    --accent:#7b1fa2;--accent2:#ab47bc;--green:#4caf50;--red:#f44336;--yellow:#ffc107; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 'Segoe UI',sans-serif;display:flex;flex-direction:column;height:100vh}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:16px}
+  header h1{font-size:16px;font-weight:600}header a{color:var(--muted);font-size:12px;text-decoration:none}
+  header a:hover{color:var(--text)}
+  .tabs{display:flex;gap:2px;background:var(--bg);padding:8px 20px 0;border-bottom:1px solid var(--border)}
+  .tab{padding:8px 16px;border:1px solid transparent;border-bottom:none;cursor:pointer;border-radius:4px 4px 0 0;color:var(--muted);font-size:13px}
+  .tab.active{background:var(--surface);border-color:var(--border);color:var(--text)}
+  .tab:hover:not(.active){color:var(--text)}
+  .content{flex:1;overflow:auto;padding:20px}
+  .pane{display:none}.pane.active{display:block}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px}
+  .card h3{font-size:14px;margin-bottom:12px;color:var(--accent2)}
+  .form-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap}
+  label{font-size:12px;color:var(--muted);min-width:120px}
+  input,select,textarea{background:#2a2a2a;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:4px;font-size:13px;flex:1;min-width:160px}
+  textarea{resize:vertical;min-height:80px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent2)}
+  button{background:var(--accent);color:#fff;border:none;padding:7px 16px;border-radius:4px;cursor:pointer;font-size:13px}
+  button:hover{background:var(--accent2)}
+  button.secondary{background:#333}button.secondary:hover{background:#444}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:500}
+  td{padding:8px 10px;border-bottom:1px solid #292929}tr:hover td{background:#1a1a1a}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge-green{background:#1b5e20;color:#a5d6a7}.badge-red{background:#b71c1c;color:#ffcdd2}
+  .badge-purple{background:#4a148c;color:#e1bee7}
+  .hash{font-family:monospace;font-size:11px;color:var(--muted)}
+  pre{background:#0d0d0d;border:1px solid var(--border);border-radius:4px;padding:12px;font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap}
+  .msg{padding:8px 12px;border-radius:4px;margin-top:8px;font-size:13px}
+  .msg.ok{background:#1b5e20;color:#a5d6a7}.msg.err{background:#7f0000;color:#ffcdd2}
+  .row-action{display:flex;gap:8px;flex-wrap:wrap}
+  select[name="format"]{text-transform:lowercase}
+</style>
+</head>
+<body>
+<header>
+  <h1>SDK / Dev-Shell Designer</h1>
+  <a href="/">← Dashboard</a>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="profiles">Profiles</div>
+  <div class="tab" data-tab="formats">Export Formats</div>
+  <div class="tab" data-tab="variables">Variables</div>
+  <div class="tab" data-tab="render">Render</div>
+</div>
+
+<div class="content">
+
+<!-- PROFILES -->
+<div class="pane active" id="pane-profiles">
+  <div class="card">
+    <h3>Create SDK Profile</h3>
+    <div class="form-row"><label>Name</label><input id="p-name" placeholder="my-sdk"></div>
+    <div class="form-row"><label>Export Format</label>
+      <select id="p-format">
+        <option value="shell-env">shell-env</option>
+        <option value="pip">pip</option>
+        <option value="conda">conda</option>
+        <option value="nix">nix</option>
+        <option value="docker">docker</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Python Version</label><input id="p-python" value="3.11" placeholder="3.11"></div>
+    <div class="form-row"><label>Description</label><input id="p-desc" placeholder="optional"></div>
+    <div class="form-row">
+      <label>Debug Symbols</label>
+      <select id="p-debug"><option value="false">No</option><option value="true">Yes</option></select>
+    </div>
+    <div class="form-row"><button onclick="createProfile()">Create</button></div>
+    <div id="p-msg"></div>
+  </div>
+  <div class="card">
+    <h3>SDK Profiles</h3>
+    <button class="secondary" style="margin-bottom:10px" onclick="loadProfiles()">Refresh</button>
+    <table id="profiles-table">
+      <thead><tr><th>Name</th><th>Format</th><th>Python</th><th>Debug</th><th>Hash</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- FORMATS -->
+<div class="pane" id="pane-formats">
+  <div class="card">
+    <h3>Export Format Catalogue</h3>
+    <button class="secondary" style="margin-bottom:10px" onclick="loadFormats()">Refresh</button>
+    <table id="formats-table">
+      <thead><tr><th>#</th><th>Kind</th><th>Label</th><th>Description</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- VARIABLES -->
+<div class="pane" id="pane-variables">
+  <div class="card">
+    <h3>Set Variable</h3>
+    <div class="form-row"><label>Profile ID</label><input id="v-pid" placeholder="profile UUID"></div>
+    <div class="form-row"><label>Key</label><input id="v-key" placeholder="CROSS_COMPILE"></div>
+    <div class="form-row"><label>Value</label><input id="v-val" placeholder="aarch64-linux-gnu-"></div>
+    <div class="form-row"><label>Description</label><input id="v-desc" placeholder="optional"></div>
+    <div class="form-row">
+      <label>Secret?</label>
+      <select id="v-secret"><option value="false">No</option><option value="true">Yes</option></select>
+    </div>
+    <div class="form-row"><button onclick="setVariable()">Set Variable</button></div>
+    <div id="v-msg"></div>
+  </div>
+  <div class="card">
+    <h3>List Variables</h3>
+    <div class="form-row">
+      <input id="v-list-pid" placeholder="Profile ID">
+      <button onclick="loadVariables()">Load</button>
+    </div>
+    <table id="variables-table">
+      <thead><tr><th>Key</th><th>Value</th><th>Secret</th><th>Description</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- RENDER -->
+<div class="pane" id="pane-render">
+  <div class="card">
+    <h3>Render SDK Export</h3>
+    <div class="form-row"><label>Profile ID</label><input id="r-pid" placeholder="profile UUID"></div>
+    <div class="form-row"><button onclick="renderProfile()">Render</button></div>
+    <div id="r-msg"></div>
+  </div>
+  <div class="card" id="r-result" style="display:none">
+    <h3>Result</h3>
+    <div class="hash" id="r-hash"></div>
+    <h4 style="margin:12px 0 6px;color:var(--muted)">Setup Script</h4>
+    <pre id="r-setup"></pre>
+    <h4 style="margin:12px 0 6px;color:var(--muted)">Env Script</h4>
+    <pre id="r-env"></pre>
+  </div>
+</div>
+
+</div>
+
+<script>
+const API = '/v1';
+
+function tabs() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab,.pane').forEach(el => el.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('pane-' + t.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+  setTimeout(() => el.textContent = '', 4000);
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.json().catch(() => ({detail: r.statusText})); throw new Error(e.detail || r.statusText); }
+  return r.json();
+}
+
+async function loadProfiles() {
+  try {
+    const profiles = await api('GET', '/sdk-profiles');
+    const tb = document.querySelector('#profiles-table tbody');
+    tb.innerHTML = profiles.map(p => `<tr>
+      <td>${p.name}</td>
+      <td><span class="badge badge-purple">${p.export_format}</span></td>
+      <td>${p.python_version}</td>
+      <td>${p.include_debug_symbols ? '<span class="badge badge-green">yes</span>' : 'no'}</td>
+      <td class="hash">${p.content_hash ? p.content_hash.slice(7,23)+'…' : '—'}</td>
+      <td><div class="row-action">
+        <button class="secondary" onclick="fillRender('${p.id}')">Render</button>
+        <button class="secondary" onclick="fillVars('${p.id}')">Vars</button>
+      </div></td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadFormats() {
+  try {
+    const kinds = await api('GET', '/sdk-export-kinds');
+    const tb = document.querySelector('#formats-table tbody');
+    tb.innerHTML = kinds.map(k => `<tr>
+      <td>${k.display_order}</td>
+      <td><span class="badge badge-purple">${k.kind}</span></td>
+      <td>${k.label}</td>
+      <td>${k.description}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function createProfile() {
+  try {
+    await api('POST', '/sdk-profiles', {
+      name: document.getElementById('p-name').value,
+      export_format: document.getElementById('p-format').value,
+      python_version: document.getElementById('p-python').value,
+      description: document.getElementById('p-desc').value,
+      include_debug_symbols: document.getElementById('p-debug').value === 'true',
+    });
+    msg('p-msg', 'Profile created', true);
+    loadProfiles();
+  } catch(e) { msg('p-msg', e.message, false); }
+}
+
+async function setVariable() {
+  try {
+    const pid = document.getElementById('v-pid').value;
+    const key = document.getElementById('v-key').value;
+    await api('PUT', `/sdk-profiles/${pid}/variables/${key}`, {
+      value: document.getElementById('v-val').value,
+      description: document.getElementById('v-desc').value,
+      is_secret: document.getElementById('v-secret').value === 'true',
+    });
+    msg('v-msg', `Variable ${key} set`, true);
+    document.getElementById('v-list-pid').value = pid;
+    loadVariables();
+  } catch(e) { msg('v-msg', e.message, false); }
+}
+
+async function loadVariables() {
+  const pid = document.getElementById('v-list-pid').value;
+  if (!pid) return;
+  try {
+    const vars = await api('GET', `/sdk-profiles/${pid}/variables`);
+    const tb = document.querySelector('#variables-table tbody');
+    tb.innerHTML = vars.map(v => `<tr>
+      <td><code>${v.key}</code></td>
+      <td>${v.value}</td>
+      <td>${v.is_secret ? '<span class="badge badge-red">secret</span>' : 'no'}</td>
+      <td>${v.description}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function fillRender(pid) {
+  document.getElementById('r-pid').value = pid;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="render"]').classList.add('active');
+  document.getElementById('pane-render').classList.add('active');
+}
+
+function fillVars(pid) {
+  document.getElementById('v-pid').value = pid;
+  document.getElementById('v-list-pid').value = pid;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="variables"]').classList.add('active');
+  document.getElementById('pane-variables').classList.add('active');
+  loadVariables();
+}
+
+async function renderProfile() {
+  const pid = document.getElementById('r-pid').value;
+  try {
+    const r = await api('POST', `/sdk-profiles/${pid}/render`);
+    document.getElementById('r-hash').textContent = r.content_hash;
+    document.getElementById('r-setup').textContent = r.rendered_setup_script || '';
+    document.getElementById('r-env').textContent = r.rendered_env_script || '';
+    document.getElementById('r-result').style.display = 'block';
+    msg('r-msg', 'Rendered successfully', true);
+    loadProfiles();
+  } catch(e) { msg('r-msg', e.message, false); }
+}
+
+tabs();
+loadProfiles();
+loadFormats();
+</script>
+</body>
+</html>

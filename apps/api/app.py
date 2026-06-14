@@ -15,6 +15,8 @@ from apps.api.routes.network_api import router as network_router
 from apps.api.routes.compliance_api import router as compliance_router
 from apps.api.routes.security_hardening_api import router as security_router
 from apps.api.routes.update_ota_api import router as update_ota_router
+from apps.api.routes.sdk_api import router as sdk_router
+from apps.api.routes.mirror_api import router as mirror_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -106,6 +108,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(compliance_router)
     # M49: update / OTA / recovery designer
     app.include_router(update_ota_router)
+    # M50: SDK / dev-shell export designer
+    app.include_router(sdk_router)
+    # M51: cache / mirror / offline designer
+    app.include_router(mirror_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -247,6 +253,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/updates", include_in_schema=False)
         def updates_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "updates.html"))
+
+        # M50: SDK / dev-shell export designer page
+        @app.get("/sdk", include_in_schema=False)
+        def sdk_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "sdk.html"))
+
+        # M51: Cache / Mirror / Offline designer page
+        @app.get("/mirror", include_in_schema=False)
+        def mirror_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "mirror.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

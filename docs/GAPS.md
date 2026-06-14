@@ -495,6 +495,50 @@ Severity scale:
   page (6 tabs: Profiles, Strategies, Channels, Recovery Targets, Hooks, Render).
   60 unit tests, all passing.
 
+### G-20 — No SDK / dev-shell export
+- **Evidence:** No module or CLI for exporting a per-distribution developer SDK
+  (toolchain env, cross-compile vars, venv, conda, nix shell, devcontainer).
+- **Closed by:** **M50**.
+- **M50 (SDK / dev-shell export designer) done.** Three new tables:
+  `sdk_export_kinds` (seeded — 5 formats: pip / conda / nix / shell-env /
+  docker), `sdk_profiles` (export_format / python_version /
+  include_debug_symbols / rendered_setup_script / rendered_env_script /
+  content_hash / rendered_at; unique per distribution+name), `sdk_variables`
+  (key / value / description / is_secret; upsert by profile+key).
+  `render_sdk_export` generates `rendered_setup_script` (format-specific
+  bash/Dockerfile block with variable table) and `rendered_env_script`
+  (eval-able `export KEY=VALUE` lines, secrets masked, OSF_SDK_* meta-vars),
+  combined sha256: hash. Mutating any sub-resource (set_sdk_variable /
+  update_sdk_profile) clears content_hash. Migration
+  `0026_sdk_devshell` (down_revision=0025). Module at `osfabricum/sdk/`.
+  Exposed over 8 HTTP endpoints under `/v1/sdk-profiles/…` +
+  `/v1/sdk-export-kinds`, the `osfabricumctl sdk` CLI (format-list / list /
+  create / show / update / var-set / render) and the `/sdk` designer UI page
+  (4 tabs: Profiles, Export Formats, Variables, Render). 50 unit tests, all passing.
+
+### G-21 — No cache/mirror/offline designer
+- **Evidence:** Fetch cache exists in the `fetcher/` module but has no
+  per-distribution mirror priority, TTL, max-size, offline-only mode, or
+  per-pattern cache policy configuration.
+- **Closed by:** **M51**.
+- **M51 (cache / mirror / offline designer) done.** Four new tables:
+  `cache_policy_kinds` (seeded — 4 modes: always / prefer / bypass /
+  offline-only), `mirror_profiles` (offline_mode / max_cache_size_mb /
+  cache_ttl_days / rendered_mirror_config / content_hash / rendered_at; unique
+  per distribution+name), `mirror_endpoints` (url / priority / is_default /
+  requires_auth / auth_token_id; upsert by profile+url), `cache_priority_rules`
+  (source_pattern / cache_policy / priority; upsert by profile+source_pattern).
+  `render_mirror_config` generates an INI-style config with `[mirror]` /
+  `[endpoints]` (ordered by priority, DEFAULT marker, [auth] annotation) /
+  `[cache_rules]` (ordered by priority) sections, sha256: hash. Mutating any
+  sub-resource (add_mirror_endpoint / add_cache_rule / update_mirror_profile)
+  clears content_hash. Migration `0027_cache_mirror_offline`
+  (down_revision=0026). Module at `osfabricum/mirror/`. Exposed over 9 HTTP
+  endpoints under `/v1/mirror-profiles/…` + `/v1/cache-policy-kinds`, the
+  `osfabricumctl mirror` CLI (policy-list / list / create / show / update /
+  endpoint-add / rule-add / render) and the `/mirror` designer UI page (5 tabs:
+  Profiles, Cache Policies, Endpoints, Cache Rules, Render). 41 unit tests, all passing.
+
 ### G-12 — Competitive features absent
 - **Evidence:** No layers/extensions, override/masking engine, patch queue,
   dependency-graph viewer, explain/why engine, build/profile/release diff,
@@ -517,8 +561,8 @@ Severity scale:
 | G-17 | UI is read-only dashboard | `apps/api/static/index.html` (178 lines) | M26–M28 |
 | G-18 | No integration/e2e tests | `tests/integration`, `tests/e2e` = `.gitkeep` | M28/M52/M70 |
 | G-19 | No explain/why trace on plan items | resolver emits flat lists | M58 |
-| G-20 | No SDK / dev-shell export | no module | M50 |
-| G-21 | No cache/mirror/offline designer | fetch cache exists; no offline report/mirror priority | M51 |
+| G-20 | ~~No SDK / dev-shell export~~ | **✅ Closed M50** — `osfabricum/sdk/`, 5 export formats, 50 tests | M50 |
+| G-21 | ~~No cache/mirror/offline designer~~ | **✅ Closed M51** — `osfabricum/mirror/`, 4 cache policies, 41 tests | M51 |
 | G-22 | No hardware probe import | no module | M53 |
 
 ---

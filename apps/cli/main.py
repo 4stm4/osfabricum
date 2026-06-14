@@ -19,6 +19,8 @@ from apps.cli.commands.theme import theme_app
 from apps.cli.commands.compliance import app as compliance_app
 from apps.cli.commands.hardening import hardening_app
 from apps.cli.commands.update_ota import app as update_ota_app
+from apps.cli.commands.sdk import app as sdk_app
+from apps.cli.commands.mirror import app as mirror_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -263,6 +265,8 @@ def _register_groups() -> None:
     app.add_typer(hardening_app, name="security")
     app.add_typer(compliance_app, name="compliance")
     app.add_typer(update_ota_app, name="updates")
+    app.add_typer(sdk_app, name="sdk")
+    app.add_typer(mirror_app, name="mirror")
 
 
 _register_groups()

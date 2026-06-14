@@ -29,6 +29,8 @@ from osfabricum.db.models import (
     SpdxLicenseKind,
     ThemeAssetKind,
     UpdateStrategyKind,
+    SDKExportKind,
+    CachePolicyKind,
     UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
@@ -1261,6 +1263,123 @@ def seed_update_strategy_kinds(session: "Session") -> int:
             continue
         session.add(
             UpdateStrategyKind(
+                kind=kind,
+                label=label,
+                description=description,
+                display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M50 — SDK / dev-shell export kinds
+# ---------------------------------------------------------------------------
+
+SDK_EXPORT_KINDS = [
+    (
+        "pip",
+        "Pip / venv",
+        "Python virtual-environment export: requirements.txt + activate script.",
+        0,
+    ),
+    (
+        "conda",
+        "Conda",
+        "Conda environment export: environment.yml with pinned dependencies.",
+        1,
+    ),
+    (
+        "nix",
+        "Nix Shell",
+        "Nix shell expression (shell.nix / flake.nix) for reproducible dev shells.",
+        2,
+    ),
+    (
+        "shell-env",
+        "Shell Env",
+        "Bash/Zsh eval-able script that exports CROSS_COMPILE, ARCH, SYSROOT and "
+        "toolchain PATH additions.",
+        3,
+    ),
+    (
+        "docker",
+        "Docker Dev Container",
+        "Dockerfile + .devcontainer.json for VS Code Remote Containers / Codespaces.",
+        4,
+    ),
+]
+
+
+def seed_sdk_export_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(SDKExportKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in SDK_EXPORT_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            SDKExportKind(
+                kind=kind,
+                label=label,
+                description=description,
+                display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M51 — Cache / Mirror / Offline policy kinds
+# ---------------------------------------------------------------------------
+
+CACHE_POLICY_KINDS = [
+    (
+        "always",
+        "Always Cache",
+        "Always write the fetch result to the local cache, even if already present.",
+        0,
+    ),
+    (
+        "prefer",
+        "Prefer Cache",
+        "Use the local cache when available; fetch and store on cache miss.",
+        1,
+    ),
+    (
+        "bypass",
+        "Bypass Cache",
+        "Never use or write to the local cache; always re-fetch from upstream.",
+        2,
+    ),
+    (
+        "offline-only",
+        "Offline Only",
+        "Serve exclusively from local cache; fail hard if the artefact is not cached.",
+        3,
+    ),
+]
+
+
+def seed_cache_policy_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(CachePolicyKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in CACHE_POLICY_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            CachePolicyKind(
                 kind=kind,
                 label=label,
                 description=description,
