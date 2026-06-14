@@ -350,6 +350,31 @@ Severity scale:
   service topology, hardening, or compliance gates.
 - **Closed by:** **M45** (network), **M46** (service/init/device manager),
   **M47** (security/hardening), **M48** (license/SBOM/vuln/source compliance).
+- **M46 (service / init / device manager designer) done.** Five new tables:
+  `init_system_kinds` (seeded — 7 kinds: systemd/openrc/s6/runit/busybox-init/
+  dinit/shepherd), `service_profiles` (per-distribution service topology with
+  init_system, rendered_units/rendered_udev/rendered_overrides/content_hash/
+  rendered_at), `service_entries` (name, unit_type: service|socket|timer|target|
+  path, exec_start/stop/pre_start, restart_policy: no|on-failure|always|
+  on-abnormal|on-watchdog|on-abort, wanted_by, after, requires, environment,
+  run_user/run_group, is_enabled, is_masked, priority; unique per
+  profile+name+type), `device_rules` (subsystem, kernel_pattern, attr_filter,
+  udev_action: add|remove|change|bind|unbind|any, symlink, mode, owner,
+  group_name, run_command, priority), `systemd_unit_overrides` (unit_name,
+  section: Unit|Service|Socket|Timer|Install|Mount|Automount, override_content;
+  unique per profile+unit_name; set_unit_override is an upsert).
+  `render_service_config` generates: systemd unit files (per-entry `[Unit]`+
+  `[Service]`+`[Install]` blocks with masked/disabled markers, sorted by
+  priority), udev rules file (SUBSYSTEM==/KERNEL==/ACTION==+assignments, grouped
+  by priority prefix), and drop-in override fragments (`[Section]` blocks under
+  `/etc/systemd/system/{unit}.d/override.conf`) — all three concatenated for
+  sha256: hash. `update_service_profile` clears rendered cache. Migration
+  `0022_service_designer` with fresh sentinel seeds 7 init system kinds. Exposed
+  over 9 HTTP endpoints under `/v1/service-profiles/…` + `/v1/init-system-kinds`,
+  the `osfabricumctl services` CLI (kind-list/list/create/show/update/entry-add/
+  rule-add/override-set/render) and the `/services` designer UI page (6 tabs:
+  Profiles, Init Systems, Service Entries, Device Rules, Unit Overrides, Render).
+  53 unit tests, all passing. Follow-on: security / hardening (M47).
 - **M45 (network designer) done.** Extended the existing `network_profiles`
   stub with M45 columns (hostname, rendered_networkd, rendered_resolv_conf,
   rendered_hosts, content_hash, rendered_at, created_at, updated_at). Five new

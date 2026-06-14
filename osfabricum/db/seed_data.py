@@ -22,6 +22,7 @@ from sqlalchemy import select
 from osfabricum.db.models import (
     AppCategory,
     Board,
+    InitSystemKind,
     MimeTypeDefinition,
     NetworkInterfaceKind,
     ThemeAssetKind,
@@ -551,6 +552,33 @@ def seed_user_shell_kinds(session: Session) -> int:
             continue
         session.add(
             UserShellKind(path=path, description=description, display_order=display_order)
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+INIT_SYSTEM_KINDS: list[tuple[str, str, int]] = [
+    ("systemd", "systemd — system and service manager", 0),
+    ("openrc", "OpenRC — dependency-based init system", 1),
+    ("s6", "s6 — skarnet.org supervision suite", 2),
+    ("runit", "runit — UNIX init scheme with service supervision", 3),
+    ("busybox-init", "BusyBox init — minimal sysvinit-compatible init", 4),
+    ("dinit", "dinit — service manager with dependency ordering", 5),
+    ("shepherd", "GNU Shepherd — extensible service manager (Guix)", 6),
+]
+
+
+def seed_init_system_kinds(session: Session) -> int:
+    """Insert any missing init system kinds (M46). Returns the number added."""
+    existing = {k.name for k in session.scalars(select(InitSystemKind)).all()}
+    added = 0
+    for name, description, display_order in INIT_SYSTEM_KINDS:
+        if name in existing:
+            continue
+        session.add(
+            InitSystemKind(name=name, description=description, display_order=display_order)
         )
         added += 1
     if added:

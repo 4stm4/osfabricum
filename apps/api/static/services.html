@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Designer — OSFabricum M46</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+  header{background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.1rem;font-weight:600;color:#fff}
+  header span{font-size:.75rem;background:#3b3f52;padding:2px 8px;border-radius:10px;color:#aaa}
+  nav{display:flex;gap:4px;padding:12px 24px;background:#141720;border-bottom:1px solid #1e2130;flex-wrap:wrap}
+  nav button{padding:6px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:.85rem;transition:.15s}
+  nav button.active,nav button:hover{background:#252839;border-color:#3a3d52;color:#fff}
+  .tab{display:none;padding:24px;max-width:1000px;margin:0 auto}
+  .tab.active{display:block}
+  h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:#fff}
+  .card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:20px;margin-bottom:16px}
+  label{font-size:.8rem;color:#888;display:block;margin-bottom:4px;margin-top:12px}
+  label:first-child{margin-top:0}
+  input,select,textarea{width:100%;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:.85rem;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:#0097a7}
+  textarea{min-height:80px;resize:vertical;font-family:monospace}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .row3{display:grid;gap:12px;grid-template-columns:1fr 1fr 1fr}
+  .cb-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem;color:#bbb}
+  .cb-row input[type=checkbox]{width:auto}
+  button.btn{margin-top:14px;padding:8px 18px;background:#00838f;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:.85rem}
+  button.btn:hover{background:#0097a7}
+  button.btn-sm{padding:5px 12px;font-size:.8rem;background:#2a2d3a;border:1px solid #3a3d52;border-radius:5px;color:#ccc;cursor:pointer;margin-top:6px}
+  button.btn-sm:hover{background:#333650}
+  .msg{margin-top:10px;font-size:.8rem;padding:8px 12px;border-radius:6px}
+  .msg.ok{background:#1b3a2d;color:#6fcf97}
+  .msg.err{background:#3a1d1d;color:#eb5757}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{text-align:left;color:#888;font-weight:500;padding:6px 8px;border-bottom:1px solid #252839}
+  td{padding:7px 8px;border-bottom:1px solid #1e2130;vertical-align:top}
+  .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;font-weight:500}
+  .badge-service{background:#1f2a3f;color:#6fb3f2}
+  .badge-socket{background:#1f3a2d;color:#6fcf97}
+  .badge-timer{background:#2a2a1f;color:#f2d06f}
+  .badge-target{background:#2a1f3a;color:#ce93d8}
+  .badge-path{background:#2a1f2a;color:#f06fcf}
+  .chip-enabled{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#1b3a2d;color:#6fcf97}
+  .chip-disabled{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#3a1d1d;color:#eb5757}
+  .chip-masked{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#2a1f1f;color:#f2a26f}
+  pre{font-size:.78rem;background:#0a0c12;border:1px solid #1e2130;border-radius:6px;padding:14px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#c5d0e6;max-height:340px;overflow-y:auto}
+  .hash{font-size:.78rem;color:#6fcf97;background:#1b3a2d;padding:6px 10px;border-radius:6px;margin-top:10px;word-break:break-all}
+  .empty{color:#555;font-size:.83rem;padding:12px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Service Designer</h1>
+  <span>M46</span>
+</header>
+<nav>
+  <button class="active" onclick="show('profiles')">Profiles</button>
+  <button onclick="show('kinds')">Init Systems</button>
+  <button onclick="show('entries')">Service Entries</button>
+  <button onclick="show('devices')">Device Rules</button>
+  <button onclick="show('overrides')">Unit Overrides</button>
+  <button onclick="show('render')">Render</button>
+</nav>
+
+<!-- PROFILES -->
+<div id="profiles" class="tab active">
+  <h2>Service Profiles</h2>
+  <div class="card">
+    <label>Name</label><input id="p-name" placeholder="server-base">
+    <label>Distribution ID (optional)</label><input id="p-dist" placeholder="uuid">
+    <label>Init System</label>
+    <select id="p-init">
+      <option>systemd</option><option>openrc</option><option>s6</option>
+      <option>runit</option><option>busybox-init</option><option>dinit</option><option>shepherd</option>
+    </select>
+    <label>Description</label><input id="p-desc" placeholder="optional">
+    <button class="btn" onclick="createProfile()">Create Profile</button>
+    <div id="p-msg"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong style="font-size:.9rem">Existing Profiles</strong>
+      <button class="btn-sm" onclick="loadProfiles()">Refresh</button>
+    </div>
+    <table><thead><tr><th>ID</th><th>Name</th><th>Init System</th><th>Hash</th><th></th></tr></thead>
+    <tbody id="p-list"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- INIT SYSTEM KINDS -->
+<div id="kinds" class="tab">
+  <h2>Init System Kinds</h2>
+  <div class="card">
+    <button class="btn-sm" onclick="loadKinds()">Refresh</button>
+    <table style="margin-top:12px"><thead><tr><th>#</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody id="k-list"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- SERVICE ENTRIES -->
+<div id="entries" class="tab">
+  <h2>Service Entries</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="e-pid" placeholder="profile uuid">
+    <div class="row">
+      <div><label>Unit Name</label><input id="e-name" placeholder="sshd"></div>
+      <div><label>Unit Type</label>
+        <select id="e-type">
+          <option value="service">service</option>
+          <option value="socket">socket</option>
+          <option value="timer">timer</option>
+          <option value="target">target</option>
+          <option value="path">path</option>
+        </select>
+      </div>
+    </div>
+    <label>Description</label><input id="e-desc" placeholder="OpenSSH server daemon">
+    <label>ExecStart</label><input id="e-exec" placeholder="/usr/sbin/sshd -D">
+    <label>ExecStop (optional)</label><input id="e-stop" placeholder="">
+    <label>ExecPreStart (optional)</label><input id="e-pre" placeholder="">
+    <div class="row">
+      <div><label>Restart Policy</label>
+        <select id="e-restart">
+          <option value="no">no</option>
+          <option value="on-failure">on-failure</option>
+          <option value="always">always</option>
+          <option value="on-abnormal">on-abnormal</option>
+          <option value="on-watchdog">on-watchdog</option>
+          <option value="on-abort">on-abort</option>
+        </select>
+      </div>
+      <div><label>WantedBy</label><input id="e-wanted" value="multi-user.target"></div>
+    </div>
+    <label>After (space-separated)</label><input id="e-after" placeholder="network.target">
+    <label>Requires (space-separated)</label><input id="e-requires" placeholder="">
+    <label>Environment (KEY=VAL, one per line)</label>
+    <textarea id="e-env" placeholder="PORT=22&#10;LOG_LEVEL=info"></textarea>
+    <div class="row">
+      <div><label>User</label><input id="e-user" placeholder="root"></div>
+      <div><label>Group</label><input id="e-group" placeholder=""></div>
+    </div>
+    <div class="row">
+      <div><label>Working Directory</label><input id="e-wdir" placeholder=""></div>
+      <div><label>Priority</label><input id="e-prio" type="number" value="100"></div>
+    </div>
+    <div style="display:flex;gap:16px">
+      <div class="cb-row"><input type="checkbox" id="e-enabled" checked><label for="e-enabled" style="margin:0">Enabled</label></div>
+      <div class="cb-row"><input type="checkbox" id="e-masked"><label for="e-masked" style="margin:0">Masked</label></div>
+    </div>
+    <button class="btn" onclick="addEntry()">Add Entry</button>
+    <div id="e-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile entries — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="e-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadEntries()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Name</th><th>Type</th><th>ExecStart</th><th>Restart</th><th>Status</th></tr></thead>
+    <tbody id="e-list"><tr><td colspan="5" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- DEVICE RULES -->
+<div id="devices" class="tab">
+  <h2>Device Rules (udev)</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="dr-pid" placeholder="profile uuid">
+    <div class="row">
+      <div><label>Subsystem</label><input id="dr-sub" placeholder="block"></div>
+      <div><label>Kernel Pattern</label><input id="dr-kern" placeholder="sd*"></div>
+    </div>
+    <label>Attr Filter (optional)</label><input id="dr-attr" placeholder='ATTR{vendor}=="MyVendor"'>
+    <div class="row">
+      <div><label>Action</label>
+        <select id="dr-action">
+          <option value="add">add</option>
+          <option value="remove">remove</option>
+          <option value="change">change</option>
+          <option value="bind">bind</option>
+          <option value="unbind">unbind</option>
+          <option value="any">any</option>
+        </select>
+      </div>
+      <div><label>Priority</label><input id="dr-prio" type="number" value="90"></div>
+    </div>
+    <div class="row">
+      <div><label>SYMLINK+=</label><input id="dr-link" placeholder="disk/by-id/my-disk"></div>
+      <div><label>MODE=</label><input id="dr-mode" placeholder="0660"></div>
+    </div>
+    <div class="row">
+      <div><label>OWNER=</label><input id="dr-owner" placeholder="root"></div>
+      <div><label>GROUP=</label><input id="dr-grp" placeholder="disk"></div>
+    </div>
+    <label>RUN+= (optional command)</label><input id="dr-run" placeholder="/usr/bin/notify-device %k">
+    <label>Comment</label><input id="dr-comment" placeholder="optional description">
+    <button class="btn" onclick="addDeviceRule()">Add Rule</button>
+    <div id="dr-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile rules — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="dr-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadDeviceRules()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Subsystem</th><th>Kernel</th><th>Action</th><th>Symlink</th><th>Priority</th></tr></thead>
+    <tbody id="dr-list"><tr><td colspan="5" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- UNIT OVERRIDES -->
+<div id="overrides" class="tab">
+  <h2>Unit Overrides (drop-in)</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="uo-pid" placeholder="profile uuid">
+    <div class="row">
+      <div><label>Unit Name</label><input id="uo-unit" placeholder="sshd.service"></div>
+      <div><label>Section</label>
+        <select id="uo-section">
+          <option>Service</option><option>Unit</option><option>Socket</option>
+          <option>Timer</option><option>Install</option><option>Mount</option><option>Automount</option>
+        </select>
+      </div>
+    </div>
+    <label>Override Content</label>
+    <textarea id="uo-content" placeholder="TimeoutStartSec=30&#10;LimitNOFILE=65536"></textarea>
+    <button class="btn" onclick="setOverride()">Set Override</button>
+    <div id="uo-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile overrides — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="uo-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadOverrides()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Unit</th><th>Section</th><th>Content (preview)</th></tr></thead>
+    <tbody id="uo-list"><tr><td colspan="3" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- RENDER -->
+<div id="render" class="tab">
+  <h2>Render Service Config</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="r-pid" placeholder="profile uuid">
+    <button class="btn" onclick="renderConfig()">Render</button>
+    <div id="r-msg"></div>
+  </div>
+  <div id="r-result" style="display:none">
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">Unit Files</strong>
+      <pre id="r-units"></pre>
+    </div>
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">udev Rules</strong>
+      <pre id="r-udev"></pre>
+    </div>
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">Unit Overrides</strong>
+      <pre id="r-overrides"></pre>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:16px;font-size:.83rem;color:#888;margin-bottom:8px">
+        <span>Entries: <b id="r-ec" style="color:#fff"></b></span>
+        <span>Device rules: <b id="r-dc" style="color:#fff"></b></span>
+        <span>Overrides: <b id="r-oc" style="color:#fff"></b></span>
+      </div>
+      <div class="hash" id="r-hash"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function show(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+
+// Profiles
+async function loadProfiles() {
+  try {
+    const list = await api('GET', '/v1/service-profiles');
+    const tb = document.getElementById('p-list');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No profiles yet</td></tr>'; return; }
+    tb.innerHTML = list.map(p => `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${p.id.slice(0,8)}</td>
+      <td>${p.name}</td>
+      <td>${p.init_system}</td>
+      <td style="font-family:monospace;font-size:.75rem">${(p.content_hash||'').slice(0,16)||'—'}</td>
+      <td><button class="btn-sm" onclick="copyPid('${p.id}')">Copy ID</button></td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function copyPid(id) {
+  navigator.clipboard.writeText(id).catch(()=>{});
+}
+
+async function createProfile() {
+  try {
+    const r = await api('POST', '/v1/service-profiles', {
+      name: document.getElementById('p-name').value,
+      distribution_id: document.getElementById('p-dist').value || null,
+      init_system: document.getElementById('p-init').value,
+      description: document.getElementById('p-desc').value,
+    });
+    msg('p-msg', 'Created: ' + r.id, true);
+    loadProfiles();
+  } catch(e) { msg('p-msg', e.message, false); }
+}
+
+// Kinds
+async function loadKinds() {
+  try {
+    const list = await api('GET', '/v1/init-system-kinds');
+    const tb = document.getElementById('k-list');
+    tb.innerHTML = list.map((k,i) => `<tr><td>${i+1}</td><td><b>${k.name}</b></td><td>${k.description}</td></tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Service entries
+async function addEntry() {
+  try {
+    const r = await api('POST', `/v1/service-profiles/${document.getElementById('e-pid').value}/entries`, {
+      name: document.getElementById('e-name').value,
+      unit_type: document.getElementById('e-type').value,
+      description: document.getElementById('e-desc').value,
+      exec_start: document.getElementById('e-exec').value || null,
+      exec_stop: document.getElementById('e-stop').value || null,
+      exec_pre_start: document.getElementById('e-pre').value || null,
+      restart_policy: document.getElementById('e-restart').value,
+      wanted_by: document.getElementById('e-wanted').value,
+      after: document.getElementById('e-after').value || null,
+      requires: document.getElementById('e-requires').value || null,
+      environment: document.getElementById('e-env').value || null,
+      working_directory: document.getElementById('e-wdir').value || null,
+      run_user: document.getElementById('e-user').value || null,
+      run_group: document.getElementById('e-group').value || null,
+      is_enabled: document.getElementById('e-enabled').checked,
+      is_masked: document.getElementById('e-masked').checked,
+      priority: parseInt(document.getElementById('e-prio').value) || 100,
+    });
+    msg('e-msg', 'Added: ' + r.name + '.' + r.unit_type, true);
+  } catch(e) { msg('e-msg', e.message, false); }
+}
+
+async function loadEntries() {
+  const pid = document.getElementById('e-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/service-profiles/${pid}`);
+    const tb = document.getElementById('e-list');
+    if (!p.entries.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No entries</td></tr>'; return; }
+    function typeBadge(t) {
+      const cls = {'service':'badge-service','socket':'badge-socket','timer':'badge-timer','target':'badge-target','path':'badge-path'}[t]||'badge-service';
+      return `<span class="badge ${cls}">${t}</span>`;
+    }
+    function statusChip(e) {
+      if (e.is_masked) return '<span class="chip-masked">masked</span>';
+      return e.is_enabled ? '<span class="chip-enabled">enabled</span>' : '<span class="chip-disabled">disabled</span>';
+    }
+    tb.innerHTML = p.entries.map(e => `<tr>
+      <td>${e.name}</td>
+      <td>${typeBadge(e.unit_type)}</td>
+      <td style="font-family:monospace;font-size:.76rem">${(e.exec_start||'').slice(0,40)||'—'}</td>
+      <td>${e.restart_policy}</td>
+      <td>${statusChip(e)}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Device rules
+async function addDeviceRule() {
+  try {
+    const r = await api('POST', `/v1/service-profiles/${document.getElementById('dr-pid').value}/device-rules`, {
+      subsystem: document.getElementById('dr-sub').value || null,
+      kernel_pattern: document.getElementById('dr-kern').value || null,
+      attr_filter: document.getElementById('dr-attr').value || null,
+      udev_action: document.getElementById('dr-action').value,
+      symlink: document.getElementById('dr-link').value || null,
+      mode: document.getElementById('dr-mode').value || null,
+      owner: document.getElementById('dr-owner').value || null,
+      group_name: document.getElementById('dr-grp').value || null,
+      run_command: document.getElementById('dr-run').value || null,
+      priority: parseInt(document.getElementById('dr-prio').value) || 90,
+      comment: document.getElementById('dr-comment').value || null,
+    });
+    msg('dr-msg', 'Added rule: ' + r.id.slice(0,8), true);
+  } catch(e) { msg('dr-msg', e.message, false); }
+}
+
+async function loadDeviceRules() {
+  const pid = document.getElementById('dr-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/service-profiles/${pid}`);
+    const tb = document.getElementById('dr-list');
+    if (!p.device_rules.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No device rules</td></tr>'; return; }
+    tb.innerHTML = p.device_rules.map(dr => `<tr>
+      <td>${dr.subsystem||'—'}</td>
+      <td>${dr.kernel_pattern||'—'}</td>
+      <td>${dr.udev_action}</td>
+      <td>${dr.symlink||'—'}</td>
+      <td>${dr.priority}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Unit overrides
+async function setOverride() {
+  try {
+    const r = await api('POST', `/v1/service-profiles/${document.getElementById('uo-pid').value}/unit-overrides`, {
+      unit_name: document.getElementById('uo-unit').value,
+      override_content: document.getElementById('uo-content').value,
+      section: document.getElementById('uo-section').value,
+    });
+    msg('uo-msg', 'Set override for: ' + r.unit_name, true);
+  } catch(e) { msg('uo-msg', e.message, false); }
+}
+
+async function loadOverrides() {
+  const pid = document.getElementById('uo-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/service-profiles/${pid}`);
+    const tb = document.getElementById('uo-list');
+    if (!p.unit_overrides.length) { tb.innerHTML = '<tr><td colspan="3" class="empty">No overrides</td></tr>'; return; }
+    tb.innerHTML = p.unit_overrides.map(uo => `<tr>
+      <td><b>${uo.unit_name}</b></td>
+      <td>${uo.section}</td>
+      <td style="font-family:monospace;font-size:.76rem">${uo.override_content.slice(0,60)}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Render
+async function renderConfig() {
+  const pid = document.getElementById('r-pid').value;
+  try {
+    const r = await api('POST', `/v1/service-profiles/${pid}/render`);
+    document.getElementById('r-units').textContent = r.rendered_units;
+    document.getElementById('r-udev').textContent = r.rendered_udev;
+    document.getElementById('r-overrides').textContent = r.rendered_overrides;
+    document.getElementById('r-ec').textContent = r.entry_count;
+    document.getElementById('r-dc').textContent = r.device_rule_count;
+    document.getElementById('r-oc').textContent = r.override_count;
+    document.getElementById('r-hash').textContent = r.content_hash;
+    document.getElementById('r-result').style.display = 'block';
+    msg('r-msg', 'Rendered at ' + r.rendered_at, true);
+  } catch(e) { msg('r-msg', e.message, false); }
+}
+
+// Initial load
+loadProfiles();
+loadKinds();
+</script>
+</body>
+</html>

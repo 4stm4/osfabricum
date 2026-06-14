@@ -12,6 +12,7 @@ from apps.api.routes.appcatalog_api import router as appcatalog_router
 from apps.api.routes.desktopint_api import router as desktopint_router
 from apps.api.routes.theme_api import router as theme_router
 from apps.api.routes.network_api import router as network_router
+from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
 from apps.api.routes.boards_api import router as boards_router
@@ -94,6 +95,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router)
     # M45: network designer
     app.include_router(network_router)
+    # M46: service / init / device manager designer
+    app.include_router(services_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -215,6 +218,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/network", include_in_schema=False)
         def network_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "network.html"))
+
+        # M46: Service / Init / Device Manager Designer page
+        @app.get("/services", include_in_schema=False)
+        def services_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "services.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

@@ -2685,3 +2685,153 @@ class NetFirewallRule(Base):
     )  # ACCEPT | DROP | REJECT
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
     comment: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# M46 — Service / Init / Device Manager Designer
+# ---------------------------------------------------------------------------
+
+
+class InitSystemKind(Base):
+    """Seeded lookup: supported init systems (M46)."""
+
+    __tablename__ = "init_system_kinds"
+
+    name: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class ServiceProfile(Base):
+    """Per-distribution service topology (M46)."""
+
+    __tablename__ = "service_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    init_system: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="systemd"
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    rendered_units: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_udev: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_overrides: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "name", name="uq_service_profiles_dist_name"),
+    )
+
+
+class ServiceEntry(Base):
+    """A systemd/init service declared in a profile (M46)."""
+
+    __tablename__ = "service_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("service_profiles.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    unit_type: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="service"
+    )  # service | socket | timer | target | path
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    exec_start: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    exec_stop: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    exec_pre_start: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    restart_policy: Mapped[str] = mapped_column(
+        sa.String(20), nullable=False, default="no"
+    )  # no | on-failure | always | on-abnormal | on-watchdog | on-abort
+    wanted_by: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="multi-user.target"
+    )
+    after: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # space-separated After= deps
+    requires: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # space-separated Requires= deps
+    environment: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # KEY=VAL lines, one per line
+    working_directory: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    run_user: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    run_group: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    is_masked: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", "unit_type", name="uq_service_entries_profile_name_type"
+        ),
+    )
+
+
+class DeviceRule(Base):
+    """A udev rule in a service profile (M46)."""
+
+    __tablename__ = "device_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("service_profiles.id"), nullable=False
+    )
+    subsystem: Mapped[str | None] = mapped_column(
+        sa.String(32), nullable=True
+    )  # e.g. "block", "usb", "net"
+    kernel_pattern: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )  # e.g. "sd*", "tty*"
+    attr_filter: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # ATTR{key}=="value" expression
+    udev_action: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="add"
+    )  # add | remove | change | bind | unbind | any
+    symlink: Mapped[str | None] = mapped_column(
+        sa.String(128), nullable=True
+    )  # SYMLINK+= value
+    mode: Mapped[str | None] = mapped_column(
+        sa.String(8), nullable=True
+    )  # MODE="0660"
+    owner: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    group_name: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    run_command: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    priority: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=90
+    )  # determines file prefix (e.g. 90-*)
+    comment: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+
+
+class SystemdUnitOverride(Base):
+    """A drop-in override fragment for an existing systemd unit (M46)."""
+
+    __tablename__ = "systemd_unit_overrides"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("service_profiles.id"), nullable=False
+    )
+    unit_name: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False
+    )  # e.g. "systemd-networkd.service"
+    section: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="Service"
+    )  # Unit | Service | Socket | Timer | Install
+    override_content: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, default=""
+    )  # full .conf fragment content
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "unit_name", name="uq_systemd_unit_overrides_profile_unit"
+        ),
+    )
