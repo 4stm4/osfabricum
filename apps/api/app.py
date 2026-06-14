@@ -16,6 +16,7 @@ from apps.api.routes.builds import router as builds_router
 from apps.api.routes.catalog import router as catalog_router
 from apps.api.routes.distributions_api import router as distributions_router
 from apps.api.routes.drafts_api import router as drafts_router
+from apps.api.routes.graphical_api import router as graphical_router
 from apps.api.routes.imagedesign_api import router as imagedesign_router
 from apps.api.routes.initramfs_api import router as initramfs_router
 from apps.api.routes.kerneldesign_api import router as kerneldesign_router
@@ -76,6 +77,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(packagepolicy_router)
     # M39: branding / identity designer
     app.include_router(branding_router)
+    # M40: graphical shell designer
+    app.include_router(graphical_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -167,6 +170,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/branding", include_in_schema=False)
         def branding_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "branding.html"))
+
+        # M40: Graphical Shell Designer page
+        @app.get("/graphical", include_in_schema=False)
+        def graphical_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "graphical.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

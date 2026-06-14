@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSFabricum — Graphical Shell Designer</title>
+  <style>
+    :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --red:#f85149; --green:#3fb950; --yellow:#d29922; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:18px; margin:0; } header a { color:var(--accent); text-decoration:none; font-size:13px; margin-left:auto; }
+    nav { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    nav button { background:none; border:none; color:var(--muted); padding:12px 16px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+    nav button.active { color:var(--fg); border-bottom-color:var(--accent); }
+    main { padding:24px; max-width:1040px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+    .panel h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; }
+    label { font-size:12px; color:var(--muted); }
+    input,select,textarea { background:var(--bg); border:1px solid var(--border); color:var(--fg); padding:6px 8px; border-radius:6px; font-size:13px; font-family:inherit; }
+    textarea { resize:vertical; width:100%; min-height:100px; }
+    button.act { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:7px 13px; border-radius:6px; cursor:pointer; font-size:13px; }
+    button.act:hover { border-color:var(--accent); } button.primary { background:var(--accent); border-color:var(--accent); color:#0d1117; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+    .msg { font-size:13px; min-height:18px; } .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    pre { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    .hash { color:var(--muted); font-size:11px; font-family:monospace; word-break:break-all; }
+    .tag { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; border:1px solid var(--border); }
+    .badge-wl { border-color:#58a6ff; color:#58a6ff; }
+    .badge-x11 { border-color:#d29922; color:#d29922; }
+    .badge-both { border-color:#3fb950; color:#3fb950; }
+  </style>
+</head>
+<body>
+  <header><h1>🖥️ Graphical Shell Designer</h1><a href="/">← Dashboard</a></header>
+  <nav>
+    <button data-tab="profiles" class="active">Profiles</button>
+    <button data-tab="compositors">Compositors</button>
+    <button data-tab="dms">Display Managers</button>
+    <button data-tab="components">Components</button>
+    <button data-tab="sessions">Sessions</button>
+    <button data-tab="render">Render</button>
+  </nav>
+  <main id="content"></main>
+
+  <script>
+    let tab = "profiles";
+    let _selId = null;
+    let _compositors = [];
+    let _dms = [];
+    const $ = (id) => document.getElementById(id);
+    async function api(p,o){ const r=await fetch(p,o); if(!r.ok){ let d=`${r.status}`; try{ d=(await r.json()).detail||d; }catch{} throw new Error(d);} return r.status===204?null:r.json(); }
+    const j = (body) => ({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const patch = (body) => ({method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+
+    function protocolBadge(p) {
+      const cls = p==="wayland"?"badge-wl":p==="x11"?"badge-x11":p==="both"?"badge-both":"";
+      return `<span class="tag ${cls}">${p}</span>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Views
+    // -----------------------------------------------------------------------
+    const views = {
+      async profiles() {
+        const profiles = await api("/v1/graphical-profiles");
+        const rows = profiles.map(p=>`<tr>
+          <td class="mono">${p.id.substring(0,8)}</td>
+          <td>${p.name}</td>
+          <td>${protocolBadge(p.display_server||"none")}</td>
+          <td>${p.compositor||"—"}</td>
+          <td>${p.display_manager||"—"}</td>
+          <td>${p.toolkit_default||"—"}</td>
+          <td>${p.content_hash?"<span class='tag'>rendered</span>":"—"}</td>
+          <td><button class="act" onclick="selectProfile('${p.id}')">Open</button></td>
+        </tr>`).join('');
+
+        const compOpts = _compositors.map(c=>`<option value="${c.name}">${c.name} — ${c.protocol}</option>`).join('');
+        const dmOpts = _dms.map(d=>`<option value="${d.name}">${d.name}</option>`).join('');
+
+        return `
+        <div class="panel"><h2>Create Graphical Profile</h2>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Name</label><input id="gp-name" placeholder="gnome-wayland"></div>
+            <div class="field"><label>Distribution ID (optional)</label><input id="gp-dist" placeholder="uuid"></div>
+          </div>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>Display Server</label>
+              <select id="gp-ds">
+                <option value="none">none (headless)</option>
+                <option value="wayland">wayland</option>
+                <option value="x11">x11</option>
+                <option value="both">both (X11+Wayland)</option>
+              </select>
+            </div>
+            <div class="field"><label>Compositor</label>
+              <select id="gp-comp"><option value="">— none —</option>${compOpts}</select>
+            </div>
+            <div class="field"><label>Display Manager</label>
+              <select id="gp-dm"><option value="">— none —</option>${dmOpts}</select>
+            </div>
+          </div>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field"><label>Session Manager</label>
+              <select id="gp-sm">
+                <option value="">— none —</option>
+                <option>systemd-user</option><option>elogind</option><option>consolekit2</option>
+              </select>
+            </div>
+            <div class="field"><label>Default Toolkit</label>
+              <select id="gp-tk">
+                <option value="">— none —</option>
+                <option>gtk3</option><option>gtk4</option><option>qt5</option><option>qt6</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <button class="act primary" onclick="createProfile()">Create Profile</button>
+            <span class="msg" id="gp-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Existing Profiles</h2>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Server</th><th>Compositor</th><th>DM</th><th>Toolkit</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="8" style="color:var(--muted)">No profiles yet</td></tr>'}</tbody></table>
+        </div>
+        ${_selId ? await profileSummary() : ''}`;
+      },
+
+      async compositors() {
+        const items = await api("/v1/compositor-backends");
+        const rows = items.map(b=>`<tr>
+          <td>${b.name}</td>
+          <td>${protocolBadge(b.protocol)}</td>
+          <td>${b.package_name||"—"}</td>
+          <td class="hint">${b.description}</td>
+        </tr>`).join('');
+        return `<div class="panel"><h2>Available Compositor Backends</h2>
+          <table><thead><tr><th>Name</th><th>Protocol</th><th>Package</th><th>Description</th></tr></thead>
+          <tbody>${rows}</tbody></table>
+        </div>`;
+      },
+
+      async dms() {
+        const items = await api("/v1/display-manager-backends");
+        const rows = items.map(b=>`<tr>
+          <td>${b.name}</td>
+          <td>${b.package_name||"—"}</td>
+          <td class="hint">${b.description}</td>
+        </tr>`).join('');
+        return `<div class="panel"><h2>Available Display Manager Backends</h2>
+          <table><thead><tr><th>Name</th><th>Package</th><th>Description</th></tr></thead>
+          <tbody>${rows}</tbody></table>
+        </div>`;
+      },
+
+      async components() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/graphical-profiles/${_selId}`);
+        const kinds = ["compositor","window-manager","desktop-shell","panel","bar","notifications","file-manager","settings-daemon","polkit-agent","screen-locker","screenshot","media-portal","input-method","theme-engine","app-launcher","clipboard-manager","toolkit","icon-theme","cursor-theme","sound-theme","font"];
+        const rows = (p.components||[]).map(c=>`<tr>
+          <td><span class="tag">${c.component_kind}</span></td>
+          <td>${c.package_name}</td>
+          <td>${c.version_constraint||"—"}</td>
+          <td>${c.is_required?"required":"optional"}</td>
+        </tr>`).join('');
+        return `
+        <div class="panel"><h2>Add Component — ${p.name}</h2>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>Kind</label><select id="c-kind">${kinds.map(k=>`<option>${k}</option>`).join('')}</select></div>
+            <div class="field"><label>Package Name</label><input id="c-pkg" placeholder="gnome-shell"></div>
+            <div class="field"><label>Version Constraint (optional)</label><input id="c-ver" placeholder=">=42"></div>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="c-req" checked> Required</label>
+            <button class="act primary" onclick="addComponent()">Add Component</button>
+            <span class="msg" id="c-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Components</h2>
+          <table><thead><tr><th>Kind</th><th>Package</th><th>Version</th><th>Requirement</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="4" style="color:var(--muted)">No components added yet</td></tr>'}</tbody></table>
+        </div>`;
+      },
+
+      async sessions() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/graphical-profiles/${_selId}`);
+        const rows = (p.sessions||[]).map(s=>`<tr>
+          <td>${s.name}</td>
+          <td>${protocolBadge(s.session_type)}</td>
+          <td class="mono">${s.exec_cmd||"—"}</td>
+          <td>${s.is_default?"<span class='tag' style='border-color:var(--green);color:var(--green)'>default</span>":"—"}</td>
+        </tr>`).join('');
+        return `
+        <div class="panel"><h2>Add Session — ${p.name}</h2>
+          <div class="grid3" style="margin-bottom:8px">
+            <div class="field"><label>Session Name</label><input id="s-name" placeholder="GNOME"></div>
+            <div class="field"><label>Type</label>
+              <select id="s-type"><option>wayland</option><option>x11</option><option>mir</option></select>
+            </div>
+            <div class="field"><label>Exec Command</label><input id="s-exec" placeholder="gnome-session"></div>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="s-default"> Set as default</label>
+            <button class="act primary" onclick="addSession()">Add Session</button>
+            <span class="msg" id="s-msg"></span>
+          </div>
+        </div>
+        <div class="panel"><h2>Sessions</h2>
+          <table><thead><tr><th>Name</th><th>Type</th><th>Exec</th><th>Status</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="4" style="color:var(--muted)">No sessions yet</td></tr>'}</tbody></table>
+        </div>`;
+      },
+
+      async render() {
+        if (!_selId) return `<div class="panel"><p class="hint">Select a profile in the Profiles tab first.</p></div>`;
+        const p = await api(`/v1/graphical-profiles/${_selId}`);
+        return `
+        <div class="panel"><h2>Session Config Render — ${p.name}</h2>
+          <p class="hint">Generates a <code>.desktop</code> entry for the default session (or a placeholder if none is defined). Same sha256: hash convention as plan_hash and os-release content_hash.</p>
+          <div class="row">
+            <button class="act primary" onclick="renderConfig()">Render Session Config</button>
+            <span class="msg" id="r-msg"></span>
+          </div>
+          ${p.rendered_session_config ? `
+          <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:16px">Rendered .desktop</h2>
+          <pre id="r-rendered">${p.rendered_session_config}</pre>
+          <div class="hash">${p.content_hash||""}</div>` :
+          '<pre id="r-rendered" style="color:var(--muted)">Not yet rendered — click Render above</pre>'}
+        </div>`;
+      }
+    };
+
+    async function profileSummary() {
+      const p = await api(`/v1/graphical-profiles/${_selId}`);
+      return `<div class="panel" style="border-color:var(--accent)">
+        <h2>Selected: ${p.name}</h2>
+        <div class="grid3">
+          <div><label>Display Server</label><div>${protocolBadge(p.display_server||"none")}</div></div>
+          <div><label>Compositor</label><div>${p.compositor||"—"}</div></div>
+          <div><label>Display Manager</label><div>${p.display_manager||"—"}</div></div>
+        </div>
+        <div style="margin-top:8px"><label>Content Hash</label><div class="hash">${p.content_hash||"not rendered"}</div></div>
+      </div>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Actions
+    // -----------------------------------------------------------------------
+    function msg(id, text, ok=true) {
+      const el = $(id); if (!el) return;
+      el.textContent = text;
+      el.className = "msg " + (ok ? "ok" : "err");
+    }
+
+    async function createProfile() {
+      try {
+        await api("/v1/graphical-profiles", j({
+          name: $("gp-name").value,
+          distribution_id: $("gp-dist").value || null,
+          display_server: $("gp-ds").value,
+          compositor: $("gp-comp").value || null,
+          display_manager: $("gp-dm").value || null,
+          session_manager: $("gp-sm").value || null,
+          toolkit_default: $("gp-tk").value || null,
+        }));
+        msg("gp-msg", "Created!", true);
+        await render();
+      } catch(e) { msg("gp-msg", e.message, false); }
+    }
+
+    function selectProfile(id) { _selId = id; render(); }
+
+    async function addComponent() {
+      try {
+        await api(`/v1/graphical-profiles/${_selId}/components`, j({
+          component_kind: $("c-kind").value,
+          package_name: $("c-pkg").value,
+          version_constraint: $("c-ver").value || null,
+          is_required: $("c-req").checked,
+        }));
+        msg("c-msg", "Added!", true);
+        await render();
+      } catch(e) { msg("c-msg", e.message, false); }
+    }
+
+    async function addSession() {
+      try {
+        await api(`/v1/graphical-profiles/${_selId}/sessions`, j({
+          name: $("s-name").value,
+          session_type: $("s-type").value,
+          exec_cmd: $("s-exec").value || null,
+          is_default: $("s-default").checked,
+        }));
+        msg("s-msg", "Added!", true);
+        await render();
+      } catch(e) { msg("s-msg", e.message, false); }
+    }
+
+    async function renderConfig() {
+      try {
+        const r = await api(`/v1/graphical-profiles/${_selId}/render-session-config`, {method:"POST"});
+        const el = $("r-rendered");
+        if (el) el.textContent = r.rendered_session_config;
+        msg("r-msg", `Hash: ${r.content_hash}`, true);
+      } catch(e) { msg("r-msg", e.message, false); }
+    }
+
+    // -----------------------------------------------------------------------
+    // Navigation + init
+    // -----------------------------------------------------------------------
+    async function render() {
+      try {
+        $("content").innerHTML = await views[tab]();
+      } catch(e) {
+        $("content").innerHTML = `<div class="panel"><p style="color:var(--red)">${e.message}</p></div>`;
+      }
+    }
+
+    async function init() {
+      try {
+        [_compositors, _dms] = await Promise.all([
+          api("/v1/compositor-backends"),
+          api("/v1/display-manager-backends"),
+        ]);
+      } catch {}
+      render();
+    }
+
+    document.querySelector("nav").addEventListener("click", e => {
+      const btn = e.target.closest("[data-tab]");
+      if (!btn) return;
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      tab = btn.dataset.tab;
+      render();
+    });
+
+    init();
+  </script>
+</body>
+</html>

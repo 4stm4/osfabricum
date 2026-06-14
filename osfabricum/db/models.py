@@ -1180,7 +1180,7 @@ class LoginScreenTheme(Base):
 
 
 class GraphicalProfile(Base):
-    """A graphical-shell stack; M40 adds components/sessions."""
+    """A graphical-shell stack (M40: display server, compositor, DM, components, sessions)."""
 
     __tablename__ = "graphical_profiles"
 
@@ -1190,10 +1190,114 @@ class GraphicalProfile(Base):
         sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
     )
     mode: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="no-gui")
+    # M40 extensions
+    display_server: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="none"
+    )  # none | x11 | wayland | both
+    compositor: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )  # backend name e.g. "mutter", "sway"
+    display_manager: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )  # backend name e.g. "gdm", "lightdm"
+    session_manager: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )  # "systemd-user" | "elogind" | "consolekit2"
+    toolkit_default: Mapped[str | None] = mapped_column(
+        sa.String(32), nullable=True
+    )  # "gtk3" | "gtk4" | "qt5" | "qt6"
+    rendered_session_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
 
     __table_args__ = (
         sa.UniqueConstraint("distribution_id", "name", name="uq_graphical_profiles_dist_name"),
+    )
+
+
+class CompositorBackend(Base):
+    """Seeded compositor / WM backends (M40)."""
+
+    __tablename__ = "compositor_backends"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    protocol: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="none"
+    )  # none | x11 | wayland | both
+    package_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    config_template: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+
+class DisplayManagerBackend(Base):
+    """Seeded display-manager backends (M40)."""
+
+    __tablename__ = "display_manager_backends"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    package_name: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    config_template: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+
+class GraphicalComponent(Base):
+    """A component in a graphical stack (compositor, toolkit, panel, etc.) (M40)."""
+
+    __tablename__ = "graphical_components"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    graphical_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("graphical_profiles.id"), nullable=False, index=True
+    )
+    # Kind: compositor|window-manager|desktop-shell|panel|bar|notifications|
+    #       file-manager|settings-daemon|polkit-agent|screen-locker|
+    #       screenshot|media-portal|input-method|theme-engine|app-launcher|clipboard-manager
+    component_kind: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    version_constraint: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    config_fragment: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    is_required: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "graphical_profile_id",
+            "component_kind",
+            "package_name",
+            name="uq_graphical_components_profile_kind_pkg",
+        ),
+    )
+
+
+class GraphicalSession(Base):
+    """A selectable desktop session entry (M40)."""
+
+    __tablename__ = "graphical_sessions"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    graphical_profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("graphical_profiles.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    session_type: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="wayland"
+    )  # x11 | wayland | mir
+    exec_cmd: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    desktop_entry: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "graphical_profile_id", "name", name="uq_graphical_sessions_profile_name"
+        ),
     )
 
 

@@ -24,6 +24,7 @@ from apps.cli.commands.distribution import distribution_app
 from apps.cli.commands.feed import feed_app
 from apps.cli.commands.firmware import firmware_app
 from apps.cli.commands.flash import flash_app
+from apps.cli.commands.graphical import graphical_app
 from apps.cli.commands.image import image_app
 from apps.cli.commands.imagedesign import imagedesign_app
 from apps.cli.commands.imagetest import test_app
@@ -243,6 +244,7 @@ def _register_groups() -> None:
     app.add_typer(packageworkspace_app, name="packageworkspace")
     app.add_typer(feed_app, name="feed")
     app.add_typer(branding_app, name="branding")
+    app.add_typer(graphical_app, name="graphical")
 
 
 _register_groups()

@@ -214,6 +214,27 @@ Severity scale:
   `/branding` designer UI page (7 tabs: Profiles, Assets, Stage Targets, Boot
   Splash, Login Theme, OS-Release, MOTD). 32 unit tests. Follow-on:
   graphical-shell (M40), application catalog (M41).
+- **M40 (graphical shell designer) done.** `GraphicalProfile` extended with 10
+  new columns: `display_server` (none/x11/wayland/both), `compositor`,
+  `display_manager`, `session_manager`, `toolkit_default`,
+  `rendered_session_config`, `content_hash`, `rendered_at`, `created_at`,
+  `updated_at`. Four new tables: `compositor_backends` (seeded — 10 entries:
+  none/mutter/kwin/sway/labwc/hyprland/openbox/xfwm4/marco/icewm),
+  `display_manager_backends` (seeded — 6 entries:
+  none/gdm/lightdm/sddm/greetd/ly), `graphical_components` (packages bound by
+  21 kinds: compositor/window-manager/desktop-shell/panel/bar/…), and
+  `graphical_sessions` (selectable `[Desktop Entry]` sessions). `add_component`
+  validates kinds; `add_session` auto-generates the `.desktop` text. 
+  `render_session_config` generates a deterministic `[Desktop Entry]` for the
+  default session (or a named placeholder), stores a `sha256:` content hash.
+  `update_graphical_profile` clears the rendered cache. Migration
+  `0016_graphical_shell` uses per-column guards and a `fresh` sentinel; seeds 10
+  + 6 backends idempotently. Exposed over 10 HTTP endpoints under
+  `/v1/graphical-profiles/…`, `/v1/compositor-backends`,
+  `/v1/display-manager-backends`, the `osfabricumctl graphical` CLI and the
+  `/graphical` designer UI page (6 tabs: Profiles, Compositors, Display
+  Managers, Components, Sessions, Render). 36 unit tests. Follow-on:
+  application catalog (M41).
 
 ### G-08 — Boards are shallow (no BSP depth)
 - **Evidence:** `boards` row carries `boot_scheme`, `firmware_required`,

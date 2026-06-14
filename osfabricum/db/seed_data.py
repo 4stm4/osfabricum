@@ -28,6 +28,8 @@ from osfabricum.db.models import (
     BoardRevision,
     BoardTestMethod,
     BootScheme,
+    CompositorBackend,
+    DisplayManagerBackend,
     DistributionClass,
     PackageKind,
     PackageLayer,
@@ -202,6 +204,157 @@ def seed_runtime_backends(session: Session) -> int:
         session.add(
             RuntimePackageBackend(
                 name=name, description=description, config_template=config_template
+            )
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+# ---------------------------------------------------------------------------
+# M40: Graphical Shell seed data
+# ---------------------------------------------------------------------------
+
+# (name, description, protocol, package_name, config_template)
+COMPOSITOR_BACKENDS: list[tuple[str, str, str, str, str]] = [
+    ("none", "No compositor / headless", "none", "", ""),
+    (
+        "mutter",
+        "GNOME Mutter (Wayland + X11 via Xwayland)",
+        "both",
+        "mutter",
+        "",
+    ),
+    (
+        "kwin",
+        "KDE KWin compositor (Wayland + X11)",
+        "both",
+        "kwin",
+        "",
+    ),
+    (
+        "sway",
+        "i3-compatible Wayland compositor (wlroots)",
+        "wayland",
+        "sway",
+        "# sway config\noutput * bg {wallpaper} fill\n",
+    ),
+    (
+        "labwc",
+        "Openbox-like Wayland compositor (wlroots)",
+        "wayland",
+        "labwc",
+        "",
+    ),
+    (
+        "hyprland",
+        "Dynamic tiling Wayland compositor",
+        "wayland",
+        "hyprland",
+        "",
+    ),
+    (
+        "openbox",
+        "Classic X11 stacking window manager",
+        "x11",
+        "openbox",
+        "",
+    ),
+    (
+        "xfwm4",
+        "XFCE window manager (X11)",
+        "x11",
+        "xfwm4",
+        "",
+    ),
+    (
+        "marco",
+        "MATE window manager (X11)",
+        "x11",
+        "marco",
+        "",
+    ),
+    (
+        "icewm",
+        "Lightweight X11 window manager",
+        "x11",
+        "icewm",
+        "",
+    ),
+]
+
+# (name, description, package_name, config_template)
+DISPLAY_MANAGER_BACKENDS: list[tuple[str, str, str, str]] = [
+    ("none", "No display manager (getty / auto-login)", "", ""),
+    (
+        "gdm",
+        "GNOME Display Manager (Wayland-native)",
+        "gdm",
+        "",
+    ),
+    (
+        "lightdm",
+        "LightDM — flexible, greeter-based DM",
+        "lightdm",
+        "[Seat:*]\ngreeter-session={greeter}\nautologin-user={autologin_user}\n",
+    ),
+    (
+        "sddm",
+        "Simple Desktop Display Manager (KDE, Wayland-capable)",
+        "sddm",
+        "[Autologin]\nSession={session}\nUser={autologin_user}\n",
+    ),
+    (
+        "greetd",
+        "Minimal Wayland-native greeter daemon",
+        "greetd",
+        "[terminal]\nvt = 1\n\n[default_session]\ncommand = {greeter_cmd}\n",
+    ),
+    (
+        "ly",
+        "TUI display manager (ncurses)",
+        "ly",
+        "",
+    ),
+]
+
+
+def seed_compositor_backends(session: Session) -> int:
+    """Insert any missing compositor backends (M40). Returns the number added."""
+    existing = {b.name for b in session.scalars(select(CompositorBackend)).all()}
+    added = 0
+    for name, description, protocol, package_name, config_template in COMPOSITOR_BACKENDS:
+        if name in existing:
+            continue
+        session.add(
+            CompositorBackend(
+                name=name,
+                description=description,
+                protocol=protocol,
+                package_name=package_name or None,
+                config_template=config_template,
+            )
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_display_manager_backends(session: Session) -> int:
+    """Insert any missing display manager backends (M40). Returns the number added."""
+    existing = {b.name for b in session.scalars(select(DisplayManagerBackend)).all()}
+    added = 0
+    for name, description, package_name, config_template in DISPLAY_MANAGER_BACKENDS:
+        if name in existing:
+            continue
+        session.add(
+            DisplayManagerBackend(
+                name=name,
+                description=description,
+                package_name=package_name or None,
+                config_template=config_template,
             )
         )
         added += 1
