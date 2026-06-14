@@ -1333,8 +1333,18 @@ class NetworkProfile(Base):
     )
 
 
+class SecurityMacKind(Base):
+    """Seeded lookup: supported MAC frameworks (M47)."""
+
+    __tablename__ = "security_mac_kinds"
+
+    name: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
 class SecurityProfile(Base):
-    """A hardening definition; M47 adds rules/sysctl/gates."""
+    """Per-distribution security / hardening profile (M47)."""
 
     __tablename__ = "security_profiles"
 
@@ -1343,10 +1353,127 @@ class SecurityProfile(Base):
     distribution_id: Mapped[str | None] = mapped_column(
         sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
     )
-    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    mac_policy: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="none"
+    )  # references security_mac_kinds.name
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    rendered_sysctl: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_mac_rules: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_pam_config: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_capabilities: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
 
     __table_args__ = (
         sa.UniqueConstraint("distribution_id", "name", name="uq_security_profiles_dist_name"),
+    )
+
+
+class SysctlSetting(Base):
+    """A kernel sysctl parameter in a security profile (M47)."""
+
+    __tablename__ = "sysctl_settings"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("security_profiles.id"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False
+    )  # e.g. "net.ipv4.ip_forward"
+    value: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint("profile_id", "key", name="uq_sysctl_settings_profile_key"),
+    )
+
+
+class MacRule(Base):
+    """A MAC policy rule (AppArmor/SELinux/TOMOYO/SMACK/Landlock) in a profile (M47)."""
+
+    __tablename__ = "mac_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("security_profiles.id"), nullable=False
+    )
+    subject: Mapped[str] = mapped_column(
+        sa.String(256), nullable=False
+    )  # executable path or label, e.g. "/usr/sbin/nginx"
+    rule_text: Mapped[str] = mapped_column(
+        sa.Text, nullable=False
+    )  # raw policy rule content
+    is_enforcing: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )  # True=enforce, False=permissive/audit-only
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=100)
+    comment: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+
+
+class PamRule(Base):
+    """A PAM service configuration entry in a security profile (M47)."""
+
+    __tablename__ = "pam_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("security_profiles.id"), nullable=False
+    )
+    service: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False
+    )  # e.g. "sshd", "login", "sudo", "common-auth"
+    module_type: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False
+    )  # auth | account | session | password
+    control_flag: Mapped[str] = mapped_column(
+        sa.String(24), nullable=False
+    )  # required | requisite | sufficient | optional | include | substack
+    module_path: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False
+    )  # e.g. "pam_unix.so", "pam_faillock.so"
+    module_args: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # optional arguments, e.g. "nullok try_first_pass"
+    priority: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=100
+    )  # ordering within service+type
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "service", "module_type", "module_path",
+            name="uq_pam_rules_profile_svc_type_module",
+        ),
+    )
+
+
+class CapabilityGrant(Base):
+    """Linux capability grants/drops for an executable in a security profile (M47)."""
+
+    __tablename__ = "capability_grants"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("security_profiles.id"), nullable=False
+    )
+    executable: Mapped[str] = mapped_column(
+        sa.String(256), nullable=False
+    )  # full path, e.g. "/usr/bin/ping"
+    add_caps: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # space-separated capability names, e.g. "net_raw net_admin"
+    drop_caps: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )  # space-separated, e.g. "all" or "sys_admin sys_ptrace"
+    no_new_privs: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "executable", name="uq_capability_grants_profile_exec"
+        ),
     )
 
 

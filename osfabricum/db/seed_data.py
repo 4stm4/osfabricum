@@ -25,6 +25,7 @@ from osfabricum.db.models import (
     InitSystemKind,
     MimeTypeDefinition,
     NetworkInterfaceKind,
+    SecurityMacKind,
     ThemeAssetKind,
     UserShellKind,
     BoardDeviceTree,
@@ -552,6 +553,32 @@ def seed_user_shell_kinds(session: Session) -> int:
             continue
         session.add(
             UserShellKind(path=path, description=description, display_order=display_order)
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+SECURITY_MAC_KINDS: list[tuple[str, str, int]] = [
+    ("none", "No mandatory access control framework", 0),
+    ("apparmor", "AppArmor — path-based MAC (Ubuntu, openSUSE, Debian)", 1),
+    ("selinux", "SELinux — label-based MAC (Fedora, RHEL, Android)", 2),
+    ("tomoyo", "TOMOYO Linux — pathname-based MAC", 3),
+    ("smack", "SMACK — Simplified Mandatory Access Control Kernel", 4),
+    ("landlock", "Landlock LSM — unprivileged sandboxing (Linux 5.13+)", 5),
+]
+
+
+def seed_security_mac_kinds(session: Session) -> int:
+    """Insert any missing MAC framework kinds (M47). Returns the number added."""
+    existing = {k.name for k in session.scalars(select(SecurityMacKind)).all()}
+    added = 0
+    for name, description, display_order in SECURITY_MAC_KINDS:
+        if name in existing:
+            continue
+        session.add(
+            SecurityMacKind(name=name, description=description, display_order=display_order)
         )
         added += 1
     if added:

@@ -350,6 +350,34 @@ Severity scale:
   service topology, hardening, or compliance gates.
 - **Closed by:** **M45** (network), **M46** (service/init/device manager),
   **M47** (security/hardening), **M48** (license/SBOM/vuln/source compliance).
+- **M47 (security / hardening designer) done.** Extended the existing
+  `security_profiles` stub (removed `metadata_json`, added `mac_policy`,
+  `description`, `rendered_sysctl`, `rendered_mac_rules`, `rendered_pam_config`,
+  `rendered_capabilities`, `content_hash`, `rendered_at`, `created_at`,
+  `updated_at`). Five additional tables: `security_mac_kinds` (seeded — 6
+  frameworks: none/apparmor/selinux/tomoyo/smack/landlock), `sysctl_settings`
+  (key, value, description; upsert; unique per profile+key),
+  `mac_rules` (subject path/label, rule_text, is_enforcing, priority, comment;
+  multiple rules per subject allowed), `pam_rules` (service, module_type:
+  auth|account|session|password, control_flag: required|requisite|sufficient|
+  optional|include|substack, module_path, module_args, priority; unique per
+  profile+service+type+module), `capability_grants` (executable, add_caps,
+  drop_caps, no_new_privs; upsert; unique per profile+executable).
+  `render_security_config` generates: `/etc/sysctl.d/99-osfabricum.conf`
+  (KEY = VALUE lines sorted alphabetically with inline description comments),
+  MAC policy rules (grouped by subject with enforce/permissive markers), PAM
+  config files (`/etc/pam.d/{service}` sections with auth→account→session→
+  password type ordering), and a capability grant manifest — all four
+  concatenated for sha256: hash. `update_security_profile` and `set_sysctl`/
+  `set_capability_grant` (both upserts) clear the rendered cache. Migration
+  `0023_security_designer` with fresh sentinel seeds 6 MAC kinds. Module at
+  `osfabricum/hardening/` (avoids clash with existing M14 `osfabricum/security/`
+  signing/SBOM module). Exposed over 10 HTTP endpoints under
+  `/v1/security-profiles/…` + `/v1/security-mac-kinds`, the
+  `osfabricumctl security` CLI (mac-list/list/create/show/update/sysctl-set/
+  mac-add/pam-add/cap-set/render) and the `/security` designer UI page (7 tabs:
+  Profiles, MAC Frameworks, Sysctl, MAC Rules, PAM, Capabilities, Render). 50
+  unit tests, all passing. Follow-on: license / SBOM / vuln / compliance (M48).
 - **M46 (service / init / device manager designer) done.** Five new tables:
   `init_system_kinds` (seeded — 7 kinds: systemd/openrc/s6/runit/busybox-init/
   dinit/shepherd), `service_profiles` (per-distribution service topology with

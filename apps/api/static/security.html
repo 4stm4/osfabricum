@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Designer — OSFabricum M47</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+  header{background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.1rem;font-weight:600;color:#fff}
+  header span{font-size:.75rem;background:#3b3f52;padding:2px 8px;border-radius:10px;color:#aaa}
+  nav{display:flex;gap:4px;padding:12px 24px;background:#141720;border-bottom:1px solid #1e2130;flex-wrap:wrap}
+  nav button{padding:6px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:.85rem;transition:.15s}
+  nav button.active,nav button:hover{background:#252839;border-color:#3a3d52;color:#fff}
+  .tab{display:none;padding:24px;max-width:1000px;margin:0 auto}
+  .tab.active{display:block}
+  h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:#fff}
+  .card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:20px;margin-bottom:16px}
+  label{font-size:.8rem;color:#888;display:block;margin-bottom:4px;margin-top:12px}
+  label:first-child{margin-top:0}
+  input,select,textarea{width:100%;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:.85rem;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:#e53935}
+  textarea{min-height:80px;resize:vertical;font-family:monospace}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .row3{display:grid;gap:12px;grid-template-columns:1fr 1fr 1fr}
+  .cb-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem;color:#bbb}
+  .cb-row input[type=checkbox]{width:auto}
+  button.btn{margin-top:14px;padding:8px 18px;background:#c62828;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:.85rem}
+  button.btn:hover{background:#e53935}
+  button.btn-sm{padding:5px 12px;font-size:.8rem;background:#2a2d3a;border:1px solid #3a3d52;border-radius:5px;color:#ccc;cursor:pointer;margin-top:6px}
+  button.btn-sm:hover{background:#333650}
+  .msg{margin-top:10px;font-size:.8rem;padding:8px 12px;border-radius:6px}
+  .msg.ok{background:#1b3a2d;color:#6fcf97}
+  .msg.err{background:#3a1d1d;color:#eb5757}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{text-align:left;color:#888;font-weight:500;padding:6px 8px;border-bottom:1px solid #252839}
+  td{padding:7px 8px;border-bottom:1px solid #1e2130;vertical-align:top}
+  .chip-enforce{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#3a1d1d;color:#eb5757}
+  .chip-permissive{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#2a2a1f;color:#f2d06f}
+  .chip-required{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#1f2a3f;color:#6fb3f2}
+  .chip-optional{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.72rem;background:#2a2d3a;color:#aaa}
+  pre{font-size:.78rem;background:#0a0c12;border:1px solid #1e2130;border-radius:6px;padding:14px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#c5d0e6;max-height:340px;overflow-y:auto}
+  .hash{font-size:.78rem;color:#6fcf97;background:#1b3a2d;padding:6px 10px;border-radius:6px;margin-top:10px;word-break:break-all}
+  .empty{color:#555;font-size:.83rem;padding:12px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Security / Hardening Designer</h1>
+  <span>M47</span>
+</header>
+<nav>
+  <button class="active" onclick="show('profiles')">Profiles</button>
+  <button onclick="show('mac-kinds')">MAC Frameworks</button>
+  <button onclick="show('sysctl')">Sysctl</button>
+  <button onclick="show('mac')">MAC Rules</button>
+  <button onclick="show('pam')">PAM</button>
+  <button onclick="show('caps')">Capabilities</button>
+  <button onclick="show('render')">Render</button>
+</nav>
+
+<!-- PROFILES -->
+<div id="profiles" class="tab active">
+  <h2>Security Profiles</h2>
+  <div class="card">
+    <label>Name</label><input id="p-name" placeholder="server-hardened">
+    <label>Distribution ID (optional)</label><input id="p-dist" placeholder="uuid">
+    <label>MAC Policy</label>
+    <select id="p-mac">
+      <option value="none">none</option>
+      <option value="apparmor">apparmor</option>
+      <option value="selinux">selinux</option>
+      <option value="tomoyo">tomoyo</option>
+      <option value="smack">smack</option>
+      <option value="landlock">landlock</option>
+    </select>
+    <label>Description</label><input id="p-desc" placeholder="optional">
+    <button class="btn" onclick="createProfile()">Create Profile</button>
+    <div id="p-msg"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong style="font-size:.9rem">Existing Profiles</strong>
+      <button class="btn-sm" onclick="loadProfiles()">Refresh</button>
+    </div>
+    <table><thead><tr><th>ID</th><th>Name</th><th>MAC Policy</th><th>Hash</th><th></th></tr></thead>
+    <tbody id="p-list"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- MAC FRAMEWORKS -->
+<div id="mac-kinds" class="tab">
+  <h2>MAC Frameworks (seeded)</h2>
+  <div class="card">
+    <button class="btn-sm" onclick="loadMacKinds()">Refresh</button>
+    <table style="margin-top:12px"><thead><tr><th>#</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody id="mk-list"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- SYSCTL -->
+<div id="sysctl" class="tab">
+  <h2>Sysctl Settings</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="sc-pid" placeholder="profile uuid">
+    <div class="row">
+      <div><label>Key</label><input id="sc-key" placeholder="net.ipv4.ip_forward"></div>
+      <div><label>Value</label><input id="sc-val" placeholder="0"></div>
+    </div>
+    <label>Description (optional)</label><input id="sc-desc" placeholder="Disable IP forwarding">
+    <button class="btn" onclick="setSysctl()">Set Sysctl</button>
+    <div id="sc-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile sysctl — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="sc-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadSysctl()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead>
+    <tbody id="sc-list"><tr><td colspan="3" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- MAC RULES -->
+<div id="mac" class="tab">
+  <h2>MAC Policy Rules</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="mr-pid" placeholder="profile uuid">
+    <label>Subject (executable path or label)</label>
+    <input id="mr-subject" placeholder="/usr/sbin/nginx">
+    <label>Rule Text</label>
+    <textarea id="mr-rule" placeholder="  /var/log/nginx/** w,&#10;  /etc/nginx/** r,"></textarea>
+    <div class="row">
+      <div><label>Priority</label><input id="mr-prio" type="number" value="100"></div>
+      <div><label>Comment</label><input id="mr-comment" placeholder="optional"></div>
+    </div>
+    <div class="cb-row">
+      <input type="checkbox" id="mr-enforce" checked>
+      <label for="mr-enforce" style="margin:0">Enforcing (uncheck for permissive/audit-only)</label>
+    </div>
+    <button class="btn" onclick="addMacRule()">Add MAC Rule</button>
+    <div id="mr-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile rules — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="mr-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadMacRules()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Subject</th><th>Mode</th><th>Priority</th><th>Comment</th></tr></thead>
+    <tbody id="mr-list"><tr><td colspan="4" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- PAM -->
+<div id="pam" class="tab">
+  <h2>PAM Configuration</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="pr-pid" placeholder="profile uuid">
+    <div class="row">
+      <div><label>Service</label><input id="pr-svc" placeholder="sshd"></div>
+      <div><label>Module Type</label>
+        <select id="pr-type">
+          <option value="auth">auth</option>
+          <option value="account">account</option>
+          <option value="session">session</option>
+          <option value="password">password</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Control Flag</label>
+        <select id="pr-flag">
+          <option value="required">required</option>
+          <option value="requisite">requisite</option>
+          <option value="sufficient">sufficient</option>
+          <option value="optional">optional</option>
+          <option value="include">include</option>
+          <option value="substack">substack</option>
+        </select>
+      </div>
+      <div><label>Module Path</label><input id="pr-module" placeholder="pam_unix.so"></div>
+    </div>
+    <label>Module Arguments (optional)</label>
+    <input id="pr-args" placeholder="nullok try_first_pass">
+    <label>Priority</label><input id="pr-prio" type="number" value="100">
+    <button class="btn" onclick="addPamRule()">Add PAM Rule</button>
+    <div id="pr-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile PAM rules — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="pr-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadPamRules()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Service</th><th>Type</th><th>Flag</th><th>Module</th><th>Args</th></tr></thead>
+    <tbody id="pr-list"><tr><td colspan="5" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- CAPABILITIES -->
+<div id="caps" class="tab">
+  <h2>Capability Grants</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="cg-pid" placeholder="profile uuid">
+    <label>Executable</label><input id="cg-exe" placeholder="/usr/bin/ping">
+    <div class="row">
+      <div><label>Add Capabilities</label><input id="cg-add" placeholder="net_raw net_admin"></div>
+      <div><label>Drop Capabilities</label><input id="cg-drop" placeholder="all"></div>
+    </div>
+    <label>Description</label><input id="cg-desc" placeholder="optional">
+    <div class="cb-row">
+      <input type="checkbox" id="cg-nnp">
+      <label for="cg-nnp" style="margin:0">No New Privileges (PR_SET_NO_NEW_PRIVS)</label>
+    </div>
+    <button class="btn" onclick="setCapability()">Set Capability Grant</button>
+    <div id="cg-msg"></div>
+  </div>
+  <div class="card">
+    <label>Load profile capabilities — Profile ID</label>
+    <div style="display:flex;gap:8px">
+      <input id="cg-load-pid" placeholder="profile uuid" style="flex:1">
+      <button class="btn-sm" onclick="loadCaps()">Load</button>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Executable</th><th>Add</th><th>Drop</th><th>NoNewPrivs</th></tr></thead>
+    <tbody id="cg-list"><tr><td colspan="4" class="empty">—</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- RENDER -->
+<div id="render" class="tab">
+  <h2>Render Security Config</h2>
+  <div class="card">
+    <label>Profile ID</label><input id="r-pid" placeholder="profile uuid">
+    <button class="btn" onclick="renderConfig()">Render</button>
+    <div id="r-msg"></div>
+  </div>
+  <div id="r-result" style="display:none">
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">sysctl.d/99-osfabricum.conf</strong>
+      <pre id="r-sysctl"></pre>
+    </div>
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">MAC Policy Rules</strong>
+      <pre id="r-mac"></pre>
+    </div>
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">PAM Configuration</strong>
+      <pre id="r-pam"></pre>
+    </div>
+    <div class="card">
+      <strong style="font-size:.9rem;display:block;margin-bottom:8px">Capability Grants</strong>
+      <pre id="r-caps"></pre>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:16px;font-size:.83rem;color:#888;margin-bottom:8px">
+        <span>Sysctl: <b id="r-sc" style="color:#fff"></b></span>
+        <span>MAC rules: <b id="r-mc" style="color:#fff"></b></span>
+        <span>PAM rules: <b id="r-pc" style="color:#fff"></b></span>
+        <span>Capabilities: <b id="r-cc" style="color:#fff"></b></span>
+      </div>
+      <div class="hash" id="r-hash"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function show(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+
+function copyPid(id) { navigator.clipboard.writeText(id).catch(()=>{}); }
+
+// Profiles
+async function loadProfiles() {
+  try {
+    const list = await api('GET', '/v1/security-profiles');
+    const tb = document.getElementById('p-list');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No profiles yet</td></tr>'; return; }
+    tb.innerHTML = list.map(p => `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${p.id.slice(0,8)}</td>
+      <td>${p.name}</td>
+      <td>${p.mac_policy}</td>
+      <td style="font-family:monospace;font-size:.75rem">${(p.content_hash||'').slice(0,16)||'—'}</td>
+      <td><button class="btn-sm" onclick="copyPid('${p.id}')">Copy ID</button></td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function createProfile() {
+  try {
+    const r = await api('POST', '/v1/security-profiles', {
+      name: document.getElementById('p-name').value,
+      distribution_id: document.getElementById('p-dist').value || null,
+      mac_policy: document.getElementById('p-mac').value,
+      description: document.getElementById('p-desc').value,
+    });
+    msg('p-msg', 'Created: ' + r.id, true);
+    loadProfiles();
+  } catch(e) { msg('p-msg', e.message, false); }
+}
+
+// MAC kinds
+async function loadMacKinds() {
+  try {
+    const list = await api('GET', '/v1/security-mac-kinds');
+    const tb = document.getElementById('mk-list');
+    tb.innerHTML = list.map((k,i) => `<tr><td>${i+1}</td><td><b>${k.name}</b></td><td>${k.description}</td></tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Sysctl
+async function setSysctl() {
+  try {
+    const r = await api('POST', `/v1/security-profiles/${document.getElementById('sc-pid').value}/sysctl`, {
+      key: document.getElementById('sc-key').value,
+      value: document.getElementById('sc-val').value,
+      description: document.getElementById('sc-desc').value,
+    });
+    msg('sc-msg', 'Set: ' + r.key + ' = ' + r.value, true);
+  } catch(e) { msg('sc-msg', e.message, false); }
+}
+
+async function loadSysctl() {
+  const pid = document.getElementById('sc-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/security-profiles/${pid}`);
+    const tb = document.getElementById('sc-list');
+    if (!p.sysctl.length) { tb.innerHTML = '<tr><td colspan="3" class="empty">No sysctl settings</td></tr>'; return; }
+    tb.innerHTML = p.sysctl.map(sc => `<tr>
+      <td style="font-family:monospace">${sc.key}</td>
+      <td><b>${sc.value}</b></td>
+      <td>${sc.description||'—'}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// MAC rules
+async function addMacRule() {
+  try {
+    const r = await api('POST', `/v1/security-profiles/${document.getElementById('mr-pid').value}/mac-rules`, {
+      subject: document.getElementById('mr-subject').value,
+      rule_text: document.getElementById('mr-rule').value,
+      is_enforcing: document.getElementById('mr-enforce').checked,
+      priority: parseInt(document.getElementById('mr-prio').value) || 100,
+      comment: document.getElementById('mr-comment').value || null,
+    });
+    msg('mr-msg', 'Added rule for: ' + r.subject, true);
+  } catch(e) { msg('mr-msg', e.message, false); }
+}
+
+async function loadMacRules() {
+  const pid = document.getElementById('mr-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/security-profiles/${pid}`);
+    const tb = document.getElementById('mr-list');
+    if (!p.mac_rules.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">No MAC rules</td></tr>'; return; }
+    tb.innerHTML = p.mac_rules.map(mr => `<tr>
+      <td style="font-family:monospace;font-size:.8rem">${mr.subject}</td>
+      <td>${mr.is_enforcing ? '<span class="chip-enforce">enforce</span>' : '<span class="chip-permissive">permissive</span>'}</td>
+      <td>${mr.priority}</td>
+      <td>${mr.comment||'—'}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// PAM rules
+async function addPamRule() {
+  try {
+    const r = await api('POST', `/v1/security-profiles/${document.getElementById('pr-pid').value}/pam-rules`, {
+      service: document.getElementById('pr-svc').value,
+      module_type: document.getElementById('pr-type').value,
+      control_flag: document.getElementById('pr-flag').value,
+      module_path: document.getElementById('pr-module').value,
+      module_args: document.getElementById('pr-args').value || null,
+      priority: parseInt(document.getElementById('pr-prio').value) || 100,
+    });
+    msg('pr-msg', `Added PAM: ${r.service}/${r.module_type} ${r.module_path}`, true);
+  } catch(e) { msg('pr-msg', e.message, false); }
+}
+
+async function loadPamRules() {
+  const pid = document.getElementById('pr-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/security-profiles/${pid}`);
+    const tb = document.getElementById('pr-list');
+    if (!p.pam_rules.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No PAM rules</td></tr>'; return; }
+    function flagChip(f) {
+      const cls = {'required':'chip-required','requisite':'chip-required','sufficient':'chip-optional','optional':'chip-optional','include':'chip-optional','substack':'chip-optional'}[f]||'chip-optional';
+      return `<span class="${cls}">${f}</span>`;
+    }
+    tb.innerHTML = p.pam_rules.map(pr => `<tr>
+      <td>${pr.service}</td>
+      <td>${pr.module_type}</td>
+      <td>${flagChip(pr.control_flag)}</td>
+      <td style="font-family:monospace;font-size:.8rem">${pr.module_path}</td>
+      <td style="font-family:monospace;font-size:.78rem">${pr.module_args||'—'}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Capabilities
+async function setCapability() {
+  try {
+    const r = await api('POST', `/v1/security-profiles/${document.getElementById('cg-pid').value}/capabilities`, {
+      executable: document.getElementById('cg-exe').value,
+      add_caps: document.getElementById('cg-add').value || null,
+      drop_caps: document.getElementById('cg-drop').value || null,
+      no_new_privs: document.getElementById('cg-nnp').checked,
+      description: document.getElementById('cg-desc').value,
+    });
+    msg('cg-msg', 'Set capabilities for: ' + r.executable, true);
+  } catch(e) { msg('cg-msg', e.message, false); }
+}
+
+async function loadCaps() {
+  const pid = document.getElementById('cg-load-pid').value;
+  try {
+    const p = await api('GET', `/v1/security-profiles/${pid}`);
+    const tb = document.getElementById('cg-list');
+    if (!p.capabilities.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">No capability grants</td></tr>'; return; }
+    tb.innerHTML = p.capabilities.map(cg => `<tr>
+      <td style="font-family:monospace;font-size:.8rem">${cg.executable}</td>
+      <td>${cg.add_caps||'—'}</td>
+      <td>${cg.drop_caps||'—'}</td>
+      <td>${cg.no_new_privs ? 'yes' : 'no'}</td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// Render
+async function renderConfig() {
+  const pid = document.getElementById('r-pid').value;
+  try {
+    const r = await api('POST', `/v1/security-profiles/${pid}/render`);
+    document.getElementById('r-sysctl').textContent = r.rendered_sysctl;
+    document.getElementById('r-mac').textContent = r.rendered_mac_rules;
+    document.getElementById('r-pam').textContent = r.rendered_pam_config;
+    document.getElementById('r-caps').textContent = r.rendered_capabilities;
+    document.getElementById('r-sc').textContent = r.sysctl_count;
+    document.getElementById('r-mc').textContent = r.mac_rule_count;
+    document.getElementById('r-pc').textContent = r.pam_rule_count;
+    document.getElementById('r-cc').textContent = r.capability_count;
+    document.getElementById('r-hash').textContent = r.content_hash;
+    document.getElementById('r-result').style.display = 'block';
+    msg('r-msg', 'Rendered at ' + r.rendered_at, true);
+  } catch(e) { msg('r-msg', e.message, false); }
+}
+
+loadProfiles();
+loadMacKinds();
+</script>
+</body>
+</html>
