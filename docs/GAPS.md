@@ -194,6 +194,9 @@ Severity scale:
 - **Closed by:** **M39** (branding), **M40** (graphical shell), **M41**
   (application catalog), **M42** (default apps/desktop integration), **M43**
   (themes/icons/fonts).
+- **Status: ✅ Resolved (M39–M43 done).** All five designer modules are
+  implemented end-to-end (models → migration → service → API → CLI → UI →
+  tests). Follow-on: users / groups / credentials / secrets (M44).
 - **M39 (branding / identity designer) done.** `BrandingProfile` is extended
   with 11 OS-release identity fields (`os_name`, `os_id`, `os_version`,
   `os_pretty_name`, `os_home_url`, `vendor_name`, `vendor_url`, `support_url`,
@@ -278,6 +281,28 @@ Severity scale:
   autostart-add/userdir-set/render) and the `/desktopint` designer UI page
   (6 tabs: Profiles, MIME Types, MIME Associations, Autostart, User Dirs,
   Render). 44 unit tests, all passing. Follow-on: themes/icons/fonts (M43).
+- **M43 (themes / icons / fonts designer) done.** Four new tables:
+  `theme_asset_kinds` (seeded — 6 entries: gtk-theme/icon-theme/cursor-theme/
+  sound-theme/font-face/wallpaper), `theme_profiles` (gtk_theme/icon_theme/
+  cursor_theme/sound_theme, dark_mode, font_default/font_monospace/font_document,
+  font_size, cursor_size, scaling_factor, rendered_gsettings/rendered_gtk_ini/
+  content_hash/rendered_at), `theme_packages` (profile_id → asset_kind +
+  package_name + version_constraint + is_default; unique per profile+kind+pkg),
+  `gsettings_overrides` (profile_id → schema + key + value; upsert pattern).
+  `render_theme_config` generates a dconf override file (`[org/gnome/desktop/
+  interface]` section with gtk-theme/icon-theme/cursor-theme/font-name/
+  monospace-font-name/text-scaling-factor/color-scheme, optional `[org/gnome/
+  desktop/sound]` for non-freedesktop themes, plus user-supplied gsettings
+  overrides grouped by schema) and a GTK `settings.ini` ([Settings] block).
+  Both concatenated for a `sha256:` content hash; `update_theme_profile` clears
+  the cache. `add_theme_package` validates against VALID_ASSET_KINDS.
+  `set_gsettings_override` is an upsert. Migration `0019_theme_designer` uses a
+  `fresh` sentinel and seeds 6 asset kinds idempotently. Exposed over 9 HTTP
+  endpoints under `/v1/theme-profiles/…` + `/v1/theme-asset-kinds`, the
+  `osfabricumctl theme` CLI (kind-list/list/create/show/update/pkg-add/
+  gsetting-set/render) and the `/theme` designer UI page (5 tabs: Profiles,
+  Asset Kinds, Packages, GSettings, Render). 37 unit tests, all passing.
+  Follow-on: users / groups / credentials / secrets (M44).
 
 ### G-08 — Boards are shallow (no BSP depth)
 - **Evidence:** `boards` row carries `boot_scheme`, `firmware_required`,

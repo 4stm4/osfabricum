@@ -15,6 +15,7 @@ import typer
 
 from apps.cli.commands.appcatalog import appcatalog_app
 from apps.cli.commands.desktopint import desktopint_app
+from apps.cli.commands.theme import theme_app
 from apps.cli.commands.artifacts import artifacts_app
 from apps.cli.commands.board import board_app
 from apps.cli.commands.bootchain import bootchain_app
@@ -249,6 +250,7 @@ def _register_groups() -> None:
     app.add_typer(graphical_app, name="graphical")
     app.add_typer(appcatalog_app, name="appcatalog")
     app.add_typer(desktopint_app, name="desktopint")
+    app.add_typer(theme_app, name="theme")
 
 
 _register_groups()

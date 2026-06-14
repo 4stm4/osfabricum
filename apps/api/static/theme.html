@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Themes / Icons / Fonts Designer — OSFabricum</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8f9fa; color: #212529; }
+    header { background: #1a1a2e; color: #eee; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+    header a { color: #adf; text-decoration: none; font-size: 0.85rem; }
+    h1 { margin: 0; font-size: 1.2rem; }
+    .tabs { display: flex; border-bottom: 2px solid #dee2e6; background: #fff; padding: 0 16px; }
+    .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 0.9rem; }
+    .tab.active { border-bottom-color: #0d6efd; color: #0d6efd; font-weight: 600; }
+    .pane { display: none; padding: 20px; }
+    .pane.active { display: block; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    th { background: #f1f3f5; text-align: left; padding: 10px 14px; font-size: 0.82rem; color: #495057; }
+    td { padding: 9px 14px; border-top: 1px solid #e9ecef; font-size: 0.88rem; vertical-align: top; }
+    tr:hover td { background: #f8f9fa; }
+    .btn { display: inline-block; padding: 7px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-success { background: #198754; color: #fff; }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+    form { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.1); max-width: 640px; margin-bottom: 20px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 500; }
+    input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+    .badge-blue { background: #cfe2ff; color: #084298; }
+    .badge-green { background: #d1e7dd; color: #0a3622; }
+    .badge-dark { background: #343a40; color: #f8f9fa; }
+    pre { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; font-size: 0.82rem; overflow-x: auto; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: 0.85rem; }
+    .msg-ok { background: #d1e7dd; color: #0a3622; }
+    .msg-err { background: #f8d7da; color: #58151c; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 160px; }
+    .section-title { font-size: 0.9rem; font-weight: 600; color: #495057; margin: 16px 0 8px; }
+    .preview-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; border: 1px solid #aaa; vertical-align: middle; margin-right: 6px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Themes / Icons / Fonts Designer</h1>
+  <a href="/">← Dashboard</a>
+  <span style="flex:1"></span>
+  <span style="font-size:0.75rem;color:#aaa">M43</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="profiles">Profiles</div>
+  <div class="tab" data-tab="kinds">Asset Kinds</div>
+  <div class="tab" data-tab="packages">Packages</div>
+  <div class="tab" data-tab="gsettings">GSettings</div>
+  <div class="tab" data-tab="render">Render</div>
+</div>
+
+<!-- ===== Profiles ===== -->
+<div class="pane active" id="pane-profiles">
+  <div class="row" style="margin-bottom:16px">
+    <button class="btn btn-primary" onclick="loadProfiles()">Refresh</button>
+    <button class="btn btn-secondary" onclick="toggleForm('create-profile-form')">+ New Profile</button>
+  </div>
+  <form id="create-profile-form" style="display:none" onsubmit="createProfile(event)">
+    <div class="row">
+      <div class="col"><label>Name</label><input id="cp-name" required></div>
+      <div class="col"><label>Distribution ID</label><input id="cp-dist"></div>
+    </div>
+    <div class="row">
+      <div class="col"><label>GTK Theme</label><input id="cp-gtk" value="Adwaita"></div>
+      <div class="col"><label>Icon Theme</label><input id="cp-icon" value="Adwaita"></div>
+      <div class="col"><label>Cursor Theme</label><input id="cp-cursor" value="Adwaita"></div>
+    </div>
+    <div class="row">
+      <div class="col"><label>Default Font</label><input id="cp-font" value="Sans"></div>
+      <div class="col"><label>Monospace Font</label><input id="cp-mono" value="Monospace"></div>
+      <div class="col"><label>Font Size</label><input id="cp-fsize" type="number" value="11"></div>
+    </div>
+    <div class="row">
+      <div class="col"><label>Cursor Size</label><input id="cp-csize" type="number" value="24"></div>
+      <div class="col"><label>Scaling Factor</label><input id="cp-scale" type="number" step="0.25" value="1.0"></div>
+      <div class="col" style="padding-top:28px"><label><input type="checkbox" id="cp-dark"> Dark Mode</label></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create</button>
+    <div id="cp-msg"></div>
+  </form>
+
+  <div id="update-profile-form" style="display:none;margin-top:12px">
+    <form onsubmit="updateProfile(event)">
+      <p style="font-size:0.85rem;color:#6c757d">Editing: <strong id="edit-profile-id-label"></strong></p>
+      <div class="row">
+        <div class="col"><label>GTK Theme</label><input id="up-gtk"></div>
+        <div class="col"><label>Icon Theme</label><input id="up-icon"></div>
+        <div class="col"><label>Cursor Theme</label><input id="up-cursor"></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Font</label><input id="up-font"></div>
+        <div class="col"><label>Font Size</label><input id="up-fsize" type="number"></div>
+        <div class="col"><label>Scaling</label><input id="up-scale" type="number" step="0.25"></div>
+        <div class="col" style="padding-top:28px"><label><input type="checkbox" id="up-dark"> Dark</label></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Update</button>
+      <div id="up-msg"></div>
+    </form>
+  </div>
+
+  <table id="profiles-table">
+    <thead><tr><th>ID</th><th>Name</th><th>GTK Theme</th><th>Icons</th><th>Mode</th><th>Font</th><th>Actions</th></tr></thead>
+    <tbody id="profiles-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Asset Kinds ===== -->
+<div class="pane" id="pane-kinds">
+  <table>
+    <thead><tr><th>#</th><th>Kind</th><th>Description</th></tr></thead>
+    <tbody id="kinds-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Packages ===== -->
+<div class="pane" id="pane-packages">
+  <div class="row" style="margin-bottom:12px">
+    <input id="pkg-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-primary" onclick="loadPackages()">Load</button>
+    <button class="btn btn-secondary" onclick="toggleForm('add-pkg-form')">+ Add Package</button>
+  </div>
+  <form id="add-pkg-form" style="display:none" onsubmit="addPackage(event)">
+    <div class="row">
+      <div class="col">
+        <label>Asset Kind</label>
+        <select id="ap-kind">
+          <option value="gtk-theme">gtk-theme</option>
+          <option value="icon-theme">icon-theme</option>
+          <option value="cursor-theme">cursor-theme</option>
+          <option value="sound-theme">sound-theme</option>
+          <option value="font-face">font-face</option>
+          <option value="wallpaper">wallpaper</option>
+        </select>
+      </div>
+      <div class="col"><label>Package Name</label><input id="ap-pkg" required></div>
+      <div class="col"><label>Version Constraint</label><input id="ap-ver" placeholder="e.g. >=1.0"></div>
+      <div class="col" style="padding-top:28px"><label><input type="checkbox" id="ap-default"> Default</label></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Add</button>
+    <div id="ap-msg"></div>
+  </form>
+  <table id="packages-table">
+    <thead><tr><th>Kind</th><th>Package</th><th>Version</th><th>Default</th></tr></thead>
+    <tbody id="packages-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== GSettings ===== -->
+<div class="pane" id="pane-gsettings">
+  <div class="row" style="margin-bottom:12px">
+    <input id="gs-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-primary" onclick="loadGsettings()">Load</button>
+    <button class="btn btn-secondary" onclick="toggleForm('add-gs-form')">+ Set Override</button>
+  </div>
+  <form id="add-gs-form" style="display:none" onsubmit="addGsetting(event)">
+    <div class="row">
+      <div class="col"><label>Schema path</label><input id="gs-schema" placeholder="e.g. org/gnome/desktop/wm/preferences" required></div>
+      <div class="col"><label>Key</label><input id="gs-key" required></div>
+      <div class="col"><label>Value</label><input id="gs-value" placeholder="e.g. 'Breeze' or 24" required></div>
+    </div>
+    <label>Description (optional)</label><input id="gs-desc">
+    <button class="btn btn-primary" type="submit">Set Override</button>
+    <div id="gs-msg"></div>
+  </form>
+  <table id="gsettings-table">
+    <thead><tr><th>Schema</th><th>Key</th><th>Value</th><th>Description</th></tr></thead>
+    <tbody id="gsettings-body"></tbody>
+  </table>
+</div>
+
+<!-- ===== Render ===== -->
+<div class="pane" id="pane-render">
+  <div class="row" style="margin-bottom:16px">
+    <input id="render-profile-id" placeholder="Profile ID" style="max-width:300px">
+    <button class="btn btn-success" onclick="renderProfile()">Render</button>
+  </div>
+  <div id="render-msg"></div>
+  <div id="render-meta" style="font-size:0.82rem;color:#495057;margin-bottom:12px"></div>
+  <div class="section-title">dconf lock-db override (00-theme)</div>
+  <pre id="render-gsettings"></pre>
+  <div class="section-title">GTK settings.ini</div>
+  <pre id="render-gtk-ini"></pre>
+</div>
+
+<script>
+const BASE = '';
+let _editProfileId = null;
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('pane-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'kinds') loadKinds();
+  });
+});
+
+function toggleForm(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function setMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (ok ? 'msg-ok' : 'msg-err');
+  el.textContent = text;
+}
+
+function selectProfile(id) {
+  _editProfileId = id;
+  document.getElementById('edit-profile-id-label').textContent = id;
+  document.getElementById('pkg-profile-id').value = id;
+  document.getElementById('gs-profile-id').value = id;
+  document.getElementById('render-profile-id').value = id;
+  document.getElementById('update-profile-form').style.display = 'block';
+}
+
+// ---- Profiles ----
+async function loadProfiles() {
+  const res = await fetch(BASE + '/v1/theme-profiles');
+  const data = await res.json();
+  const tbody = document.getElementById('profiles-body');
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    const tr = document.createElement('tr');
+    const darkBadge = p.dark_mode ? '<span class="badge badge-dark">dark</span>' : '<span class="badge badge-green">light</span>';
+    tr.innerHTML = `<td style="font-size:0.78rem;color:#6c757d">${p.id.slice(0,8)}…</td>
+      <td><strong>${p.name}</strong></td>
+      <td>${p.gtk_theme}</td>
+      <td>${p.icon_theme}</td>
+      <td>${darkBadge}</td>
+      <td>${p.font_default} ${p.font_size}pt</td>
+      <td><button class="btn btn-primary btn-sm" onclick="selectProfile('${p.id}')">Select</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function createProfile(e) {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('cp-name').value,
+    distribution_id: document.getElementById('cp-dist').value || null,
+    gtk_theme: document.getElementById('cp-gtk').value,
+    icon_theme: document.getElementById('cp-icon').value,
+    cursor_theme: document.getElementById('cp-cursor').value,
+    font_default: document.getElementById('cp-font').value,
+    font_monospace: document.getElementById('cp-mono').value,
+    font_size: parseInt(document.getElementById('cp-fsize').value) || 11,
+    cursor_size: parseInt(document.getElementById('cp-csize').value) || 24,
+    scaling_factor: parseFloat(document.getElementById('cp-scale').value) || 1.0,
+    dark_mode: document.getElementById('cp-dark').checked,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/theme-profiles', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('cp-msg', `Created: ${data.id}`, true);
+    loadProfiles();
+  } catch(err) { setMsg('cp-msg', err.message, false); }
+}
+
+async function updateProfile(e) {
+  e.preventDefault();
+  if (!_editProfileId) return;
+  const body = {};
+  const gtk = document.getElementById('up-gtk').value; if (gtk) body.gtk_theme = gtk;
+  const icon = document.getElementById('up-icon').value; if (icon) body.icon_theme = icon;
+  const cursor = document.getElementById('up-cursor').value; if (cursor) body.cursor_theme = cursor;
+  const font = document.getElementById('up-font').value; if (font) body.font_default = font;
+  const fs = document.getElementById('up-fsize').value; if (fs) body.font_size = parseInt(fs);
+  const sc = document.getElementById('up-scale').value; if (sc) body.scaling_factor = parseFloat(sc);
+  body.dark_mode = document.getElementById('up-dark').checked;
+  try {
+    const res = await fetch(BASE + '/v1/theme-profiles/' + _editProfileId, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('up-msg', 'Updated — cache cleared', true);
+    loadProfiles();
+  } catch(err) { setMsg('up-msg', err.message, false); }
+}
+
+// ---- Kinds ----
+async function loadKinds() {
+  const res = await fetch(BASE + '/v1/theme-asset-kinds');
+  const data = await res.json();
+  const tbody = document.getElementById('kinds-body');
+  tbody.innerHTML = '';
+  data.forEach(k => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k.display_order}</td><td><span class="badge badge-blue">${k.name}</span></td><td>${k.description}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---- Packages ----
+async function loadPackages() {
+  const pid = document.getElementById('pkg-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/theme-profiles/' + pid);
+  const data = await res.json();
+  const tbody = document.getElementById('packages-body');
+  tbody.innerHTML = '';
+  (data.packages || []).forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="badge badge-blue">${p.asset_kind}</span></td>
+      <td style="font-family:monospace">${p.package_name}</td>
+      <td style="font-family:monospace;font-size:0.8rem">${p.version_constraint || '—'}</td>
+      <td>${p.is_default ? '<span class="badge badge-green">yes</span>' : ''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addPackage(e) {
+  e.preventDefault();
+  const pid = document.getElementById('pkg-profile-id').value.trim();
+  const body = {
+    asset_kind: document.getElementById('ap-kind').value,
+    package_name: document.getElementById('ap-pkg').value,
+    version_constraint: document.getElementById('ap-ver').value || null,
+    is_default: document.getElementById('ap-default').checked,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/theme-profiles/' + pid + '/packages', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('ap-msg', `Added ${data.asset_kind}: ${data.package_name}`, true);
+    loadPackages();
+  } catch(err) { setMsg('ap-msg', err.message, false); }
+}
+
+// ---- GSettings ----
+async function loadGsettings() {
+  const pid = document.getElementById('gs-profile-id').value.trim();
+  if (!pid) return;
+  const res = await fetch(BASE + '/v1/theme-profiles/' + pid + '/gsettings');
+  const data = await res.json();
+  const tbody = document.getElementById('gsettings-body');
+  tbody.innerHTML = '';
+  data.forEach(o => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="font-family:monospace;font-size:0.8rem">${o.schema}</td>
+      <td style="font-family:monospace">${o.key}</td>
+      <td style="font-family:monospace">${o.value}</td>
+      <td style="font-size:0.82rem;color:#6c757d">${o.description || '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addGsetting(e) {
+  e.preventDefault();
+  const pid = document.getElementById('gs-profile-id').value.trim();
+  const body = {
+    schema: document.getElementById('gs-schema').value,
+    key: document.getElementById('gs-key').value,
+    value: document.getElementById('gs-value').value,
+    description: document.getElementById('gs-desc').value || null,
+  };
+  try {
+    const res = await fetch(BASE + '/v1/theme-profiles/' + pid + '/gsettings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('gs-msg', `Set ${data.schema}/${data.key} = ${data.value}`, true);
+    loadGsettings();
+  } catch(err) { setMsg('gs-msg', err.message, false); }
+}
+
+// ---- Render ----
+async function renderProfile() {
+  const pid = document.getElementById('render-profile-id').value.trim();
+  if (!pid) { setMsg('render-msg', 'Enter a Profile ID', false); return; }
+  try {
+    const res = await fetch(BASE + '/v1/theme-profiles/' + pid + '/render', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    setMsg('render-msg',
+      `Rendered — ${data.package_count} packages, ${data.gsettings_override_count} overrides`, true);
+    document.getElementById('render-meta').textContent =
+      `Hash: ${data.content_hash}  |  At: ${data.rendered_at}`;
+    document.getElementById('render-gsettings').textContent = data.rendered_gsettings;
+    document.getElementById('render-gtk-ini').textContent = data.rendered_gtk_ini;
+  } catch(err) { setMsg('render-msg', err.message, false); }
+}
+
+loadProfiles();
+</script>
+</body>
+</html>

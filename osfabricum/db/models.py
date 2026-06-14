@@ -2298,3 +2298,118 @@ class XdgUserDir(Base):
             "profile_id", "dir_name", name="uq_xdg_user_dirs_profile_dir"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M43: Themes / Icons / Fonts Designer
+# ---------------------------------------------------------------------------
+
+
+class ThemeAssetKind(Base):
+    """Seeded theme asset kind lookup (M43)."""
+
+    __tablename__ = "theme_asset_kinds"
+
+    name: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class ThemeProfile(Base):
+    """Per-distribution theme / appearance profile (M43)."""
+
+    __tablename__ = "theme_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id"), nullable=True
+    )
+    gtk_theme: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="Adwaita"
+    )
+    icon_theme: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="Adwaita"
+    )
+    cursor_theme: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="Adwaita"
+    )
+    sound_theme: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="freedesktop"
+    )
+    dark_mode: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    font_default: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, default="Sans"
+    )
+    font_monospace: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, default="Monospace"
+    )
+    font_document: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, default="Sans"
+    )
+    font_size: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=11)
+    cursor_size: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=24)
+    scaling_factor: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, default=1.0
+    )
+    rendered_gsettings: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    rendered_gtk_ini: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_theme_profiles_dist_name"
+        ),
+    )
+
+
+class ThemePackage(Base):
+    """A package bundled for a theme profile (M43)."""
+
+    __tablename__ = "theme_packages"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("theme_profiles.id"), nullable=False
+    )
+    asset_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # gtk-theme | icon-theme | cursor-theme | sound-theme | font-face | wallpaper
+    package_name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    version_constraint: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "asset_kind", "package_name",
+            name="uq_theme_packages_profile_kind_pkg",
+        ),
+    )
+
+
+class GsettingsOverride(Base):
+    """Arbitrary dconf/gsettings key override for a theme profile (M43)."""
+
+    __tablename__ = "gsettings_overrides"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("theme_profiles.id"), nullable=False
+    )
+    schema: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False
+    )  # e.g. "org/gnome/desktop/interface"
+    key: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    value: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "schema", "key", name="uq_gsettings_overrides_profile_schema_key"
+        ),
+    )

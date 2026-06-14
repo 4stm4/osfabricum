@@ -23,6 +23,7 @@ from osfabricum.db.models import (
     AppCategory,
     Board,
     MimeTypeDefinition,
+    ThemeAssetKind,
     BoardDeviceTree,
     BoardFirmware,
     BoardFlashMethod,
@@ -463,6 +464,33 @@ def seed_app_categories(session: Session) -> int:
                 icon=icon,
                 display_order=display_order,
             )
+        )
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+# M43: theme asset kinds (name, description, display_order)
+THEME_ASSET_KINDS: list[tuple[str, str, int]] = [
+    ("gtk-theme", "GTK 3/4 visual theme package", 0),
+    ("icon-theme", "XDG icon theme package", 1),
+    ("cursor-theme", "XDG cursor theme package", 2),
+    ("sound-theme", "XDG sound / event-sound theme package", 3),
+    ("font-face", "Font face package (TTF/OTF/variable)", 4),
+    ("wallpaper", "Wallpaper image package", 5),
+]
+
+
+def seed_theme_asset_kinds(session: Session) -> int:
+    """Insert any missing theme asset kinds (M43). Returns the number added."""
+    existing = {k.name for k in session.scalars(select(ThemeAssetKind)).all()}
+    added = 0
+    for name, description, display_order in THEME_ASSET_KINDS:
+        if name in existing:
+            continue
+        session.add(
+            ThemeAssetKind(name=name, description=description, display_order=display_order)
         )
         added += 1
     if added:
