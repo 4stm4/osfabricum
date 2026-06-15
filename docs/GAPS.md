@@ -547,6 +547,33 @@ Severity scale:
   queue), **M57** (dependency graph), **M58** (explain), **M59** (diff),
   **M62** (lockfile), **M63** (importers), **M64** (build analysis), **M65**
   (size optimizer), **M66** (boot profiler).
+- **M54 (OS Composition Layers designer) done.** Three new tables:
+  `layer_kinds` (seeded — 6 kinds: base / bsp / extension / app / compliance /
+  debug), `layer_profiles` (base_layer / rendered_manifest / content_hash /
+  rendered_at; unique per distribution+name), `layer_entries` (layer_kind /
+  source_url / sha256_hint / priority / is_enabled; upsert by profile+name).
+  `render_layer_manifest` generates an INI-style manifest with `[manifest]` /
+  `[layers]` (enabled, ordered by priority) / `[disabled_layers]` sections,
+  sha256: hash. Mutating any entry clears content_hash. Migration
+  `0029_layers_designer` (down_revision=0028). Module at `osfabricum/layers/`.
+  Exposed over 7 HTTP endpoints under `/v1/layer-profiles/…` + `/v1/layer-kinds`,
+  the `osfabricumctl layers` CLI (kind-list / list / create / entry-add / render)
+  and the `/layers` designer UI page (4 tabs: Profiles, Layer Kinds, Entries,
+  Render). 45 unit tests, all passing.
+- **M55 (Override / Masking engine) done.** Three new tables:
+  `override_kinds` (seeded — 6 actions: set / unset / mask / append / prepend /
+  replace), `override_profiles` (rendered_override_policy / content_hash /
+  rendered_at; unique per distribution+name), `override_rules`
+  (target_type: package|config|kernel-param|service|sysctl / target_key / action /
+  value / reason / priority; upsert by profile+target_type+target_key).
+  `render_override_policy` generates an INI grouped by target_type, sha256: hash.
+  Optional `target_type` filter on `list_override_rules`. Mutating any rule clears
+  content_hash. Migration `0030_overrides_masking` (down_revision=0029). Module at
+  `osfabricum/overrides/`. Exposed over 8 HTTP endpoints under
+  `/v1/override-profiles/…` + `/v1/override-kinds`, the `osfabricumctl overrides`
+  CLI (action-list / list / create / rule-add / rules / render) and the `/overrides`
+  designer UI page (4 tabs: Profiles, Action Kinds, Rules, Render). 47 unit tests,
+  all passing.
 
 ---
 
@@ -559,11 +586,11 @@ Severity scale:
 | G-15 | `builds diff` / `builds reproduce` documented, not implemented | CLI ref §20 vs. `builds.py` | M59 / repro follow-up |
 | G-16 | No `releases` CLI / promotion flow | CLI ref §20 vs. no `releases.py` | M49/M69 |
 | G-17 | UI is read-only dashboard | `apps/api/static/index.html` (178 lines) | M26–M28 |
-| G-18 | No integration/e2e tests | `tests/integration`, `tests/e2e` = `.gitkeep` | M28/M52/M70 |
+| G-18 | ~~No integration/e2e tests~~ | **✅ Closed M52** — 44 integration tests covering health, SDK, mirror, probe, layers, overrides and cross-designer flows | M52 |
 | G-19 | No explain/why trace on plan items | resolver emits flat lists | M58 |
 | G-20 | ~~No SDK / dev-shell export~~ | **✅ Closed M50** — `osfabricum/sdk/`, 5 export formats, 50 tests | M50 |
 | G-21 | ~~No cache/mirror/offline designer~~ | **✅ Closed M51** — `osfabricum/mirror/`, 4 cache policies, 41 tests | M51 |
-| G-22 | No hardware probe import | no module | M53 |
+| G-22 | ~~No hardware probe import~~ | **✅ Closed M53** — `osfabricum/probe/`, 5 source kinds, arch normalisation, memory class, 47 unit tests | M53 |
 
 ---
 
