@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — System Generations / Rollback</title>
+<style>
+:root{--accent:#1a237e;--accent-light:#283593;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow:auto;color:#bbdefb}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--border);padding:8px 12px;text-align:left;color:var(--muted)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.status-active{color:#69f0ae}.status-archived{color:#888}.status-rolled_back{color:#ef5350}
+</style>
+</head>
+<body>
+<header>
+  <h1>System Generations / Rollback Designer</h1>
+  <span class="badge">M60</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('list')">Generations</div>
+  <div class="tab" onclick="show('create')">Create</div>
+  <div class="tab" onclick="show('artifacts')">Artifacts</div>
+  <div class="tab" onclick="show('rollback')">Rollback</div>
+  <div class="tab" onclick="show('render')">Render</div>
+  <div class="tab" onclick="show('kinds')">Kinds</div>
+</nav>
+
+<div id="list" class="pane active">
+  <div class="card">
+    <label>Filter by Distribution ID (optional)</label>
+    <input id="lDist" placeholder="UUID">
+    <label>Filter by Status (optional)</label>
+    <select id="lStatus"><option value="">— all —</option><option>active</option><option>archived</option><option>rolled_back</option></select>
+    <button onclick="loadGenerations()">Load</button>
+  </div>
+  <div id="listResult"></div>
+</div>
+
+<div id="create" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Create Generation</h3>
+    <label>Distribution ID</label>
+    <input id="cDist" placeholder="UUID">
+    <label>Generation Number</label>
+    <input id="cNum" type="number" placeholder="1">
+    <label>Status</label>
+    <select id="cStatus"><option>active</option><option>archived</option><option>rolled_back</option></select>
+    <label>Description</label>
+    <input id="cDesc" placeholder="Optional description">
+    <button onclick="createGen()">Create</button>
+  </div>
+  <div id="createResult"></div>
+</div>
+
+<div id="artifacts" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Add / Update Artifact</h3>
+    <label>Generation ID</label>
+    <input id="aGen" placeholder="UUID">
+    <label>Artifact Role</label>
+    <select id="aRole">
+      <option>image</option><option>rootfs</option><option>bootloader</option>
+      <option>kernel</option><option>initramfs</option><option>other</option>
+    </select>
+    <label>Artifact URI (optional)</label>
+    <input id="aUri" placeholder="s3://bucket/image.ext4.gz">
+    <label>Artifact ID (optional)</label>
+    <input id="aId" placeholder="UUID">
+    <button onclick="addArtifact()">Save Artifact</button>
+  </div>
+  <div id="artifactResult"></div>
+</div>
+
+<div id="rollback" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Set Rollback Target</h3>
+    <label>Generation ID (source)</label>
+    <input id="rbGen" placeholder="UUID">
+    <label>Target Generation Number</label>
+    <input id="rbTarget" type="number" placeholder="1">
+    <label>Rollback Kind</label>
+    <select id="rbKind">
+      <option>full</option><option>partial</option><option>config-only</option><option>data-preserve</option>
+    </select>
+    <label>Priority</label>
+    <input id="rbPrio" type="number" value="0">
+    <button onclick="addRollback()">Save Target</button>
+    <hr style="margin:12px 0;border-color:var(--border)">
+    <h4 style="margin-bottom:8px">Render Rollback Plan</h4>
+    <label>Target Generation Number</label>
+    <input id="rpTarget" type="number" placeholder="1">
+    <button onclick="renderPlan()">Render Plan</button>
+  </div>
+  <div id="rollbackResult"></div>
+</div>
+
+<div id="render" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Render Generation Manifest</h3>
+    <label>Generation ID</label>
+    <input id="renderGenId" placeholder="UUID">
+    <button onclick="renderManifest()">Render</button>
+  </div>
+  <div id="renderResult"></div>
+</div>
+
+<div id="kinds" class="pane">
+  <div class="card">
+    <button onclick="loadKinds()">Load Rollback Kinds</button>
+  </div>
+  <div id="kindsResult"></div>
+</div>
+
+<script>
+function show(id){
+  const tabs=['list','create','artifacts','rollback','render','kinds'];
+  document.querySelectorAll('.pane,.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab')[tabs.indexOf(id)].classList.add('active');
+}
+async function loadGenerations(){
+  const dist=document.getElementById('lDist').value;
+  const status=document.getElementById('lStatus').value;
+  let url='/v1/generations?';
+  if(dist) url+=`distribution_id=${encodeURIComponent(dist)}&`;
+  if(status) url+=`status=${encodeURIComponent(status)}&`;
+  const r=await fetch(url);
+  const data=await r.json();
+  let html='<table><tr><th>ID</th><th>Gen#</th><th>Status</th><th>Description</th><th>Hash</th></tr>';
+  data.forEach(g=>{
+    const sc=`status-${g.status}`;
+    html+=`<tr><td>${g.id.slice(0,8)}…</td><td>${g.generation_number}</td><td class="${sc}">${g.status}</td><td>${g.description||''}</td><td style="font-size:.7rem">${(g.content_hash||'—').slice(0,16)}</td></tr>`;
+  });
+  document.getElementById('listResult').innerHTML=html+'</table>';
+}
+async function createGen(){
+  const body={
+    distribution_id:document.getElementById('cDist').value,
+    generation_number:parseInt(document.getElementById('cNum').value)||1,
+    status:document.getElementById('cStatus').value,
+    description:document.getElementById('cDesc').value,
+  };
+  const r=await fetch('/v1/generations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('createResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function addArtifact(){
+  const genId=document.getElementById('aGen').value;
+  const body={
+    artifact_role:document.getElementById('aRole').value,
+    artifact_uri:document.getElementById('aUri').value||null,
+    artifact_id:document.getElementById('aId').value||null,
+  };
+  const r=await fetch(`/v1/generations/${encodeURIComponent(genId)}/artifacts`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('artifactResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function addRollback(){
+  const genId=document.getElementById('rbGen').value;
+  const body={
+    target_generation_number:parseInt(document.getElementById('rbTarget').value)||1,
+    rollback_kind:document.getElementById('rbKind').value,
+    priority:parseInt(document.getElementById('rbPrio').value)||0,
+  };
+  const r=await fetch(`/v1/generations/${encodeURIComponent(genId)}/rollback-targets`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('rollbackResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function renderPlan(){
+  const genId=document.getElementById('rbGen').value;
+  const body={target_generation_number:parseInt(document.getElementById('rpTarget').value)||1};
+  const r=await fetch(`/v1/generations/${encodeURIComponent(genId)}/rollback-plan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('rollbackResult').innerHTML+=`<div class="result">${data.rendered_rollback_plan||JSON.stringify(data,null,2)}</div>`;
+}
+async function renderManifest(){
+  const genId=document.getElementById('renderGenId').value;
+  const r=await fetch(`/v1/generations/${encodeURIComponent(genId)}/render`,{method:'POST'});
+  const data=await r.json();
+  document.getElementById('renderResult').innerHTML=`<div class="result">${data.rendered_generation_manifest||JSON.stringify(data,null,2)}</div>`;
+}
+async function loadKinds(){
+  const r=await fetch('/v1/rollback-kinds');
+  const data=await r.json();
+  let html='<table><tr><th>Kind</th><th>Label</th><th>Description</th></tr>';
+  data.forEach(k=>html+=`<tr><td>${k.kind}</td><td>${k.label}</td><td>${k.description}</td></tr>`);
+  document.getElementById('kindsResult').innerHTML=html+'</table>';
+}
+</script>
+</body>
+</html>
