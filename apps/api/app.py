@@ -17,6 +17,9 @@ from apps.api.routes.security_hardening_api import router as security_router
 from apps.api.routes.update_ota_api import router as update_ota_router
 from apps.api.routes.sdk_api import router as sdk_router
 from apps.api.routes.mirror_api import router as mirror_router
+from apps.api.routes.probe_api import router as probe_router
+from apps.api.routes.layers_api import router as layers_router
+from apps.api.routes.overrides_api import router as overrides_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -112,6 +115,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sdk_router)
     # M51: cache / mirror / offline designer
     app.include_router(mirror_router)
+    # M53: hardware probe import
+    app.include_router(probe_router)
+    # M54: OS composition layers designer
+    app.include_router(layers_router)
+    # M55: override / masking engine
+    app.include_router(overrides_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -263,6 +272,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/mirror", include_in_schema=False)
         def mirror_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "mirror.html"))
+
+        # M53: Hardware Probe import page
+        @app.get("/probe", include_in_schema=False)
+        def probe_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "probe.html"))
+
+        # M54: OS Composition Layers designer page
+        @app.get("/layers", include_in_schema=False)
+        def layers_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "layers.html"))
+
+        # M55: Override / Masking engine designer page
+        @app.get("/overrides", include_in_schema=False)
+        def overrides_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "overrides.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

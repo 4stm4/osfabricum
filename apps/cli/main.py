@@ -21,6 +21,9 @@ from apps.cli.commands.hardening import hardening_app
 from apps.cli.commands.update_ota import app as update_ota_app
 from apps.cli.commands.sdk import app as sdk_app
 from apps.cli.commands.mirror import app as mirror_app
+from apps.cli.commands.probe import app as probe_app
+from apps.cli.commands.layers_cmd import app as layers_app
+from apps.cli.commands.overrides_cmd import app as overrides_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -267,6 +270,9 @@ def _register_groups() -> None:
     app.add_typer(update_ota_app, name="updates")
     app.add_typer(sdk_app, name="sdk")
     app.add_typer(mirror_app, name="mirror")
+    app.add_typer(probe_app, name="probe")
+    app.add_typer(layers_app, name="layers")
+    app.add_typer(overrides_app, name="overrides")
 
 
 _register_groups()

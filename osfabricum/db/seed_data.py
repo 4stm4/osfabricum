@@ -31,6 +31,9 @@ from osfabricum.db.models import (
     UpdateStrategyKind,
     SDKExportKind,
     CachePolicyKind,
+    ProbeSourceKind,
+    LayerKind,
+    OverrideKind,
     UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
@@ -1384,6 +1387,110 @@ def seed_cache_policy_kinds(session: "Session") -> int:
                 label=label,
                 description=description,
                 display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M53 — Hardware probe source kinds
+# ---------------------------------------------------------------------------
+
+PROBE_SOURCE_KINDS = [
+    ("udev", "udev / sysfs", "Linux udev device database and sysfs attributes.", 0),
+    ("dmidecode", "DMI Decode", "BIOS/UEFI DMI table dump via dmidecode.", 1),
+    ("lshw", "lshw", "Hardware lister (lshw -json) full device tree.", 2),
+    ("sysfs", "sysfs only", "Direct sysfs attribute reads without udev.", 3),
+    ("manual", "Manual JSON", "Hand-crafted JSON probe record entered by operator.", 4),
+]
+
+
+def seed_probe_source_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(ProbeSourceKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in PROBE_SOURCE_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            ProbeSourceKind(
+                kind=kind, label=label,
+                description=description, display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M54 — Layer kinds
+# ---------------------------------------------------------------------------
+
+LAYER_KINDS = [
+    ("base", "Base RootFS", "Minimal root filesystem — the immutable foundation layer.", 0),
+    ("bsp", "BSP / Board", "Board-support package layer: kernel, firmware, device trees.", 1),
+    ("extension", "Extension", "Optional feature extension overlaid on the base.", 2),
+    ("app", "Application", "User-space application layer (GUI apps, daemons).", 3),
+    ("compliance", "Compliance", "Audit/compliance artefacts, SBOM, licence notices.", 4),
+    ("debug", "Debug", "Debug symbols, profiling tools, test infrastructure.", 5),
+]
+
+
+def seed_layer_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(LayerKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in LAYER_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            LayerKind(
+                kind=kind, label=label,
+                description=description, display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M55 — Override / masking action kinds
+# ---------------------------------------------------------------------------
+
+OVERRIDE_KINDS = [
+    ("set", "Set", "Force the target key to the given value, replacing any existing value.", 0),
+    ("unset", "Unset", "Remove/delete the target key entirely.", 1),
+    ("mask", "Mask", "Mask the target (e.g. systemd unit mask — redirect to /dev/null).", 2),
+    ("append", "Append", "Append the value to an existing list or multi-value field.", 3),
+    ("prepend", "Prepend", "Prepend the value before existing entries.", 4),
+    ("replace", "Replace (regex)", "Regex find-and-replace on the current value.", 5),
+]
+
+
+def seed_override_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(OverrideKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in OVERRIDE_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            OverrideKind(
+                kind=kind, label=label,
+                description=description, display_order=display_order,
             )
         )
         inserted += 1

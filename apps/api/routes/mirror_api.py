@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 
 from osfabricum import mirror
 from osfabricum.db.session import sync_session
-from osfabricum.security.auth import WriteAuthDep
+from osfabricum.security.auth_policy import require_write_auth
 
 router = APIRouter(prefix="/v1", tags=["mirror"])
 
@@ -47,7 +47,7 @@ def list_profiles(req: Request, distribution_id: str | None = None) -> list[dict
     return [_profile_dict(p) for p in profiles]
 
 
-@router.post("/mirror-profiles", dependencies=[WriteAuthDep])
+@router.post("/mirror-profiles", dependencies=[require_write_auth])
 def create_profile(req: Request, body: dict) -> dict:
     with sync_session(_db(req)) as s:
         try:
@@ -78,7 +78,7 @@ def get_profile(req: Request, profile_id: str) -> dict:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.patch("/mirror-profiles/{profile_id}", dependencies=[WriteAuthDep])
+@router.patch("/mirror-profiles/{profile_id}", dependencies=[require_write_auth])
 def update_profile(req: Request, profile_id: str, body: dict) -> dict:
     with sync_session(_db(req)) as s:
         try:
@@ -111,7 +111,7 @@ def list_endpoints(req: Request, profile_id: str) -> list[dict]:
 
 @router.put(
     "/mirror-profiles/{profile_id}/endpoints",
-    dependencies=[WriteAuthDep],
+    dependencies=[require_write_auth],
 )
 def add_endpoint(req: Request, profile_id: str, body: dict) -> dict:
     with sync_session(_db(req)) as s:
@@ -150,7 +150,7 @@ def list_rules(req: Request, profile_id: str) -> list[dict]:
 
 @router.put(
     "/mirror-profiles/{profile_id}/cache-rules",
-    dependencies=[WriteAuthDep],
+    dependencies=[require_write_auth],
 )
 def add_rule(req: Request, profile_id: str, body: dict) -> dict:
     with sync_session(_db(req)) as s:
@@ -177,7 +177,7 @@ def add_rule(req: Request, profile_id: str, body: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/mirror-profiles/{profile_id}/render", dependencies=[WriteAuthDep])
+@router.post("/mirror-profiles/{profile_id}/render", dependencies=[require_write_auth])
 def render(req: Request, profile_id: str) -> dict:
     with sync_session(_db(req)) as s:
         try:

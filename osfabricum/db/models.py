@@ -3411,3 +3411,204 @@ class CachePriorityRule(Base):
             "profile_id", "source_pattern", name="uq_cache_rules_profile_pattern"
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M53 — Hardware Probe Import
+# ---------------------------------------------------------------------------
+
+
+class ProbeSourceKind(Base):
+    """Enumeration of hardware-probe source mechanisms (M53)."""
+
+    __tablename__ = "probe_source_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class HardwareProbe(Base):
+    """Imported hardware probe record (M53)."""
+
+    __tablename__ = "hardware_probes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    board_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("boards.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    probe_source: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="manual"
+    )  # udev | dmidecode | sysfs | lshw | manual
+    raw_probe_json: Mapped[str] = mapped_column(sa.Text, nullable=False, default="{}")
+    cpu_arch: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    cpu_model: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    mem_mb: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    rendered_board_hints: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    probed_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M54 — OS Composition Layers Designer
+# ---------------------------------------------------------------------------
+
+
+class LayerKind(Base):
+    """Enumeration of OS composition layer roles (M54)."""
+
+    __tablename__ = "layer_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class LayerProfile(Base):
+    """OS layer composition profile for a distribution (M54)."""
+
+    __tablename__ = "layer_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    base_layer: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="base"
+    )
+    rendered_manifest: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_layer_profiles_dist_name"
+        ),
+    )
+
+
+class LayerEntry(Base):
+    """A layer entry within a layer profile (M54)."""
+
+    __tablename__ = "layer_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("layer_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    layer_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="extension"
+    )  # base | extension | app | debug | compliance | bsp
+    source_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    sha256_hint: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    is_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    description: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "name", name="uq_layer_entries_profile_name"
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# M55 — Override / Masking Engine
+# ---------------------------------------------------------------------------
+
+
+class OverrideKind(Base):
+    """Enumeration of override/masking action types (M55)."""
+
+    __tablename__ = "override_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class OverrideProfile(Base):
+    """Override / masking policy profile for a distribution (M55)."""
+
+    __tablename__ = "override_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    rendered_override_policy: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )
+    content_hash: Mapped[str | None] = mapped_column(sa.String(71), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_override_profiles_dist_name"
+        ),
+    )
+
+
+class OverrideRule(Base):
+    """A single override/masking rule within an override profile (M55)."""
+
+    __tablename__ = "override_rules"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("override_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # package | config | kernel-param | service | sysctl
+    target_key: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    action: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="set"
+    )  # set | unset | mask | append | prepend | replace
+    value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    reason: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="")
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "profile_id", "target_type", "target_key",
+            name="uq_override_rules_profile_type_key",
+        ),
+    )
