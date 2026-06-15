@@ -3612,3 +3612,99 @@ class OverrideRule(Base):
             name="uq_override_rules_profile_type_key",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M56 — Patch Queue / Source Patch Manager
+# ---------------------------------------------------------------------------
+
+
+class PatchTargetKind(Base):
+    """Catalogue of patchable target types (M56)."""
+
+    __tablename__ = "patch_target_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class PatchSet(Base):
+    """An ordered collection of source patches for a given target kind (M56)."""
+
+    __tablename__ = "patch_sets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    target_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="kernel"
+    )  # kernel | package-source | branding | config-template | build-recipe
+    rendered_patch_manifest: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "name", name="uq_patch_sets_dist_name"
+        ),
+    )
+
+
+class Patch(Base):
+    """A single patch entry within a patch set, ordered by sequence_num (M56)."""
+
+    __tablename__ = "patches"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    patch_set_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("patch_sets.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sequence_num: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    name: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    patch_content: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    patch_format: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="diff"
+    )  # diff | quilt | git-am
+    is_enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "patch_set_id", "sequence_num", name="uq_patches_set_seq"
+        ),
+    )
+
+
+class PatchApplicationResult(Base):
+    """Records an attempt to apply a patch set (M56)."""
+
+    __tablename__ = "patch_application_results"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    patch_set_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("patch_sets.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    applied_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="pending"
+    )  # pending | success | failed | partial
+    applied_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    failed_at_sequence: Mapped[int | None] = mapped_column(
+        sa.Integer, nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)

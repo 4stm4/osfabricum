@@ -20,6 +20,7 @@ from apps.api.routes.mirror_api import router as mirror_router
 from apps.api.routes.probe_api import router as probe_router
 from apps.api.routes.layers_api import router as layers_router
 from apps.api.routes.overrides_api import router as overrides_router
+from apps.api.routes.patch_api import router as patch_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -121,6 +122,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(layers_router)
     # M55: override / masking engine
     app.include_router(overrides_router)
+    # M56: patch queue / source patch manager
+    app.include_router(patch_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -287,6 +290,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/overrides", include_in_schema=False)
         def overrides_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "overrides.html"))
+
+        # M56: Patch Queue / Source Patch Manager page
+        @app.get("/patches", include_in_schema=False)
+        def patches_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "patches.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

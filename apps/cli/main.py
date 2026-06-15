@@ -24,6 +24,7 @@ from apps.cli.commands.mirror import app as mirror_app
 from apps.cli.commands.probe import app as probe_app
 from apps.cli.commands.layers_cmd import app as layers_app
 from apps.cli.commands.overrides_cmd import app as overrides_app
+from apps.cli.commands.patch_cmd import app as patch_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -273,6 +274,7 @@ def _register_groups() -> None:
     app.add_typer(probe_app, name="probe")
     app.add_typer(layers_app, name="layers")
     app.add_typer(overrides_app, name="overrides")
+    app.add_typer(patch_app, name="patch-sets")
 
 
 _register_groups()

@@ -34,6 +34,7 @@ from osfabricum.db.models import (
     ProbeSourceKind,
     LayerKind,
     OverrideKind,
+    PatchTargetKind,
     UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
@@ -1489,6 +1490,65 @@ def seed_override_kinds(session: "Session") -> int:
             continue
         session.add(
             OverrideKind(
+                kind=kind, label=label,
+                description=description, display_order=display_order,
+            )
+        )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M56 — Patch Queue / Source Patch Manager
+# ---------------------------------------------------------------------------
+
+PATCH_TARGET_KINDS: list[tuple[str, str, str, int]] = [
+    (
+        "kernel",
+        "Kernel Source",
+        "Patches applied to kernel source tree before build.",
+        10,
+    ),
+    (
+        "package-source",
+        "Package Source",
+        "Patches applied to a package source tarball or VCS checkout.",
+        20,
+    ),
+    (
+        "branding",
+        "Branding Assets",
+        "Patches that overlay or replace branding files (icons, strings, splash).",
+        30,
+    ),
+    (
+        "config-template",
+        "Config Template",
+        "Patches applied to configuration templates before generation.",
+        40,
+    ),
+    (
+        "build-recipe",
+        "Build Recipe",
+        "Patches applied to build recipes (Makefile, CMakeLists, etc.).",
+        50,
+    ),
+]
+
+
+def seed_patch_target_kinds(session: "Session") -> int:
+    existing = {
+        row[0]
+        for row in session.execute(select(PatchTargetKind.kind)).fetchall()
+    }
+    inserted = 0
+    for kind, label, description, display_order in PATCH_TARGET_KINDS:
+        if kind in existing:
+            continue
+        session.add(
+            PatchTargetKind(
                 kind=kind, label=label,
                 description=description, display_order=display_order,
             )

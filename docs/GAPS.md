@@ -560,6 +560,22 @@ Severity scale:
   the `osfabricumctl layers` CLI (kind-list / list / create / entry-add / render)
   and the `/layers` designer UI page (4 tabs: Profiles, Layer Kinds, Entries,
   Render). 45 unit tests, all passing.
+- **M56 (Patch Queue / Source Patch Manager) done.** Four new tables:
+  `patch_target_kinds` (seeded — 5 kinds: kernel / package-source / branding /
+  config-template / build-recipe), `patch_sets` (target_kind /
+  rendered_patch_manifest / content_hash / rendered_at; unique per dist+name),
+  `patches` (sequence_num / patch_content / patch_format: diff|quilt|git-am /
+  is_enabled; upsert by set+sequence_num), `patch_application_results`
+  (status: pending|success|failed|partial / applied_count / failed_at_sequence /
+  error_message). `render_patch_manifest` generates [patch_set]/[patches]/
+  [disabled_patches] INI sections in sequence order, sha256: hash. _invalidate
+  clears hash on any patch mutation. Migration `0031_patch_queue`
+  (down_revision=0030). Module at `osfabricum/patches/`. 10 HTTP endpoints under
+  `/v1/patch-sets/…` + `/v1/patch-target-kinds`, the `osfabricumctl patch-sets`
+  CLI (target-list / list / create / patch-add / patches / render / apply), the
+  `/patches` designer UI page (4 tabs, green #1b5e20). 60 unit tests, all passing.
+  Closes G-12 (patch queue part).
+
 - **M55 (Override / Masking engine) done.** Three new tables:
   `override_kinds` (seeded — 6 actions: set / unset / mask / append / prepend /
   replace), `override_profiles` (rendered_override_policy / content_hash /
