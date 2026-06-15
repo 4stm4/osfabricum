@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Diff Report</title>
+<style>
+:root{--accent:#bf360c;--accent-light:#d84315;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select,textarea{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+textarea{font-family:monospace;min-height:100px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow:auto;color:#ffccbc}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--border);padding:8px 12px;text-align:left;color:var(--muted)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Build / Profile / Release Diff</h1>
+  <span class="badge">M59</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('create')">Create</div>
+  <div class="tab" onclick="show('render')">Render</div>
+  <div class="tab" onclick="show('list')">Reports</div>
+  <div class="tab" onclick="show('kinds')">Kinds</div>
+</nav>
+
+<div id="create" class="pane active">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Create Diff Report</h3>
+    <label>Entity Kind</label>
+    <select id="eKind"><option>profile</option><option>build</option><option>release</option></select>
+    <label>Entity A ID</label>
+    <input id="eA" placeholder="UUID">
+    <label>Entity B ID</label>
+    <input id="eB" placeholder="UUID">
+    <label>Diff Kind</label>
+    <select id="dKind">
+      <option>package</option><option>kernel-config</option><option>service</option>
+      <option>filesystem</option><option>sbom</option><option>size</option><option>hash</option>
+    </select>
+    <button onclick="createReport()">Create</button>
+  </div>
+  <div id="createResult"></div>
+</div>
+
+<div id="render" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Render Diff Report</h3>
+    <label>Report ID</label>
+    <input id="rId" placeholder="UUID">
+    <label>Data A (JSON dict, optional)</label>
+    <textarea id="rDataA" placeholder='{"pkg-a": "1.0", "pkg-b": "2.0"}'></textarea>
+    <label>Data B (JSON dict, optional)</label>
+    <textarea id="rDataB" placeholder='{"pkg-a": "1.1", "pkg-c": "3.0"}'></textarea>
+    <button onclick="renderReport()">Render</button>
+  </div>
+  <div id="renderResult"></div>
+</div>
+
+<div id="list" class="pane">
+  <div class="card">
+    <label>Filter by Entity Kind (optional)</label>
+    <select id="lKind"><option value="">— all —</option><option>profile</option><option>build</option><option>release</option></select>
+    <button onclick="loadReports()">Load Reports</button>
+  </div>
+  <div id="listResult"></div>
+</div>
+
+<div id="kinds" class="pane">
+  <div class="card">
+    <button onclick="loadKinds()">Load Diff Report Kinds</button>
+  </div>
+  <div id="kindsResult"></div>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.pane,.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab')[['create','render','list','kinds'].indexOf(id)].classList.add('active');
+}
+async function createReport(){
+  const body={
+    entity_kind:document.getElementById('eKind').value,
+    entity_a_id:document.getElementById('eA').value,
+    entity_b_id:document.getElementById('eB').value,
+    diff_kind:document.getElementById('dKind').value,
+  };
+  const r=await fetch('/v1/diff-reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('createResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function renderReport(){
+  const id=document.getElementById('rId').value;
+  let aData=null,bData=null;
+  try{aData=JSON.parse(document.getElementById('rDataA').value||'null');}catch(e){}
+  try{bData=JSON.parse(document.getElementById('rDataB').value||'null');}catch(e){}
+  const body={a_data:aData,b_data:bData};
+  const r=await fetch(`/v1/diff-reports/${encodeURIComponent(id)}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('renderResult').innerHTML=`<div class="result">${data.rendered_diff||JSON.stringify(data,null,2)}</div>`;
+}
+async function loadReports(){
+  const k=document.getElementById('lKind').value;
+  let url='/v1/diff-reports';
+  if(k) url+=`?entity_kind=${encodeURIComponent(k)}`;
+  const r=await fetch(url);
+  const data=await r.json();
+  let html='<table><tr><th>ID</th><th>Kind</th><th>A→B</th><th>Hash</th></tr>';
+  data.forEach(r=>html+=`<tr><td>${r.id.slice(0,8)}…</td><td>${r.entity_kind}</td><td>${r.entity_a_id.slice(0,6)}→${r.entity_b_id.slice(0,6)}</td><td style="font-size:.7rem">${(r.content_hash||'pending').slice(0,16)}</td></tr>`);
+  document.getElementById('listResult').innerHTML=html+'</table>';
+}
+async function loadKinds(){
+  const r=await fetch('/v1/diff-report-kinds');
+  const data=await r.json();
+  let html='<table><tr><th>Kind</th><th>Label</th><th>Description</th></tr>';
+  data.forEach(k=>html+=`<tr><td>${k.kind}</td><td>${k.label}</td><td>${k.description}</td></tr>`);
+  document.getElementById('kindsResult').innerHTML=html+'</table>';
+}
+</script>
+</body>
+</html>
