@@ -21,6 +21,10 @@ from apps.api.routes.probe_api import router as probe_router
 from apps.api.routes.layers_api import router as layers_router
 from apps.api.routes.overrides_api import router as overrides_router
 from apps.api.routes.patch_api import router as patch_router
+from apps.api.routes.graph_api import router as graph_router
+from apps.api.routes.explain_api import router as explain_router
+from apps.api.routes.diff_api import router as diff_router
+from apps.api.routes.generations_api import router as generations_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -124,6 +128,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(overrides_router)
     # M56: patch queue / source patch manager
     app.include_router(patch_router)
+    # M57: dependency graph viewer
+    app.include_router(graph_router)
+    # M58: explain / why engine
+    app.include_router(explain_router)
+    # M59: build / profile / release diff
+    app.include_router(diff_router)
+    # M60: system generations / rollback designer
+    app.include_router(generations_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -295,6 +307,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/patches", include_in_schema=False)
         def patches_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "patches.html"))
+
+        # M57: Dependency Graph Viewer page
+        @app.get("/graphs", include_in_schema=False)
+        def graphs_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "graphs.html"))
+
+        # M58: Explain / Why Engine page
+        @app.get("/explain", include_in_schema=False)
+        def explain_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "explain.html"))
+
+        # M59: Diff Report page
+        @app.get("/diff", include_in_schema=False)
+        def diff_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "diff.html"))
+
+        # M60: System Generations / Rollback Designer page
+        @app.get("/generations", include_in_schema=False)
+        def generations_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "generations.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

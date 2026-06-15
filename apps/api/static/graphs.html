@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Dependency Graph Viewer</title>
+<style>
+:root{--accent:#0d47a1;--accent-light:#1565c0;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow:auto;color:#c8e6c9}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--border);padding:8px 12px;text-align:left;color:var(--muted)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dependency Graph Viewer</h1>
+  <span class="badge">M57</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('compute')">Compute</div>
+  <div class="tab" onclick="show('kinds')">Kinds</div>
+  <div class="tab" onclick="show('snapshots')">Snapshots</div>
+  <div class="tab" onclick="show('reverse')">Reverse</div>
+</nav>
+
+<div id="compute" class="pane active">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Compute Graph</h3>
+    <label>Graph Kind</label>
+    <select id="cKind">
+      <option>package</option><option>layer</option><option>build</option>
+      <option>runtime</option><option>kernel</option><option>service</option><option>image</option>
+    </select>
+    <label>Root Node (optional)</label>
+    <input id="cRoot" placeholder="e.g. glibc">
+    <label>Distribution ID (optional)</label>
+    <input id="cDist" placeholder="UUID">
+    <button onclick="computeGraph()">Compute</button>
+  </div>
+  <div id="computeResult"></div>
+</div>
+
+<div id="kinds" class="pane">
+  <div class="card">
+    <button onclick="loadKinds()">Load Kinds</button>
+  </div>
+  <div id="kindsResult"></div>
+</div>
+
+<div id="snapshots" class="pane">
+  <div class="card">
+    <label>Filter by Kind (optional)</label>
+    <input id="snapKind" placeholder="package">
+    <button onclick="loadSnapshots()">Load Snapshots</button>
+  </div>
+  <div id="snapshotsResult"></div>
+</div>
+
+<div id="reverse" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Reverse Graph — Who depends on…</h3>
+    <label>Graph Kind</label>
+    <select id="rKind"><option>package</option><option>layer</option></select>
+    <label>Node</label>
+    <input id="rNode" placeholder="e.g. glibc">
+    <button onclick="computeReverse()">Compute Reverse</button>
+  </div>
+  <div id="reverseResult"></div>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.pane,.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab')[['compute','kinds','snapshots','reverse'].indexOf(id)].classList.add('active');
+}
+async function computeGraph(){
+  const kind=document.getElementById('cKind').value;
+  const root=document.getElementById('cRoot').value||null;
+  const dist=document.getElementById('cDist').value||null;
+  let url=`/v1/graphs/${kind}/compute?`;
+  if(root) url+=`root_node=${encodeURIComponent(root)}&`;
+  if(dist) url+=`distribution_id=${encodeURIComponent(dist)}&`;
+  const r=await fetch(url,{method:'POST'});
+  const data=await r.json();
+  document.getElementById('computeResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function loadKinds(){
+  const r=await fetch('/v1/graph-kinds');
+  const data=await r.json();
+  let html='<table><tr><th>Kind</th><th>Label</th><th>Order</th></tr>';
+  data.forEach(k=>html+=`<tr><td>${k.kind}</td><td>${k.label}</td><td>${k.display_order}</td></tr>`);
+  document.getElementById('kindsResult').innerHTML=html+'</table>';
+}
+async function loadSnapshots(){
+  const k=document.getElementById('snapKind').value;
+  let url='/v1/graph-snapshots';
+  if(k) url+=`?kind=${encodeURIComponent(k)}`;
+  const r=await fetch(url);
+  const data=await r.json();
+  let html='<table><tr><th>ID</th><th>Kind</th><th>Nodes</th><th>Edges</th><th>Hash</th><th>Created</th></tr>';
+  data.forEach(s=>html+=`<tr><td>${s.id.slice(0,8)}…</td><td>${s.kind}</td><td>${s.node_count}</td><td>${s.edge_count}</td><td style="font-size:.7rem">${(s.content_hash||'').slice(0,16)}…</td><td>${(s.created_at||'').slice(0,19)}</td></tr>`);
+  document.getElementById('snapshotsResult').innerHTML=html+'</table>';
+}
+async function computeReverse(){
+  const kind=document.getElementById('rKind').value;
+  const node=document.getElementById('rNode').value;
+  const r=await fetch(`/v1/graphs/${kind}/reverse?node=${encodeURIComponent(node)}`,{method:'POST'});
+  const data=await r.json();
+  document.getElementById('reverseResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+</script>
+</body>
+</html>

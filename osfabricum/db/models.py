@@ -3708,3 +3708,235 @@ class PatchApplicationResult(Base):
         sa.Integer, nullable=True
     )
     error_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# M57 — Dependency Graph Viewer
+# ---------------------------------------------------------------------------
+
+
+class GraphKind(Base):
+    """Catalogue of graph kinds that can be computed (M57)."""
+
+    __tablename__ = "graph_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class GraphSnapshot(Base):
+    """A computed and cached dependency graph (M57)."""
+
+    __tablename__ = "graph_snapshots"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # package | build | runtime | kernel | service | image | layer
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    root_node: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    rendered_graph_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    node_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    edge_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M58 — Explain / Why Engine
+# ---------------------------------------------------------------------------
+
+
+class ExplainTraceKind(Base):
+    """Catalogue of reason kinds for explain traces (M58)."""
+
+    __tablename__ = "explain_trace_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class ExplainTrace(Base):
+    """An explain trace entry linking a plan item to its reason for inclusion (M58)."""
+
+    __tablename__ = "explain_traces"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    build_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("builds.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    target_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # package | config | driver | service | firmware | kernel
+    target_key: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    reason_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # profile-explicit | group | dependency | driver | security | layer | override
+    reason_detail: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    source_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M59 — Build / Profile / Release Diff
+# ---------------------------------------------------------------------------
+
+
+class DiffReportKind(Base):
+    """Catalogue of diff report types (M59)."""
+
+    __tablename__ = "diff_report_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class DiffReport(Base):
+    """A stored diff between two profiles, builds, or releases (M59)."""
+
+    __tablename__ = "diff_reports"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    entity_kind: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False
+    )  # profile | build | release
+    entity_a_id: Mapped[str] = mapped_column(sa.String(36), nullable=False)
+    entity_b_id: Mapped[str] = mapped_column(sa.String(36), nullable=False)
+    rendered_diff: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    summary_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M60 — System Generations / Rollback Designer
+# ---------------------------------------------------------------------------
+
+
+class RollbackKind(Base):
+    """Catalogue of rollback strategies (M60)."""
+
+    __tablename__ = "rollback_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class Generation(Base):
+    """A versioned system generation derived from a release (M60)."""
+
+    __tablename__ = "generations"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    release_id: Mapped[str | None] = mapped_column(
+        sa.String(36), nullable=True
+    )  # soft reference; releases may not be in DB
+    generation_number: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="active"
+    )  # active | archived | rolled_back
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    rendered_generation_manifest: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "distribution_id", "generation_number",
+            name="uq_generations_dist_num",
+        ),
+    )
+
+
+class GenerationArtifact(Base):
+    """Links an artifact to a generation with a role annotation (M60)."""
+
+    __tablename__ = "generation_artifacts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    generation_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("generations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("artifacts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    artifact_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="image"
+    )  # image | rootfs | bootloader | kernel | initramfs | other
+    artifact_uri: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "generation_id", "artifact_role",
+            name="uq_gen_artifacts_gen_role",
+        ),
+    )
+
+
+class RollbackTarget(Base):
+    """Defines a possible rollback destination from a generation (M60)."""
+
+    __tablename__ = "rollback_targets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    generation_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("generations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_generation_number: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False
+    )
+    rollback_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="full"
+    )  # full | partial | config-only | data-preserve
+    rendered_rollback_plan: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "generation_id", "target_generation_number",
+            name="uq_rollback_targets_gen_tgt",
+        ),
+    )

@@ -25,6 +25,10 @@ from apps.cli.commands.probe import app as probe_app
 from apps.cli.commands.layers_cmd import app as layers_app
 from apps.cli.commands.overrides_cmd import app as overrides_app
 from apps.cli.commands.patch_cmd import app as patch_app
+from apps.cli.commands.graph_cmd import graph_app
+from apps.cli.commands.explain_cmd import explain_app
+from apps.cli.commands.diff_cmd import diff_app
+from apps.cli.commands.generations_cmd import generations_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -275,6 +279,10 @@ def _register_groups() -> None:
     app.add_typer(layers_app, name="layers")
     app.add_typer(overrides_app, name="overrides")
     app.add_typer(patch_app, name="patch-sets")
+    app.add_typer(graph_app, name="graph")
+    app.add_typer(explain_app, name="explain")
+    app.add_typer(diff_app, name="diff")
+    app.add_typer(generations_app, name="generations")
 
 
 _register_groups()

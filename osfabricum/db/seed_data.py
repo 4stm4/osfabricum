@@ -35,6 +35,10 @@ from osfabricum.db.models import (
     LayerKind,
     OverrideKind,
     PatchTargetKind,
+    GraphKind,
+    ExplainTraceKind,
+    DiffReportKind,
+    RollbackKind,
     UserShellKind,
     BoardDeviceTree,
     BoardFirmware,
@@ -1553,6 +1557,144 @@ def seed_patch_target_kinds(session: "Session") -> int:
                 description=description, display_order=display_order,
             )
         )
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M57 — Dependency Graph Viewer
+# ---------------------------------------------------------------------------
+
+GRAPH_KINDS: list[tuple[str, str, str, int]] = [
+    ("package", "Package Dependency Graph",
+     "Directed graph of package build/runtime/test dependencies.", 10),
+    ("build", "Build Graph",
+     "Dependencies between build jobs and produced artifacts.", 20),
+    ("runtime", "Runtime Dependency Graph",
+     "Runtime package dependencies resolved from the build plan.", 30),
+    ("kernel", "Kernel Module Graph",
+     "Kernel module and driver inclusion dependencies.", 40),
+    ("service", "Service Dependency Graph",
+     "Service ordering and dependency chains (systemd units).", 50),
+    ("image", "Image Composition Graph",
+     "Layers and artifacts composing the final image.", 60),
+    ("layer", "Layer Composition Graph",
+     "Layer overlay order and dependencies.", 70),
+]
+
+
+def seed_graph_kinds(session: "Session") -> int:
+    existing = {row[0] for row in session.execute(select(GraphKind.kind)).fetchall()}
+    inserted = 0
+    for kind, label, description, display_order in GRAPH_KINDS:
+        if kind in existing:
+            continue
+        session.add(GraphKind(kind=kind, label=label,
+                              description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M58 — Explain / Why Engine
+# ---------------------------------------------------------------------------
+
+EXPLAIN_TRACE_KINDS: list[tuple[str, str, str, int]] = [
+    ("profile-explicit", "Profile Explicit",
+     "Package/config/service explicitly listed in the profile.", 10),
+    ("group", "Package Group",
+     "Included via package group membership.", 20),
+    ("dependency", "Transitive Dependency",
+     "Required by another included package (transitive).", 30),
+    ("driver", "Hardware Driver",
+     "Required by the board hardware profile or probe data.", 40),
+    ("security", "Security Policy",
+     "Enforced by a security/hardening rule or compliance profile.", 50),
+    ("layer", "Layer Override",
+     "Introduced or modified by a composition layer entry.", 60),
+    ("override", "Explicit Override",
+     "Added or modified by an override/masking rule.", 70),
+]
+
+
+def seed_explain_trace_kinds(session: "Session") -> int:
+    existing = {row[0] for row in session.execute(select(ExplainTraceKind.kind)).fetchall()}
+    inserted = 0
+    for kind, label, description, display_order in EXPLAIN_TRACE_KINDS:
+        if kind in existing:
+            continue
+        session.add(ExplainTraceKind(kind=kind, label=label,
+                                     description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M59 — Build / Profile / Release Diff
+# ---------------------------------------------------------------------------
+
+DIFF_REPORT_KINDS: list[tuple[str, str, str, int]] = [
+    ("package", "Package Set Diff",
+     "Added, removed, or version-changed packages.", 10),
+    ("kernel-config", "Kernel Config Diff",
+     "Changed Kconfig options between two builds or profiles.", 20),
+    ("service", "Service Diff",
+     "Added, removed, or changed service units.", 30),
+    ("filesystem", "Filesystem Diff",
+     "Added, removed files and permission changes in the image.", 40),
+    ("sbom", "SBOM Diff",
+     "Changes in the software bill of materials.", 50),
+    ("size", "Size Diff",
+     "Image and per-package size changes.", 60),
+    ("hash", "Artifact Hash Diff",
+     "Changed artifact content hashes.", 70),
+]
+
+
+def seed_diff_report_kinds(session: "Session") -> int:
+    existing = {row[0] for row in session.execute(select(DiffReportKind.kind)).fetchall()}
+    inserted = 0
+    for kind, label, description, display_order in DIFF_REPORT_KINDS:
+        if kind in existing:
+            continue
+        session.add(DiffReportKind(kind=kind, label=label,
+                                   description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# M60 — System Generations / Rollback Designer
+# ---------------------------------------------------------------------------
+
+ROLLBACK_KINDS: list[tuple[str, str, str, int]] = [
+    ("full", "Full Rollback",
+     "Roll back all components to the target generation state.", 10),
+    ("partial", "Partial Rollback",
+     "Roll back only changed packages, preserving user data.", 20),
+    ("config-only", "Config-Only Rollback",
+     "Roll back configuration files only, keep binaries.", 30),
+    ("data-preserve", "Data-Preserving Rollback",
+     "Full rollback but preserve /home and /var/data.", 40),
+]
+
+
+def seed_rollback_kinds(session: "Session") -> int:
+    existing = {row[0] for row in session.execute(select(RollbackKind.kind)).fetchall()}
+    inserted = 0
+    for kind, label, description, display_order in ROLLBACK_KINDS:
+        if kind in existing:
+            continue
+        session.add(RollbackKind(kind=kind, label=label,
+                                 description=description, display_order=display_order))
         inserted += 1
     if inserted:
         session.flush()

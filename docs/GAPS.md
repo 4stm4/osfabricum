@@ -560,6 +560,61 @@ Severity scale:
   the `osfabricumctl layers` CLI (kind-list / list / create / entry-add / render)
   and the `/layers` designer UI page (4 tabs: Profiles, Layer Kinds, Entries,
   Render). 45 unit tests, all passing.
+- **M60 (System Generations / Rollback Designer) done.** Four new tables:
+  `rollback_kinds` (seeded — 4 kinds: full / partial / config-only / data-preserve),
+  `generations` (distribution_id FK SET NULL / generation_number / status:
+  active|archived|rolled_back / rendered_generation_manifest / content_hash /
+  rendered_at; unique per distribution_id+generation_number),
+  `generation_artifacts` (generation_id CASCADE / artifact_id SET NULL / artifact_role:
+  image|rootfs|bootloader|kernel|initramfs|other / artifact_uri; upsert by gen+role),
+  `rollback_targets` (generation_id CASCADE / target_generation_number /
+  rollback_kind / priority; upsert by gen+target_num; `render_rollback_plan` generates
+  step-by-step INI by kind). `render_generation_manifest` generates
+  [generation]/[artifacts]/[rollback_targets] INI, sha256: hash. _invalidate clears
+  hash on any artifact or rollback mutation. Migration `0035_generations_rollback`
+  (down_revision=0034). Module at `osfabricum/generations/`. 10 HTTP endpoints under
+  `/v1/generations/…` + `/v1/rollback-kinds`, the `osfabricumctl generations` CLI
+  (kinds / create / list / artifact / rollback-target / render / rollback-plan),
+  the `/generations` designer UI page (6 tabs, navy #1a237e). 56 unit tests,
+  all passing. Closes G-11 (rollback target part) and partial G-12.
+
+- **M59 (Build / Profile / Release Diff) done.** Two new tables:
+  `diff_report_kinds` (seeded — 7 kinds: package / kernel-config / service /
+  filesystem / sbom / size / hash), `diff_reports` (entity_kind: profile|build|release /
+  entity_a_id / entity_b_id / rendered_diff / summary_json / content_hash).
+  `render_diff_report` accepts `a_data` / `b_data` dicts, produces
+  [summary]/[added]/[removed]/[changed] INI, sha256: hash. Optional filters on list:
+  entity_kind, entity_a_id, entity_b_id. Migration `0034_diff_reports`
+  (down_revision=0033). Module at `osfabricum/diff/`. 5 HTTP endpoints under
+  `/v1/diff-reports/…` + `/v1/diff-report-kinds`, the `osfabricumctl diff` CLI
+  (kinds / create / list / render), the `/diff` designer UI page (4 tabs, red-orange
+  #bf360c). 33 unit tests, all passing. Closes G-15.
+
+- **M58 (Explain / Why Engine) done.** Two new tables:
+  `explain_trace_kinds` (seeded — 7 kinds: profile-explicit / group / dependency /
+  driver / security / layer / override), `explain_traces` (build_id FK SET NULL /
+  target_kind: package|config|driver|service|firmware|kernel / target_key /
+  reason_kind / reason_detail / source_id). `explain_item` and `explain_build` query
+  traces by target_key or build_id; `render_explain_text` produces grouped INI
+  by target. Optional filters: build_id / target_kind / reason_kind. Migration
+  `0033_explain_engine` (down_revision=0032). Module at `osfabricum/explain/`. 5 HTTP
+  endpoints under `/v1/explain/…`, the `osfabricumctl explain` CLI (kinds / trace /
+  item / build), the `/explain` designer UI page (4 tabs, purple #4a148c). 37 unit
+  tests, all passing. Closes G-19.
+
+- **M57 (Dependency Graph Viewer) done.** Two new tables:
+  `graph_kinds` (seeded — 7 kinds: package / build / runtime / kernel / service /
+  image / layer), `graph_snapshots` (kind / distribution_id SET NULL / root_node /
+  rendered_graph_json / node_count / edge_count / content_hash / rendered_at).
+  `compute_graph` dispatches: "package" queries `package_dependencies` +
+  `package_versions`, "layer" queries `layer_entries` ordered by priority; all others
+  return documented stubs. `compute_reverse_graph` inverts edges for "package" kind.
+  Snapshots are stored and queryable. Migration `0032_dependency_graph`
+  (down_revision=0031). Module at `osfabricum/graph/`. 6 HTTP endpoints under
+  `/v1/graphs/…`, the `osfabricumctl graph` CLI (kinds / compute / reverse /
+  snapshots), the `/graphs` designer UI page (4 tabs, blue #0d47a1). 29 unit tests,
+  all passing.
+
 - **M56 (Patch Queue / Source Patch Manager) done.** Four new tables:
   `patch_target_kinds` (seeded — 5 kinds: kernel / package-source / branding /
   config-template / build-recipe), `patch_sets` (target_kind /
@@ -599,11 +654,11 @@ Severity scale:
 |----|-----|----------|-----------|
 | G-13 | No `osfabricumctl prefetch` from plan | `apps/cli/commands/` has `source.py`, no `prefetch.py` | M28/M29 |
 | G-14 | No `osfabricumctl build` verb | `builds` group is read-only (list/show/logs) | M28/M29 |
-| G-15 | `builds diff` / `builds reproduce` documented, not implemented | CLI ref §20 vs. `builds.py` | M59 / repro follow-up |
+| G-15 | ~~`builds diff` / `builds reproduce` documented, not implemented~~ | **✅ Closed M59** — `osfabricum/diff/`, 7 diff kinds, profile/build/release diffs, 33 tests | M59 |
 | G-16 | No `releases` CLI / promotion flow | CLI ref §20 vs. no `releases.py` | M49/M69 |
 | G-17 | UI is read-only dashboard | `apps/api/static/index.html` (178 lines) | M26–M28 |
 | G-18 | ~~No integration/e2e tests~~ | **✅ Closed M52** — 44 integration tests covering health, SDK, mirror, probe, layers, overrides and cross-designer flows | M52 |
-| G-19 | No explain/why trace on plan items | resolver emits flat lists | M58 |
+| G-19 | ~~No explain/why trace on plan items~~ | **✅ Closed M58** — `osfabricum/explain/`, 7 reason kinds, explain_item/build, render text, 37 tests | M58 |
 | G-20 | ~~No SDK / dev-shell export~~ | **✅ Closed M50** — `osfabricum/sdk/`, 5 export formats, 50 tests | M50 |
 | G-21 | ~~No cache/mirror/offline designer~~ | **✅ Closed M51** — `osfabricum/mirror/`, 4 cache policies, 41 tests | M51 |
 | G-22 | ~~No hardware probe import~~ | **✅ Closed M53** — `osfabricum/probe/`, 5 source kinds, arch normalisation, memory class, 47 unit tests | M53 |
