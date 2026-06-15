@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Explain / Why Engine</title>
+<style>
+:root{--accent:#4a148c;--accent-light:#6a1b9a;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow:auto;color:#e1bee7}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--border);padding:8px 12px;text-align:left;color:var(--muted)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Explain / Why Engine</h1>
+  <span class="badge">M58</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('trace')">Add Trace</div>
+  <div class="tab" onclick="show('item')">Explain Item</div>
+  <div class="tab" onclick="show('build')">Explain Build</div>
+  <div class="tab" onclick="show('kinds')">Kinds</div>
+</nav>
+
+<div id="trace" class="pane active">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Record Explain Trace</h3>
+    <label>Target Kind</label>
+    <select id="tTargetKind">
+      <option>package</option><option>config</option><option>driver</option>
+      <option>service</option><option>firmware</option><option>kernel</option>
+    </select>
+    <label>Target Key</label>
+    <input id="tTargetKey" placeholder="e.g. glibc, /etc/fstab">
+    <label>Reason Kind</label>
+    <select id="tReasonKind">
+      <option>profile-explicit</option><option>group</option><option>dependency</option>
+      <option>driver</option><option>security</option><option>layer</option><option>override</option>
+    </select>
+    <label>Reason Detail</label>
+    <input id="tDetail" placeholder="e.g. required by systemd">
+    <label>Build ID (optional)</label>
+    <input id="tBuildId" placeholder="UUID">
+    <button onclick="addTrace()">Add Trace</button>
+  </div>
+  <div id="traceResult"></div>
+</div>
+
+<div id="item" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Why was this item included?</h3>
+    <label>Target Key</label>
+    <input id="iKey" placeholder="e.g. glibc">
+    <label>Target Kind (optional)</label>
+    <input id="iKind" placeholder="package">
+    <button onclick="explainItem()">Explain</button>
+  </div>
+  <div id="itemResult"></div>
+</div>
+
+<div id="build" class="pane">
+  <div class="card">
+    <h3 style="margin-bottom:12px">Explain all items in a build</h3>
+    <label>Build ID</label>
+    <input id="bId" placeholder="UUID">
+    <button onclick="explainBuild()">Explain Build</button>
+  </div>
+  <div id="buildResult"></div>
+</div>
+
+<div id="kinds" class="pane">
+  <div class="card">
+    <button onclick="loadKinds()">Load Trace Kinds</button>
+  </div>
+  <div id="kindsResult"></div>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.pane,.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab')[['trace','item','build','kinds'].indexOf(id)].classList.add('active');
+}
+async function addTrace(){
+  const body={
+    target_kind:document.getElementById('tTargetKind').value,
+    target_key:document.getElementById('tTargetKey').value,
+    reason_kind:document.getElementById('tReasonKind').value,
+    reason_detail:document.getElementById('tDetail').value,
+    build_id:document.getElementById('tBuildId').value||null,
+  };
+  const r=await fetch('/v1/explain/traces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await r.json();
+  document.getElementById('traceResult').innerHTML=`<div class="result">${JSON.stringify(data,null,2)}</div>`;
+}
+async function explainItem(){
+  const key=document.getElementById('iKey').value;
+  const kind=document.getElementById('iKind').value;
+  let url=`/v1/explain/item?target_key=${encodeURIComponent(key)}`;
+  if(kind) url+=`&target_kind=${encodeURIComponent(kind)}`;
+  const r=await fetch(url);
+  const data=await r.json();
+  document.getElementById('itemResult').innerHTML=`<div class="result">${data.rendered||JSON.stringify(data,null,2)}</div>`;
+}
+async function explainBuild(){
+  const id=document.getElementById('bId').value;
+  const r=await fetch(`/v1/builds/${encodeURIComponent(id)}/explain`);
+  const data=await r.json();
+  document.getElementById('buildResult').innerHTML=`<div class="result">${data.rendered||JSON.stringify(data,null,2)}</div>`;
+}
+async function loadKinds(){
+  const r=await fetch('/v1/explain-trace-kinds');
+  const data=await r.json();
+  let html='<table><tr><th>Kind</th><th>Label</th><th>Description</th></tr>';
+  data.forEach(k=>html+=`<tr><td>${k.kind}</td><td>${k.label}</td><td>${k.description}</td></tr>`);
+  document.getElementById('kindsResult').innerHTML=html+'</table>';
+}
+</script>
+</body>
+</html>
