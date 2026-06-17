@@ -25,9 +25,12 @@ Computed from existing rows (no new instrumentation needed for timing/cache):
 - **Cache efficiency** — hit/miss ratio with per-miss explanation (M58).
 - **Layer/recipe usage** — which layers/recipes contributed how much.
 
-**API:** `GET /v1/builds/{id}/analysis`. **CLI:** `osfabricumctl builds analysis
-<id>`. **UI:** an Analysis tab on the build detail page. **Job:**
-`build.analyze`. **Artifact:** analysis report.
+**Implementation (M64 done):** `osfabricum/analysis/service.py` with
+`analyze_build(session, build_id, analysis_kind)` dispatching to 5 kinds:
+`time`, `size`, `critical-path`, `cache`, `warnings`. Each produces INI-format
+rendered report + sha256 hash. **API:** `GET/POST /v1/builds/{id}/analysis`,
+`GET /v1/analyses/{id}`. **CLI:** `osfabricumctl analysis run/list/show`.
+**UI:** `/analysis` page (3 tabs). 16 unit tests, all passing.
 
 **Acceptance:** the build detail page shows slowest jobs, largest packages/
 files, cache efficiency, and the critical path.

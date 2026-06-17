@@ -1,6 +1,17 @@
 # OSFabricum — Manifest / Lockfile System
 
-**Milestone:** M62 · **Companion to:** [`ROADMAP.md`](ROADMAP.md) §18b.
+**Milestone:** M62 ✅ Done · **Companion to:** [`ROADMAP.md`](ROADMAP.md) §18b.
+
+**Implementation status:** `osfabricum/lockfile/service.py`. Tables:
+`lockfiles` (distribution_id/profile_id/build_id FK SET NULL, lock_version,
+rendered_lock, content_hash) and `lockfile_entries` (lockfile_id CASCADE,
+entry_kind, entry_key, version, source_hash; upsert by lockfile+kind+key).
+Entry kinds: package|kernel|toolchain|config|layer|source|artifact|build-env.
+`render_lockfile` produces [meta]+[kind] INI + sha256:… hash.
+`diff_lockfiles(a_id, b_id)` returns `{added, removed, changed}` dicts.
+API: `POST /v1/lockfiles`, `GET /v1/lockfiles`, `POST /v1/lockfiles/{id}/render`,
+`POST /v1/lockfiles/diff`. CLI: `osfabricumctl lockfile generate/render/diff/list`.
+UI: `/lockfile` page (4 tabs). 21 unit tests.
 
 `osfabricum.lock` is a committable, human-diffable manifest that pins every
 input to a build plan so the plan can be reproduced exactly — on another machine,

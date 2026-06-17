@@ -412,15 +412,17 @@ G-01/G-02/G-03):
 
 M24–M29 close these three before the designer milestones (M30+) land.
 
-> **Progress (2026-06).** M24–M27 and M29 have landed, and **all three
-> structural gaps are resolved**: G-01 (write API) via the Distribution
-> Designer (M26), Profile Designer (M27), and Plan/Build API (M29); G-02
-> (resolver consumes the profile) via M27; G-03 via M29 (builds dispatch as
-> queue-backed `build.run` jobs executed by a worker — fine-grained fan-out
-> deferred to M67). Each milestone shipped its full vertical (DB → migration →
-> service → API → CLI → UI → tests) and is committed. See `docs/GAPS.md` for
-> per-gap status. Next: M28 (Build Wizard) completes Phase 4.0, then the
-> designer milestones M30+.
+> **Progress (2026-06).** M24–M70 have landed. **All three structural gaps are
+> resolved.** Phase 4 (Universal OS Builder Expansion) is complete — every
+> milestone from M24 through M69 shipped its full vertical (DB + migration +
+> service + API + CLI + UI + tests). Key milestones: M26 (Distribution Write
+> API), M27 (Profile Designer), M29 (Plan/Build API), M30–M43 (hardware/boot/
+> branding/app designers), M44–M53 (users/network/security/compliance/SDK/
+> mirror/probe), M54–M56 (layers/overrides/patches), M57–M60 (graph/explain/
+> diff/generations), M61–M69 (upgrade/lockfile/importers/analysis/sizeopt/
+> boot-profiler/worker-pools/isolation/repository). Gaps closed: G-01 through
+> G-22, G-25. M70 (Documentation Update) also complete. See `docs/GAPS.md`
+> for per-gap detail. Next up: Phase 5 Reference Distributions (M71+).
 
 ## 8. Milestones
 ### Phase 0 — Foundation

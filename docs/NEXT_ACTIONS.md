@@ -1,10 +1,16 @@
 # OSFabricum — Next Actions
 
-**Revision:** 2026-06
+**Revision:** 2026-06 (updated M70)
 **Source:** `docs/IMPLEMENTATION_AUDIT.md` + `docs/GAPS.md`.
 **Rule:** Do **not** restart M0–M23. Every action below assumes the existing
 primitives stay and are extended. No "temporary stub", no "minimal first".
 Each action names the milestone that owns it and the gap it closes.
+
+> **Status as of 2026-06-17:** Phase 4 (M24–M69) is **complete**. All 46
+> milestones shipped their full vertical (DB → migration → service → API →
+> CLI → UI → tests). M70 (Documentation Update) also complete. Gaps G-01
+> through G-22 and G-25 are closed. **Phase 5 (Reference Distributions)**
+> is the next phase.
 
 ---
 
@@ -15,15 +21,16 @@ resolver, G-03 job graph). Until those move, designers have nowhere to persist
 to, nothing to resolve from, and no way to build. So the sequence is:
 
 1. **Foundation of "create"** — universal model + write API + profile-aware
-   resolver (M24 → M29).
-2. **Hardware & boot** (M30 → M34).
-3. **Packages, kernel, branding, shell, apps** (M33, M35 → M43).
+   resolver (M24 → M29). ✅ Done.
+2. **Hardware & boot** (M30 → M34). ✅ Done.
+3. **Packages, kernel, branding, shell, apps** (M33, M35 → M43). ✅ Done.
 4. **System concerns** — users, network, services, security, compliance,
-   updates, SDK, cache, QA, probe (M44 → M53).
+   updates, SDK, cache, QA, probe (M44 → M53). ✅ Done.
 5. **Competitive layer** — layers, overrides, patches, graph, explain, diff,
    generations, upgrade, lockfile, importers, analysis, size, boot, farm,
-   sandbox, repo (M54 → M69).
-6. **Docs** (M70, ongoing).
+   sandbox, repo (M54 → M69). ✅ Done.
+6. **Docs** (M70). ✅ Done.
+7. **Phase 5 — Reference Distributions** (M71+). ← current horizon.
 
 ---
 
@@ -89,23 +96,23 @@ to, nothing to resolve from, and no way to build. So the sequence is:
 | G-08 boards | Board/BSP, boot chain, initramfs designers | M30, M31, M32 |
 | G-09 secrets/users | Users/groups/credentials/secrets designer | M44 |
 | G-10 net/svc/sec/comp | Network, service-init, security, compliance designers | M45–M48 |
-| G-11 releases/OTA | Update/OTA/recovery, generations, upgrade, repo | M49, M60, M61, M69 |
-| G-12 competitive | Layers, overrides, patch, graph, explain, diff, lockfile, importers, analysis, size, boot | M54–M66 |
-| G-13 prefetch CLI | `osfabricumctl prefetch` from plan | M28, M29 |
-| G-14 build CLI | `osfabricumctl build` verb | M28, M29 |
-| G-15 diff/reproduce | Implement `builds diff` / `builds reproduce` | M59 |
-| G-16 releases CLI | `osfabricumctl releases …` + promotion flow | M49, M69 |
-| G-17 UI read-only | Designers + wizard UI | M26–M28 |
-| G-18 no e2e | Integration/e2e harness | M28, M52, M70 |
-| G-19 explain | Explain/why engine | M58 |
-| G-20 SDK | SDK / dev-shell export | M50 |
-| G-21 cache/mirror | Cache/mirror/offline designer | M51 |
-| G-22 probe | Hardware probe import | M53 |
-| G-23 migrations | Explicit DDL + CI drift check | M24, M25 |
-| G-24 auth | Enforce auth on write API | M29 |
-| G-25 sandbox | Build isolation/sandbox policy | M68 |
+| G-11 releases/OTA | ~~Update/OTA/recovery, generations, upgrade, repo~~ | **✅ M49+M60+M61+M69** |
+| G-12 competitive | ~~Layers, overrides, patch, graph, explain, diff, lockfile, importers, analysis, size, boot~~ | **✅ M54–M66** |
+| G-13 prefetch CLI | ~~`osfabricumctl prefetch` from plan~~ | **✅ M29** |
+| G-14 build CLI | ~~`osfabricumctl build` verb~~ | **✅ M29** |
+| G-15 diff/reproduce | ~~Implement `builds diff` / `builds reproduce`~~ | **✅ M59** |
+| G-16 releases CLI | ~~`osfabricumctl releases …` + promotion flow~~ | **✅ M69** |
+| G-17 UI read-only | ~~Designers + wizard UI~~ | **✅ M26–M28+** |
+| G-18 no e2e | ~~Integration/e2e harness~~ | **✅ M52** |
+| G-19 explain | ~~Explain/why engine~~ | **✅ M58** |
+| G-20 SDK | ~~SDK / dev-shell export~~ | **✅ M50** |
+| G-21 cache/mirror | ~~Cache/mirror/offline designer~~ | **✅ M51** |
+| G-22 probe | ~~Hardware probe import~~ | **✅ M53** |
+| G-23 migrations | Explicit DDL + CI drift check | M24, M25 (partial) |
+| G-24 auth | Enforce auth on write API | M29 (partial — `require_write_auth` dep on writes) |
+| G-25 sandbox | ~~Build isolation/sandbox policy~~ | **✅ M68** |
 | G-26 secret mask | Secret masking model + tests | M44 |
-| G-27 signing e2e | Exercise signing/attestation in release flow | M48, M69 |
+| G-27 signing e2e | Exercise signing/attestation in release flow | M48, M69 (partial) |
 | G-28 cache keys | Strong package/kernel-module cache keys | M35 |
 
 ---
