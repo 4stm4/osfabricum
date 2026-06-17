@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Boot Profiler</title>
+<style>
+:root{--accent:#37474f;--accent-light:#546e7a;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:420px;overflow:auto;color:#cfd8dc}
+</style>
+</head>
+<body>
+<header>
+  <h1>Boot / Performance Profiler</h1>
+  <span class="badge">M66</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('capture')">Capture</div>
+  <div class="tab" onclick="show('samples')">Add Samples</div>
+  <div class="tab" onclick="show('render')">Timeline</div>
+  <div class="tab" onclick="show('list')">Profiles</div>
+</nav>
+
+<div id="capture" class="pane active">
+  <div class="card">
+    <label>Build ID</label><input id="cBuildId" placeholder="build-uuid">
+    <label>Capture Method</label>
+    <select id="cMethod"><option>qemu</option><option>serial</option><option>journal</option></select>
+    <button onclick="createProfile()">Create Boot Profile</button>
+  </div>
+  <div id="captureResult" class="result"></div>
+</div>
+
+<div id="samples" class="pane">
+  <div class="card">
+    <label>Boot Profile ID</label><input id="sProfileId" placeholder="profile-uuid">
+    <label>Event Kind</label>
+    <select id="sEventKind"><option>kernel-init</option><option>service-start</option><option>userspace</option><option>target-reached</option></select>
+    <label>Event Name</label><input id="sEventName" placeholder="e.g. network.target">
+    <label>Timestamp (ms)</label><input id="sTs" type="number" value="0">
+    <label>Duration (ms, optional)</label><input id="sDur" type="number" placeholder="">
+    <label><input type="checkbox" id="sCrit"> Critical Path</label><br><br>
+    <button onclick="addSample()">Add Sample</button>
+  </div>
+  <div id="samplesResult" class="result"></div>
+</div>
+
+<div id="render" class="pane">
+  <div class="card">
+    <label>Boot Profile ID</label><input id="rProfileId" placeholder="profile-uuid">
+    <button onclick="renderTimeline()">Render Timeline</button>
+  </div>
+  <div id="renderResult" class="result"></div>
+</div>
+
+<div id="list" class="pane">
+  <div class="card">
+    <label>Build ID</label><input id="lBuildId" placeholder="build-uuid">
+    <button onclick="listProfiles()">Load</button>
+  </div>
+  <div id="listResult" class="result">(enter build ID and click Load)</div>
+</div>
+
+<script>
+function show(id){document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(id).classList.add('active');event.target.classList.add('active')}
+async function createProfile(){
+  const bid=document.getElementById('cBuildId').value.trim();
+  const body={capture_method:document.getElementById('cMethod').value};
+  const r=await fetch('/v1/builds/'+bid+'/boot-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('captureResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function addSample(){
+  const pid=document.getElementById('sProfileId').value.trim();
+  const body={event_kind:document.getElementById('sEventKind').value,event_name:document.getElementById('sEventName').value,timestamp_ms:parseInt(document.getElementById('sTs').value),is_critical_path:document.getElementById('sCrit').checked};
+  const d=parseInt(document.getElementById('sDur').value);if(!isNaN(d))body.duration_ms=d;
+  const r=await fetch('/v1/boot-profiles/'+pid+'/samples',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('samplesResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function renderTimeline(){
+  const pid=document.getElementById('rProfileId').value.trim();
+  const r=await fetch('/v1/boot-profiles/'+pid+'/render',{method:'POST'});
+  const d=await r.json();
+  document.getElementById('renderResult').textContent=d.rendered_timeline||JSON.stringify(d,null,2);
+}
+async function listProfiles(){
+  const bid=document.getElementById('lBuildId').value.trim();
+  const r=await fetch('/v1/builds/'+bid+'/boot-profile');
+  const d=await r.json();
+  if(!d.length){document.getElementById('listResult').textContent='(no boot profiles)';return}
+  document.getElementById('listResult').textContent=d.map(x=>`${x.id.slice(0,8)}  method=${x.capture_method}  boot_ms=${x.total_boot_ms||0}  hash=${x.content_hash||'—'}`).join('\n');
+}
+</script>
+</body>
+</html>
