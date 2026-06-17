@@ -1699,3 +1699,92 @@ def seed_rollback_kinds(session: "Session") -> int:
     if inserted:
         session.flush()
     return inserted
+
+# ---------------------------------------------------------------------------
+# M63 — Importers
+# ---------------------------------------------------------------------------
+
+from osfabricum.db.models import ImportKind, SizeBudgetKind, ReleaseChannel
+
+IMPORT_KINDS: list[tuple[str, str, str, int]] = [
+    ("buildroot", "Buildroot .config", "Import from Buildroot minimal .config", 10),
+    ("openwrt", "OpenWrt .config", "Import from OpenWrt .config (UCI/feeds)", 20),
+    ("yocto", "Yocto Layer Metadata", "Import from Yocto/OE layer.conf + recipes", 30),
+    ("debian", "Debian Package List", "Import from debian/control or dpkg --get-selections", 40),
+    ("alpine", "Alpine Package List", "Import from Alpine world file or APKBUILD", 50),
+    ("nixos", "NixOS Configuration", "Import from NixOS configuration.nix", 60),
+    ("rootfs", "Existing Rootfs", "Import by scanning an existing rootfs directory", 70),
+    ("image", "Existing Image", "Import by scanning a mounted disk image", 80),
+    ("kconfig", "Kernel .config", "Import kernel configuration from .config file", 90),
+]
+
+SIZE_BUDGET_KINDS: list[tuple[str, str, str, int]] = [
+    ("image", "Image Total", "Total compressed image file size", 10),
+    ("rootfs", "Rootfs Unpacked", "Total unpacked rootfs size on disk", 20),
+    ("package-set", "Package Set", "Combined installed package footprint", 30),
+    ("kernel", "Kernel + Modules", "vmlinuz + installed kernel module size", 40),
+    ("initramfs", "Initramfs", "Compressed initramfs size", 50),
+    ("apps", "Applications", "User-space application bundle size", 60),
+]
+
+RELEASE_CHANNELS: list[tuple[str, str, str, int]] = [
+    ("stable", "Stable", "Production-ready releases", 10),
+    ("testing", "Testing", "Release candidates and beta builds", 20),
+    ("nightly", "Nightly", "Automated nightly builds from main", 30),
+    ("lts", "LTS", "Long-term support releases", 40),
+    ("dev", "Dev", "Development snapshots — not for production", 50),
+]
+
+
+def seed_import_kinds(session: "Session") -> int:
+    existing = {
+        r for (r,) in session.execute(
+            __import__("sqlalchemy", fromlist=["select"]).select(ImportKind.kind)
+        ).all()
+    }
+    inserted = 0
+    for kind, label, description, display_order in IMPORT_KINDS:
+        if kind in existing:
+            continue
+        session.add(ImportKind(kind=kind, label=label,
+                               description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+def seed_size_budget_kinds(session: "Session") -> int:
+    existing = {
+        r for (r,) in session.execute(
+            __import__("sqlalchemy", fromlist=["select"]).select(SizeBudgetKind.kind)
+        ).all()
+    }
+    inserted = 0
+    for kind, label, description, display_order in SIZE_BUDGET_KINDS:
+        if kind in existing:
+            continue
+        session.add(SizeBudgetKind(kind=kind, label=label,
+                                   description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted
+
+
+def seed_release_channels(session: "Session") -> int:
+    existing = {
+        r for (r,) in session.execute(
+            __import__("sqlalchemy", fromlist=["select"]).select(ReleaseChannel.channel)
+        ).all()
+    }
+    inserted = 0
+    for channel, label, description, display_order in RELEASE_CHANNELS:
+        if channel in existing:
+            continue
+        session.add(ReleaseChannel(channel=channel, label=label,
+                                   description=description, display_order=display_order))
+        inserted += 1
+    if inserted:
+        session.flush()
+    return inserted

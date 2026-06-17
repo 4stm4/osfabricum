@@ -857,8 +857,10 @@ class Release(Base):
     )
 
 
-class ReleaseArtifact(Base):
-    __tablename__ = "release_artifacts"
+class LegacyReleaseArtifact(Base):
+    """Early release↔artifact join table (pre-M69). Superseded by ReleaseArtifact in M69."""
+
+    __tablename__ = "legacy_release_artifacts"
 
     release_id: Mapped[str] = mapped_column(
         sa.String(36), sa.ForeignKey("releases.id"), primary_key=True
@@ -3939,4 +3941,594 @@ class RollbackTarget(Base):
             "generation_id", "target_generation_number",
             name="uq_rollback_targets_gen_tgt",
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# M61 — Attended Upgrade / Rebuild Service
+# ---------------------------------------------------------------------------
+
+
+class UpgradeRequest(Base):
+    """A request to rebuild/upgrade an existing device/profile (M61)."""
+
+    __tablename__ = "upgrade_requests"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    current_generation_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("generations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    target_channel: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, default="stable"
+    )
+    target_version: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="pending"
+    )  # pending | running | success | failed | cancelled
+    requested_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime, nullable=True
+    )
+    result_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
+
+class UpgradeResult(Base):
+    """Result produced by an upgrade request (M61)."""
+
+    __tablename__ = "upgrade_results"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    upgrade_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("upgrade_requests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(sa.String(16), nullable=False, default="pending")
+    new_generation_id: Mapped[str | None] = mapped_column(
+        sa.String(36), nullable=True
+    )
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("artifacts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    diff_report_id: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    rollback_plan: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M62 — Manifest / Lockfile System
+# ---------------------------------------------------------------------------
+
+
+class Lockfile(Base):
+    """A reproducible osfabricum.lock manifest (M62)."""
+
+    __tablename__ = "lockfiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    build_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("builds.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    lock_version: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="1"
+    )
+    rendered_lock: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class LockfileEntry(Base):
+    """A single pinned entry within a lockfile (M62)."""
+
+    __tablename__ = "lockfile_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    lockfile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("lockfiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entry_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # package | kernel | toolchain | config | layer | source | artifact | build-env
+    entry_key: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    version: Mapped[str] = mapped_column(sa.String(128), nullable=False, default="")
+    source_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    extra_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    sa.UniqueConstraint("lockfile_id", "entry_kind", "entry_key",
+                        name="uq_lockfile_entries_lock_kind_key")
+
+
+# ---------------------------------------------------------------------------
+# M63 — Importers from Competitors / Existing Systems
+# ---------------------------------------------------------------------------
+
+
+class ImportKind(Base):
+    """Catalogue of importer types (M63)."""
+
+    __tablename__ = "import_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class ImportJob(Base):
+    """A request to import a configuration from an external system (M63)."""
+
+    __tablename__ = "import_jobs"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    import_kind: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    source_data: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    source_filename: Mapped[str | None] = mapped_column(
+        sa.String(256), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="pending"
+    )  # pending | running | done | failed
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime, nullable=True
+    )
+
+
+class ImportReport(Base):
+    """Report produced by an import job (M63)."""
+
+    __tablename__ = "import_reports"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    import_job_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("import_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mapped_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    unknown_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    report_text: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    draft_profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M64 — Build Analysis Dashboard
+# ---------------------------------------------------------------------------
+
+
+class BuildAnalysis(Base):
+    """Cached build analysis report (M64)."""
+
+    __tablename__ = "build_analyses"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    build_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("builds.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    analysis_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="time"
+    )  # time | size | critical-path | cache | warnings
+    rendered_report: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    summary_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M65 — Size / Footprint Optimizer
+# ---------------------------------------------------------------------------
+
+
+class SizeBudgetKind(Base):
+    """Catalogue of size budget target kinds (M65)."""
+
+    __tablename__ = "size_budget_kinds"
+
+    kind: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class SizeBudget(Base):
+    """A size budget constraint for a profile (M65)."""
+
+    __tablename__ = "size_budgets"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    budget_kind: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    budget_bytes: Mapped[int] = mapped_column(sa.BigInteger, nullable=False, default=0)
+    is_hard_limit: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    sa.UniqueConstraint("profile_id", "budget_kind", name="uq_size_budgets_profile_kind")
+
+
+class SizeReport(Base):
+    """A size analysis report for a build (M65)."""
+
+    __tablename__ = "size_reports"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    build_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("builds.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    rendered_report: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    summary_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M66 — Boot / Performance Profiler
+# ---------------------------------------------------------------------------
+
+
+class BootProfile(Base):
+    """A boot performance profile for a build (M66)."""
+
+    __tablename__ = "boot_profiles"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    build_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("builds.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    capture_method: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="qemu"
+    )  # qemu | serial | journal
+    total_boot_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    rendered_timeline: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    summary_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class BootSample(Base):
+    """A single boot event sample within a boot profile (M66)."""
+
+    __tablename__ = "boot_samples"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    boot_profile_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("boot_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # kernel-init | service-start | userspace | target-reached
+    event_name: Mapped[str] = mapped_column(sa.String(256), nullable=False)
+    timestamp_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    duration_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    is_critical_path: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+
+
+# ---------------------------------------------------------------------------
+# M67 — Distributed Build Farm / Worker Pools
+# ---------------------------------------------------------------------------
+
+
+class WorkerPool(Base):
+    """A named pool of build workers with a shared policy (M67)."""
+
+    __tablename__ = "worker_pools"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, unique=True
+    )
+    label: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    pool_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="local"
+    )  # local | remote | trusted | signing-only | hardware-lab | qemu-test
+    max_parallelism: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=1
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class WorkerPoolMember(Base):
+    """Association between a worker and a pool (M67)."""
+
+    __tablename__ = "worker_pool_members"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    worker_pool_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("worker_pools.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    worker_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("workers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    joined_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class JobAffinity(Base):
+    """Declares which job kinds should run on a pool (M67)."""
+
+    __tablename__ = "job_affinities"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    pool_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("worker_pools.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    job_kind: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    affinity_weight: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=1
+    )
+
+
+class PoolQuota(Base):
+    """Resource quota for a worker pool (M67)."""
+
+    __tablename__ = "pool_quotas"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    pool_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("worker_pools.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    resource_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False
+    )  # cpu | memory | disk | network
+    limit_value: Mapped[int] = mapped_column(sa.BigInteger, nullable=False, default=0)
+    period_seconds: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=3600
+    )
+
+
+# ---------------------------------------------------------------------------
+# M68 — Build Isolation / Sandbox Policy
+# ---------------------------------------------------------------------------
+
+
+class IsolationPolicy(Base):
+    """A named build isolation / sandbox policy (M68)."""
+
+    __tablename__ = "isolation_policies"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, unique=True
+    )
+    label: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    mode: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="none"
+    )  # none | chroot | bubblewrap | nspawn | podman | firecracker | vm
+    network_allowed: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    write_access: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="build-dir"
+    )  # none | build-dir | full
+    cache_mode: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, default="ro"
+    )  # ro | rw | none
+    secret_access: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    privileged: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class RecipeIsolationRequirement(Base):
+    """Declares what isolation a recipe requires (M68)."""
+
+    __tablename__ = "recipe_isolation_requirements"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    recipe_id: Mapped[str | None] = mapped_column(
+        sa.String(36), nullable=True
+    )
+    required_mode: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+# ---------------------------------------------------------------------------
+# M69 — Public Artifact Repository / Release Publishing
+# ---------------------------------------------------------------------------
+
+
+class ReleaseChannel(Base):
+    """Distribution channel for published releases (M69)."""
+
+    __tablename__ = "release_channels"
+
+    channel: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+
+class Repository(Base):
+    """A named artifact repository (M69)."""
+
+    __tablename__ = "repositories"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    repo_kind: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="image"
+    )  # package | image | firmware | release
+    base_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    sign_key_id: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    is_published: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class RepositoryIndex(Base):
+    """A generated and cached repository index (M69)."""
+
+    __tablename__ = "repository_indexes"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    repository_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("repositories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    rendered_index: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    indexed_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class PublishedRelease(Base):
+    """A versioned release that can be published to a channel (M69)."""
+
+    __tablename__ = "published_releases"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    distribution_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("distributions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    channel: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    version: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="draft"
+    )  # draft | published | withdrawn
+    rendered_release_manifest: Mapped[str | None] = mapped_column(
+        sa.Text, nullable=True
+    )
+    content_hash: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=_now
+    )
+
+
+class ReleaseArtifact(Base):
+    """An artifact attached to a published release (M69)."""
+
+    __tablename__ = "release_artifacts"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    release_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("published_releases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    artifact_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("artifacts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    artifact_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, default="image"
+    )
+    artifact_uri: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    sa.UniqueConstraint(
+        "release_id", "artifact_role", name="uq_release_artifacts_rel_role"
     )

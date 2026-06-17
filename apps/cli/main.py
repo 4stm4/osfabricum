@@ -29,6 +29,15 @@ from apps.cli.commands.graph_cmd import graph_app
 from apps.cli.commands.explain_cmd import explain_app
 from apps.cli.commands.diff_cmd import diff_app
 from apps.cli.commands.generations_cmd import generations_app
+from apps.cli.commands.upgrade_cmd import upgrade_app
+from apps.cli.commands.lockfile_cmd import lockfile_app
+from apps.cli.commands.importers_cmd import importers_app
+from apps.cli.commands.analysis_cmd import analysis_app
+from apps.cli.commands.sizeopt_cmd import sizeopt_app
+from apps.cli.commands.bootprofiler_cmd import bootprofiler_app
+from apps.cli.commands.workerpool_cmd import workerpool_app
+from apps.cli.commands.isolation_cmd import isolation_app
+from apps.cli.commands.repository_cmd import repository_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -71,7 +80,7 @@ GROUPS: dict[str, tuple[str, list[str]]] = {
     "cache": ("Build cache maintenance", ["stats", "verify", "gc"]),
     # "flash" is registered as a real app below (M21)
     # "test" is registered as a real app below (M22)
-    "releases": ("Manage releases and promotion", ["list", "show", "promote", "publish"]),
+    # "releases" is registered as a real app below (M69)
 }
 
 
@@ -283,6 +292,15 @@ def _register_groups() -> None:
     app.add_typer(explain_app, name="explain")
     app.add_typer(diff_app, name="diff")
     app.add_typer(generations_app, name="generations")
+    app.add_typer(upgrade_app, name="upgrade")
+    app.add_typer(lockfile_app, name="lockfile")
+    app.add_typer(importers_app, name="import")
+    app.add_typer(analysis_app, name="analysis")
+    app.add_typer(sizeopt_app, name="sizeopt")
+    app.add_typer(bootprofiler_app, name="boot-profiler")
+    app.add_typer(workerpool_app, name="worker-pool")
+    app.add_typer(isolation_app, name="isolation")
+    app.add_typer(repository_app, name="releases")
 
 
 _register_groups()

@@ -25,6 +25,15 @@ from apps.api.routes.graph_api import router as graph_router
 from apps.api.routes.explain_api import router as explain_router
 from apps.api.routes.diff_api import router as diff_router
 from apps.api.routes.generations_api import router as generations_router
+from apps.api.routes.upgrade_api import router as upgrade_router
+from apps.api.routes.lockfile_api import router as lockfile_router
+from apps.api.routes.importers_api import router as importers_router
+from apps.api.routes.analysis_api import router as analysis_router
+from apps.api.routes.sizeopt_api import router as sizeopt_router
+from apps.api.routes.bootprofiler_api import router as bootprofiler_router
+from apps.api.routes.workerpool_api import router as workerpool_router
+from apps.api.routes.isolation_api import router as isolation_router
+from apps.api.routes.repository_api import router as repository_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -136,6 +145,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(diff_router)
     # M60: system generations / rollback designer
     app.include_router(generations_router)
+    # M61: upgrade service
+    app.include_router(upgrade_router)
+    # M62: lockfile manager
+    app.include_router(lockfile_router)
+    # M63: importers
+    app.include_router(importers_router)
+    # M64: build analysis
+    app.include_router(analysis_router)
+    # M65: size optimizer
+    app.include_router(sizeopt_router)
+    # M66: boot profiler
+    app.include_router(bootprofiler_router)
+    # M67: worker pools
+    app.include_router(workerpool_router)
+    # M68: isolation policies
+    app.include_router(isolation_router)
+    # M69: repository / release publishing
+    app.include_router(repository_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -327,6 +354,55 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/generations", include_in_schema=False)
         def generations_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "generations.html"))
+
+        # M61: Upgrade Service page
+        @app.get("/upgrades", include_in_schema=False)
+        def upgrades_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "upgrades.html"))
+
+        # M62: Lockfile Manager page
+        @app.get("/lockfile", include_in_schema=False)
+        def lockfile_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "lockfile.html"))
+
+        # M63: Importers page
+        @app.get("/imports", include_in_schema=False)
+        def imports_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "imports.html"))
+
+        # M64: Build Analysis page
+        @app.get("/analysis", include_in_schema=False)
+        def analysis_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "analysis.html"))
+
+        # M65: Size Optimizer page
+        @app.get("/sizeopt", include_in_schema=False)
+        def sizeopt_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "sizeopt.html"))
+
+        # M66: Boot Profiler page
+        @app.get("/boot-profiler", include_in_schema=False)
+        def bootprofiler_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "bootprofiler.html"))
+
+        # M67: Worker Pools page
+        @app.get("/worker-pools", include_in_schema=False)
+        def workerpools_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "workerpools.html"))
+
+        # M68: Isolation Policies page
+        @app.get("/isolation", include_in_schema=False)
+        def isolation_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "isolation.html"))
+
+        # M69: Releases / Repository page
+        @app.get("/releases", include_in_schema=False)
+        def releases_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "releases.html"))
+
+        @app.get("/repositories", include_in_schema=False)
+        def repositories_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "releases.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

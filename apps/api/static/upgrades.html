@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Upgrade Service</title>
+<style>
+:root{--accent:#1b5e20;--accent-light:#2e7d32;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow:auto;color:#c8e6c9}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--border);padding:8px 12px;text-align:left;color:var(--muted)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.status-pending{color:#fff176}.status-running{color:#64b5f6}.status-success{color:#69f0ae}.status-failed{color:#ef5350}.status-cancelled{color:#888}
+</style>
+</head>
+<body>
+<header>
+  <h1>Upgrade Service</h1>
+  <span class="badge">M61</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('list')">Requests</div>
+  <div class="tab" onclick="show('create')">New Request</div>
+  <div class="tab" onclick="show('show')">Details</div>
+</nav>
+
+<div id="list" class="pane active">
+  <div class="card">
+    <label>Filter by status</label>
+    <select id="listStatus"><option value="">All</option><option>pending</option><option>running</option><option>success</option><option>failed</option><option>cancelled</option></select>
+    <button onclick="loadList()">Load</button>
+  </div>
+  <div id="listResult" class="result">(click Load)</div>
+</div>
+
+<div id="create" class="pane">
+  <div class="card">
+    <label>Distribution ID</label><input id="cDistId" placeholder="dist-uuid">
+    <label>Target Channel</label>
+    <select id="cChannel"><option>stable</option><option>testing</option><option>nightly</option><option>lts</option><option>dev</option></select>
+    <label>Target Version (optional)</label><input id="cVersion" placeholder="1.2.3">
+    <button onclick="createRequest()">Create Upgrade Request</button>
+  </div>
+  <div id="createResult" class="result"></div>
+</div>
+
+<div id="show" class="pane">
+  <div class="card">
+    <label>Upgrade Request ID</label><input id="showId" placeholder="request-uuid">
+    <button onclick="showRequest()">Load</button>
+  </div>
+  <div id="showResult" class="result"></div>
+</div>
+
+<script>
+function show(id){document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(id).classList.add('active');event.target.classList.add('active')}
+async function loadList(){
+  const s=document.getElementById('listStatus').value;
+  const q=s?`?status=${s}`:'';
+  const r=await fetch('/v1/upgrade-requests'+q);
+  const d=await r.json();
+  if(!d.length){document.getElementById('listResult').textContent='(no requests)';return}
+  document.getElementById('listResult').textContent=d.map(x=>`${x.id.slice(0,8)}  dist=${x.distribution_id||'—'}  ${x.target_channel}  status=${x.status}`).join('\n');
+}
+async function createRequest(){
+  const body={distribution_id:document.getElementById('cDistId').value,target_channel:document.getElementById('cChannel').value};
+  const v=document.getElementById('cVersion').value;if(v)body.target_version=v;
+  const r=await fetch('/v1/upgrade-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('createResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function showRequest(){
+  const id=document.getElementById('showId').value.trim();
+  const r=await fetch('/v1/upgrade-requests/'+id);
+  document.getElementById('showResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+</script>
+</body>
+</html>

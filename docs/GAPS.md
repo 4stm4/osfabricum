@@ -560,6 +560,109 @@ Severity scale:
   the `osfabricumctl layers` CLI (kind-list / list / create / entry-add / render)
   and the `/layers` designer UI page (4 tabs: Profiles, Layer Kinds, Entries,
   Render). 45 unit tests, all passing.
+- **M69 (Public Artifact Repository / Release Publishing) done.** Five new tables:
+  `release_channels` (seeded — 5 channels: stable/testing/nightly/lts/dev),
+  `repositories` (name UNIQUE / repo_kind: package|image|firmware|release / base_url / sign_key_id / is_published),
+  `repository_indexes` (repository_id CASCADE / channel / rendered_index / content_hash / indexed_at),
+  `published_releases` (distribution_id SET NULL / channel / version / status: draft|published|withdrawn /
+  rendered_release_manifest / content_hash / rendered_at; upsert on render),
+  `release_artifacts` (release_id CASCADE / artifact_id SET NULL / artifact_role:
+  image|rootfs|bootloader|kernel|initramfs|sbom|checksum|signature|attestation|other /
+  artifact_uri; upsert by release_id+artifact_role). `render_release_manifest` generates
+  [release]/[artifacts] INI + sha256: hash; `index_repository` renders [releases] INI
+  per channel. Migration `0044_repository` (down_revision=0043). Module at
+  `osfabricum/repository/`. 9 HTTP endpoints, the `osfabricumctl releases` CLI
+  (list / create / promote / show / repos), the `/releases` UI page (5 tabs, teal #004d40).
+  28 unit tests, all passing. Closes G-16, partial G-27.
+
+- **M68 (Build Isolation / Sandbox Policies) done.** Two new tables:
+  `isolation_policies` (name UNIQUE / mode: none|chroot|bubblewrap|nspawn|podman|firecracker|vm /
+  network_allowed / write_access: none|build-dir|full / cache_mode: ro|rw|none /
+  secret_access / privileged),
+  `recipe_isolation_requirements` (recipe_id nullable / required_mode / reason).
+  `policy_satisfies(policy, required_mode)` compares mode strength via MODE_ORDER list.
+  Migration `0043_isolation` (down_revision=0042). Module at `osfabricum/isolation/`.
+  5 HTTP endpoints, the `osfabricumctl isolation` CLI (create / list / check),
+  the `/isolation` UI page (3 tabs, red #b71c1c). 23 unit tests, all passing. Closes G-25.
+
+- **M67 (Distributed Build Farm / Worker Pools) done.** Four new tables:
+  `worker_pools` (name UNIQUE / pool_kind: local|remote|trusted|signing-only|hardware-lab|qemu-test /
+  max_parallelism), `worker_pool_members` (pool_id CASCADE / worker_id SET NULL),
+  `job_affinities` (pool_id CASCADE / job_kind / affinity_weight),
+  `pool_quotas` (pool_id CASCADE / resource_kind: cpu|memory|disk|network / limit_value BigInt;
+  upsert by pool_id+resource_kind). Migration `0042_worker_pools` (down_revision=0041).
+  Module at `osfabricum/workerpool/`. 7 HTTP endpoints, the `osfabricumctl worker-pool` CLI
+  (create / list / assign / quota), the `/worker-pools` UI page (4 tabs, navy #1a237e).
+  24 unit tests, all passing.
+
+- **M66 (Boot / Performance Profiler) done.** Two new tables:
+  `boot_profiles` (build_id SET NULL / capture_method: qemu|serial|journal /
+  total_boot_ms / rendered_timeline / content_hash),
+  `boot_samples` (boot_profile_id CASCADE / event_kind:
+  kernel-init|service-start|userspace|target-reached / event_name / timestamp_ms /
+  duration_ms / is_critical_path). `render_boot_timeline` aggregates samples ordered
+  by timestamp_ms, generates [timeline]/[critical_path] INI, sets total_boot_ms to max
+  timestamp. Migration `0041_boot_profiler` (down_revision=0040). Module at
+  `osfabricum/bootprofiler/`. 5 HTTP endpoints, the `osfabricumctl boot-profiler` CLI
+  (capture / render / list), the `/boot-profiler` UI page (4 tabs, slate #37474f).
+  22 unit tests, all passing.
+
+- **M65 (Size / Footprint Optimizer) done.** Three new tables:
+  `size_budget_kinds` (seeded — 6 kinds: image/rootfs/package-set/kernel/initramfs/apps),
+  `size_budgets` (profile_id SET NULL / budget_kind / budget_bytes BigInt / is_hard_limit;
+  upsert by profile_id+budget_kind),
+  `size_reports` (build_id+profile_id SET NULL / rendered_report / summary_json /
+  content_hash). `analyze_size` accepts optional `size_data` dict and generates
+  [sizes]/[budget_check]/[violations]/[suggestions] INI + sha256. Migration
+  `0040_size_optimizer` (down_revision=0039). Module at `osfabricum/sizeopt/`.
+  5 HTTP endpoints, the `osfabricumctl sizeopt` CLI (budget / report / budgets),
+  the `/sizeopt` UI page (3 tabs, pink #880e4f). 16 unit tests, all passing.
+
+- **M64 (Build Analysis Dashboard) done.** One new table:
+  `build_analyses` (build_id CASCADE nullable / analysis_kind:
+  time|size|critical-path|cache|warnings / rendered_report / summary_json /
+  content_hash). `analyze_build` dispatches by kind to produce INI sections with
+  sha256: hash. Optional `analysis_kind` filter on list. Migration
+  `0039_build_analysis` (down_revision=0038). Module at `osfabricum/analysis/`.
+  3 HTTP endpoints, the `osfabricumctl analysis` CLI (run / list / show),
+  the `/analysis` UI page (3 tabs, teal-dark #006064). 16 unit tests, all passing.
+
+- **M63 (Importers from Foreign Systems) done.** Three new tables:
+  `import_kinds` (seeded — 9 kinds: buildroot/openwrt/yocto/debian/alpine/nixos/rootfs/image/kconfig),
+  `import_jobs` (import_kind / source_data / status: pending|running|done|failed),
+  `import_reports` (import_job_id CASCADE / mapped_count / unknown_count /
+  report_text / draft_profile_id). `run_import` dispatches by kind (BR2_PACKAGE_*=y
+  for buildroot; CONFIG_*=y for kconfig; line-split for debian/alpine; etc.) and
+  produces a report. Migration `0038_importers` (down_revision=0037). Module at
+  `osfabricum/importers/`. 5 HTTP endpoints, the `osfabricumctl import` CLI
+  (run / list / show), the `/imports` UI page (3 tabs, orange #e65100). 17 unit tests,
+  all passing.
+
+- **M62 (Manifest / Lockfile System) done.** Two new tables:
+  `lockfiles` (distribution_id SET NULL / profile_id SET NULL / build_id SET NULL /
+  lock_version / rendered_lock / content_hash),
+  `lockfile_entries` (lockfile_id CASCADE / entry_kind:
+  package|kernel|toolchain|config|layer|source|artifact|build-env / entry_key / version /
+  source_hash; upsert by lockfile_id+entry_kind+entry_key; adding an entry clears
+  content_hash). `render_lockfile` generates [meta]+[kind] INI sections, sha256: hash.
+  `diff_lockfiles` returns {added, removed, changed} dicts keyed by entry_key.
+  Migration `0037_lockfile` (down_revision=0036). Module at `osfabricum/lockfile/`.
+  6 HTTP endpoints, the `osfabricumctl lockfile` CLI (generate / render / diff / list),
+  the `/lockfile` UI page (4 tabs, purple #4a148c). 21 unit tests, all passing.
+
+- **M61 (Attended Upgrade / Rebuild Service) done.** Two new tables:
+  `upgrade_requests` (distribution_id SET NULL / profile_id SET NULL /
+  current_generation_id SET NULL / target_channel / target_version / status:
+  pending|running|success|failed|cancelled / requested_at / completed_at / result_json),
+  `upgrade_results` (upgrade_id CASCADE / status / new_generation_id SET NULL /
+  artifact_id SET NULL / diff_report_id SET NULL / rollback_plan / error_message).
+  `update_upgrade_status` sets `completed_at` on terminal statuses.
+  `record_upgrade_result` also updates the parent request status.
+  Migration `0036_upgrade_service` (down_revision=0035). Module at
+  `osfabricum/upgrade/`. 5 HTTP endpoints, the `osfabricumctl upgrade` CLI
+  (request / list / show), the `/upgrades` UI page (3 tabs, green #1b5e20).
+  17 unit tests, all passing.
+
 - **M60 (System Generations / Rollback Designer) done.** Four new tables:
   `rollback_kinds` (seeded — 4 kinds: full / partial / config-only / data-preserve),
   `generations` (distribution_id FK SET NULL / generation_number / status:
@@ -655,7 +758,7 @@ Severity scale:
 | G-13 | No `osfabricumctl prefetch` from plan | `apps/cli/commands/` has `source.py`, no `prefetch.py` | M28/M29 |
 | G-14 | No `osfabricumctl build` verb | `builds` group is read-only (list/show/logs) | M28/M29 |
 | G-15 | ~~`builds diff` / `builds reproduce` documented, not implemented~~ | **✅ Closed M59** — `osfabricum/diff/`, 7 diff kinds, profile/build/release diffs, 33 tests | M59 |
-| G-16 | No `releases` CLI / promotion flow | CLI ref §20 vs. no `releases.py` | M49/M69 |
+| G-16 | ~~No `releases` CLI / promotion flow~~ | **✅ Closed M69** — `osfabricum/repository/`, `osfabricumctl releases` CLI (list/create/promote/show/repos), `/releases` UI page | M69 |
 | G-17 | UI is read-only dashboard | `apps/api/static/index.html` (178 lines) | M26–M28 |
 | G-18 | ~~No integration/e2e tests~~ | **✅ Closed M52** — 44 integration tests covering health, SDK, mirror, probe, layers, overrides and cross-designer flows | M52 |
 | G-19 | ~~No explain/why trace on plan items~~ | **✅ Closed M58** — `osfabricum/explain/`, 7 reason kinds, explain_item/build, render text, 37 tests | M58 |
@@ -671,7 +774,7 @@ Severity scale:
 |----|-----|----------|-----------|
 | G-23 | Migration `0001` uses `metadata.create_all`, not DDL | `migrations/versions/0001_initial_schema.py` | M24 (CI drift check) / M25 baseline |
 | G-24 | Auth not enforced on most API routes | routes lack auth deps | M29 |
-| G-25 | Sandbox/PATH isolation are claims, not enforced | builder drivers | M68 |
+| G-25 | ~~Sandbox/PATH isolation are claims, not enforced~~ | **✅ Closed M68** — `osfabricum/isolation/`, 7 modes (none→vm), policy_satisfies() strength check, 23 tests | M68 |
 | G-26 | Secret masking in logs unverified | no secrets model | M44 |
 | G-27 | Signing/attestation not exercised e2e | `security/signing.py` | M48/M69 |
 | G-28 | Pkg/kernel-module cache keys too weak | no cache-entry model | M35 (key must include arch/libc/toolchain/kernel-release/config hashes) |
