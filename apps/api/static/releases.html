@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Releases &amp; Repositories</title>
+<style>
+:root{--accent:#004d40;--accent-light:#00695c;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:420px;overflow:auto;color:#b2dfdb}
+.status-draft{color:#fff176}.status-published{color:#69f0ae}.status-withdrawn{color:#ef5350}
+</style>
+</head>
+<body>
+<header>
+  <h1>Releases &amp; Repository Publishing</h1>
+  <span class="badge">M69</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('releases')">Releases</div>
+  <div class="tab" onclick="show('create')">Create Release</div>
+  <div class="tab" onclick="show('promote')">Promote</div>
+  <div class="tab" onclick="show('repos')">Repositories</div>
+  <div class="tab" onclick="show('channels')">Channels</div>
+</nav>
+
+<div id="releases" class="pane active">
+  <div class="card">
+    <label>Filter Channel</label>
+    <select id="lChannel"><option value="">All</option><option>stable</option><option>testing</option><option>nightly</option><option>lts</option><option>dev</option></select>
+    <label>Filter Status</label>
+    <select id="lStatus"><option value="">All</option><option>draft</option><option>published</option><option>withdrawn</option></select>
+    <button onclick="loadReleases()">Load</button>
+  </div>
+  <div id="releasesResult" class="result">(click Load)</div>
+</div>
+
+<div id="create" class="pane">
+  <div class="card">
+    <label>Channel</label>
+    <select id="cChannel"><option>stable</option><option>testing</option><option>nightly</option><option>lts</option><option>dev</option></select>
+    <label>Version</label><input id="cVersion" placeholder="1.0.0">
+    <label>Distribution ID (optional)</label><input id="cDistId" placeholder="dist-uuid">
+    <button onclick="createRelease()">Create Release</button>
+  </div>
+  <div id="createResult" class="result"></div>
+</div>
+
+<div id="promote" class="pane">
+  <div class="card">
+    <label>Release ID</label><input id="pReleaseId" placeholder="release-uuid">
+    <label>Target Status</label>
+    <select id="pStatus"><option>published</option><option>withdrawn</option></select>
+    <button onclick="promoteRelease()">Promote</button>
+    <button onclick="renderRelease()" style="margin-left:8px;background:#37474f">Render Manifest</button>
+  </div>
+  <div id="promoteResult" class="result"></div>
+</div>
+
+<div id="repos" class="pane">
+  <div class="card">
+    <button onclick="loadRepos()">Load Repositories</button>
+  </div>
+  <div id="reposResult" class="result">(click Load Repositories)</div>
+  <div class="card" style="margin-top:16px">
+    <label>Name</label><input id="rName" placeholder="main-repo">
+    <label>Kind</label>
+    <select id="rKind"><option>image</option><option>package</option><option>firmware</option><option>release</option></select>
+    <label>Base URL (optional)</label><input id="rUrl" placeholder="https://releases.example.com">
+    <button onclick="createRepo()">Create Repository</button>
+  </div>
+  <div id="createRepoResult" class="result"></div>
+</div>
+
+<div id="channels" class="pane">
+  <div class="card"><button onclick="loadChannels()">Load Release Channels</button></div>
+  <div id="channelsResult" class="result"></div>
+</div>
+
+<script>
+function show(id){document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(id).classList.add('active');event.target.classList.add('active')}
+async function loadReleases(){
+  const params=new URLSearchParams();
+  const ch=document.getElementById('lChannel').value;if(ch)params.set('channel',ch);
+  const st=document.getElementById('lStatus').value;if(st)params.set('status',st);
+  const r=await fetch('/v1/releases'+(params.toString()?'?'+params:''));
+  const d=await r.json();
+  if(!d.length){document.getElementById('releasesResult').textContent='(no releases)';return}
+  document.getElementById('releasesResult').textContent=d.map(x=>`${x.id.slice(0,8)}  ${x.channel}/${x.version}  status=${x.status}  hash=${x.content_hash||'—'}`).join('\n');
+}
+async function createRelease(){
+  const body={channel:document.getElementById('cChannel').value,version:document.getElementById('cVersion').value};
+  const d=document.getElementById('cDistId').value;if(d)body.distribution_id=d;
+  const r=await fetch('/v1/releases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('createResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function promoteRelease(){
+  const id=document.getElementById('pReleaseId').value.trim();
+  const status=document.getElementById('pStatus').value;
+  const r=await fetch('/v1/releases/'+id+'/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  document.getElementById('promoteResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function renderRelease(){
+  const id=document.getElementById('pReleaseId').value.trim();
+  const r=await fetch('/v1/releases/'+id+'/render',{method:'POST'});
+  const d=await r.json();
+  document.getElementById('promoteResult').textContent=d.rendered_release_manifest||JSON.stringify(d,null,2);
+}
+async function loadRepos(){
+  const r=await fetch('/v1/repositories');
+  const d=await r.json();
+  if(!d.length){document.getElementById('reposResult').textContent='(no repositories)';return}
+  document.getElementById('reposResult').textContent=d.map(x=>`${x.id.slice(0,8)}  ${x.name}  kind=${x.repo_kind}  pub=${x.is_published?'Y':'N'}`).join('\n');
+}
+async function createRepo(){
+  const body={name:document.getElementById('rName').value,repo_kind:document.getElementById('rKind').value};
+  const u=document.getElementById('rUrl').value;if(u)body.base_url=u;
+  const r=await fetch('/v1/repositories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('createRepoResult').textContent=JSON.stringify(await r.json(),null,2);
+}
+async function loadChannels(){
+  const r=await fetch('/v1/release-channels');
+  const d=await r.json();
+  document.getElementById('channelsResult').textContent=d.map(x=>`${x.channel.padEnd(10)} ${x.label}`).join('\n');
+}
+</script>
+</body>
+</html>
