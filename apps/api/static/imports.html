@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OSFabricum — Importers</title>
+<style>
+:root{--accent:#e65100;--accent-light:#ef6c00;--bg:#0a0a0f;--surface:#12121a;--border:#1e2030;--text:#e0e0e0;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;font-weight:700}
+nav{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:.85rem;transition:.2s}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:24px}
+.pane.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select,textarea{background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:.85rem;width:100%;margin-bottom:12px}
+textarea{height:160px;font-family:monospace;resize:vertical}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:.85rem;font-weight:600}
+button:hover{background:var(--accent-light)}
+.result{background:#0d0d18;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;max-height:420px;overflow:auto;color:#ffe0b2}
+</style>
+</head>
+<body>
+<header>
+  <h1>Foreign Config Importer</h1>
+  <span class="badge">M63</span>
+</header>
+<nav>
+  <div class="tab active" onclick="show('import')">Import</div>
+  <div class="tab" onclick="show('list')">Jobs</div>
+  <div class="tab" onclick="show('kinds')">Import Kinds</div>
+</nav>
+
+<div id="import" class="pane active">
+  <div class="card">
+    <label>Import Kind</label>
+    <select id="importKind">
+      <option>buildroot</option><option>openwrt</option><option>yocto</option>
+      <option>debian</option><option>alpine</option><option>nixos</option>
+      <option>rootfs</option><option>image</option><option>kconfig</option>
+    </select>
+    <label>Source Config (paste content)</label>
+    <textarea id="sourceData" placeholder="Paste config file content here…"></textarea>
+    <button onclick="runImport()">Run Import</button>
+  </div>
+  <div id="importResult" class="result"></div>
+</div>
+
+<div id="list" class="pane">
+  <div class="card">
+    <label>Filter by kind (optional)</label>
+    <select id="listKind"><option value="">All</option><option>buildroot</option><option>openwrt</option><option>yocto</option><option>debian</option><option>alpine</option><option>nixos</option></select>
+    <button onclick="loadJobs()">Load Jobs</button>
+  </div>
+  <div id="listResult" class="result">(click Load Jobs)</div>
+</div>
+
+<div id="kinds" class="pane">
+  <div class="card"><button onclick="loadKinds()">Load Import Kinds</button></div>
+  <div id="kindsResult" class="result"></div>
+</div>
+
+<script>
+function show(id){document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(id).classList.add('active');event.target.classList.add('active')}
+async function runImport(){
+  const body={import_kind:document.getElementById('importKind').value,source_data:document.getElementById('sourceData').value};
+  const r=await fetch('/v1/import-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const job=await r.json();
+  const r2=await fetch('/v1/import-jobs/'+job.id+'/run',{method:'POST'});
+  const report=await r2.json();
+  document.getElementById('importResult').textContent=`job: ${job.id}\n\n`+JSON.stringify(report,null,2);
+}
+async function loadJobs(){
+  const k=document.getElementById('listKind').value;
+  const q=k?`?import_kind=${k}`:'';
+  const r=await fetch('/v1/import-jobs'+q);
+  const d=await r.json();
+  if(!d.length){document.getElementById('listResult').textContent='(no jobs)';return}
+  document.getElementById('listResult').textContent=d.map(x=>`${x.id.slice(0,8)}  kind=${x.import_kind}  status=${x.status}`).join('\n');
+}
+async function loadKinds(){
+  const r=await fetch('/v1/import-kinds');
+  const d=await r.json();
+  document.getElementById('kindsResult').textContent=d.map(x=>`${x.kind.padEnd(12)} ${x.label}`).join('\n');
+}
+</script>
+</body>
+</html>
