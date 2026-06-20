@@ -200,59 +200,62 @@ function computeStepStates(plan, events) {
   const steps = (plan.required_jobs || []).map(j => ({
     name: j, status: 'pending', startedAt: null, endedAt: null, error: null
   }));
-  const byName = {};
-  steps.forEach(s => { byName[s.name] = s; });
+  // build reverse index: base kind (before ':') → step entry
+  const byBase = {};
+  const byFull = {};
+  steps.forEach(s => {
+    byFull[s.name] = s;
+    const base = s.name.split(':')[0];
+    if (!byBase[base]) byBase[base] = [];
+    byBase[base].push(s);
+  });
 
   events.forEach(ev => {
-    const jn = ev.payload?.job_name || ev.payload?.kind;
-    const step = jn ? (byName[jn] || byName[jn + ':' + ev.payload?.target]) : null;
-    if (ev.event_type === 'job.started' && step) {
+    const stepName = ev.payload?.step;
+    if (!stepName) return;
+    // exact match first, then base-kind match (e.g. "kernel.build" → "kernel.build:linux-rpi")
+    const step = byFull[stepName] || (byBase[stepName] || [])[0];
+    if (!step) return;
+    if (ev.event_type === 'step.start') {
       step.status = 'running'; step.startedAt = ev.ts;
-    } else if (ev.event_type === 'job.completed' && step) {
+    } else if (ev.event_type === 'step.done') {
       step.status = 'done'; step.endedAt = ev.ts;
-    } else if (ev.event_type === 'job.failed' && step) {
+    } else if (ev.event_type === 'step.failed') {
       step.status = 'failed'; step.error = ev.payload?.error || 'failed'; step.endedAt = ev.ts;
-    } else if (ev.event_type === 'build.started') {
-      // mark first step as running if none are yet
     }
   });
   return steps;
 }
 
 function progressFromEvents(events, plan) {
-  if (!plan) {
-    const statusMap = { queued: 0, running: 10, success: 100, failed: 100, cancelled: 0 };
-    const lastStatus = events[events.length - 1]?.event_type || '';
-    return 5;
-  }
-  const total = (plan.required_jobs || []).length;
+  const total = (plan?.required_jobs || []).length;
   if (!total) return 0;
   const doneCount = events.filter(e =>
-    e.event_type === 'job.completed' || e.event_type === 'job.failed'
+    e.event_type === 'step.done' || e.event_type === 'step.failed'
   ).length;
   return Math.round((doneCount / total) * 100);
 }
 
 function buildStartedAt(events) {
-  const ev = events.find(e => e.event_type === 'build.started' || e.event_type === 'build.request');
+  const ev = events.find(e => e.event_type === 'build.start' || e.event_type === 'build.request');
   return ev?.ts || null;
 }
 
 function buildErrors(events) {
   return events.filter(e =>
-    e.event_type === 'build.failed' || e.event_type === 'job.failed' || e.event_type === 'error'
+    e.event_type === 'build.failed' || e.event_type === 'step.failed' || e.event_type === 'error'
   );
 }
 
 function eta(events, plan) {
   if (!plan) return null;
   const total = (plan.required_jobs || []).length;
-  const done = events.filter(e => e.event_type === 'job.completed').length;
+  const done = events.filter(e => e.event_type === 'step.done').length;
   if (!done) return null;
   const start = buildStartedAt(events);
   if (!start) return null;
-  const elapsed = (Date.now() - new Date(start).getTime()) / 1000;
-  const perJob = elapsed / done;
+  const elapsedS = (Date.now() - new Date(start).getTime()) / 1000;
+  const perJob = elapsedS / done;
   const remaining = (total - done) * perJob;
   if (remaining < 0) return null;
   if (remaining < 60) return Math.round(remaining) + 's';
@@ -320,6 +323,7 @@ async function renderBuildDetail(buildId) {
   detailCache[buildId] = { events };
 
   const plan = extractPlan(events);
+  const reqEv = (events.find(e => e.event_type === 'build.request')?.payload) || {};
   const steps = computeStepStates(plan, events);
   const total = steps.length;
   const doneCount = steps.filter(s => s.status === 'done').length;
@@ -365,8 +369,12 @@ async function renderBuildDetail(buildId) {
       return `${(p.required_jobs||[]).length} jobs planned · ${(p.missing_artifacts||[]).length} artifacts missing`;
     }
     if (ev.event_type === 'build.queued') return `job_id: ${(p.job_id||'').slice(0,8)}`;
+    if (ev.event_type === 'build.start') return p.plan ? `plan: ${String(p.plan).slice(7,23)}` : '';
+    if (ev.event_type === 'step.start' || ev.event_type === 'step.done') return p.step || '';
+    if (ev.event_type === 'step.failed') return `${p.step || ''} — ${p.error || 'error'}`;
+    if (ev.event_type === 'build.success') return 'build complete';
     if (p.error) return p.error;
-    if (p.job_name) return p.job_name;
+    if (p.step) return p.step;
     if (p.resolution_hash) return p.resolution_hash.replace('sha256:','').slice(0,16);
     return '';
   }
@@ -393,8 +401,8 @@ async function renderBuildDetail(buildId) {
 
   return `
     <div class="detail-header">
-      <div class="detail-title">${build.distribution || '?'}/${build.profile || '?'} ${badge(build.status)}</div>
-      <div class="detail-sub">${build.id} · ${build.board || '—'} · ${build.arch || '—'}</div>
+      <div class="detail-title">${build.distribution || reqEv?.distribution || '?'}/${build.profile || reqEv?.profile || '?'} ${badge(build.status)}</div>
+      <div class="detail-sub">${build.id} · ${build.board || reqEv?.board || '—'} · ${build.arch || '—'}</div>
       <div class="detail-sub" style="margin-top:2px;font-family:inherit;font-size:11px;color:var(--muted)">${(build.resolution_hash||'').replace('sha256:','sha256:').slice(0,24)}</div>
       <div class="detail-stats">
         <div class="stat">
