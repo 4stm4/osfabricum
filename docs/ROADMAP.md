@@ -412,17 +412,18 @@ G-01/G-02/G-03):
 
 M24–M29 close these three before the designer milestones (M30+) land.
 
-> **Progress (2026-06).** M24–M70 have landed. **All three structural gaps are
-> resolved.** Phase 4 (Universal OS Builder Expansion) is complete — every
-> milestone from M24 through M69 shipped its full vertical (DB + migration +
-> service + API + CLI + UI + tests). Key milestones: M26 (Distribution Write
-> API), M27 (Profile Designer), M29 (Plan/Build API), M30–M43 (hardware/boot/
-> branding/app designers), M44–M53 (users/network/security/compliance/SDK/
-> mirror/probe), M54–M56 (layers/overrides/patches), M57–M60 (graph/explain/
-> diff/generations), M61–M69 (upgrade/lockfile/importers/analysis/sizeopt/
-> boot-profiler/worker-pools/isolation/repository). Gaps closed: G-01 through
-> G-22, G-25. M70 (Documentation Update) also complete. See `docs/GAPS.md`
-> for per-gap detail. Next up: Phase 5 Reference Distributions (M71+).
+> **Progress (2026-06).** M24–M74 have landed. **Phase 4 and Phase 5 are
+> complete.** Every milestone from M24 through M73 shipped its full vertical
+> (DB + migration + service + API + CLI + UI + tests). Phase 5 (Reference
+> Distributions, M71–M73) seeded TinyWifi (router/embedded, rpi-zero-2w,
+> aarch64), NetOS (server/SDN, qemu-x86_64, x86_64), and Ocultum (mobile-
+> handheld, aarch64) as pure data records — no code paths per name. Catalog
+> YAML loaders (architectures, boards, toolchains, kernels, distributions)
+> added to `catalog/seed/`. Service: `osfabricum/refdist/service.py`. API:
+> 4 endpoints under `/v1/refdist/…`. CLI: `osfabricumctl refdist`. UI:
+> `/refdist` page. Migrations 0045–0047. 39 unit tests, all passing.
+> M74 (Documentation Update) also complete. See `docs/GAPS.md` for per-gap
+> detail.
 
 ## 8. Milestones
 ### Phase 0 — Foundation

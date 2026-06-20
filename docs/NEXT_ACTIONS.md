@@ -6,11 +6,13 @@
 primitives stay and are extended. No "temporary stub", no "minimal first".
 Each action names the milestone that owns it and the gap it closes.
 
-> **Status as of 2026-06-17:** Phase 4 (M24–M69) is **complete**. All 46
-> milestones shipped their full vertical (DB → migration → service → API →
-> CLI → UI → tests). M70 (Documentation Update) also complete. Gaps G-01
-> through G-22 and G-25 are closed. **Phase 5 (Reference Distributions)**
-> is the next phase.
+> **Status as of 2026-06-20:** Phase 4 (M24–M69) and Phase 5 (M71–M73) are
+> **complete**. All milestones shipped their full vertical (DB → migration →
+> service → API → CLI → UI → tests). M70 and M74 (Documentation Updates)
+> also complete. Gaps G-01 through G-22 and G-25 are closed. Reference
+> distributions (TinyWifi/NetOS/Ocultum) are seeded as pure data records with
+> 39 unit tests passing. **Next up: A1–A4 (foundation for user-created
+> distributions, profile-aware resolver, write API).**
 
 ---
 
@@ -30,7 +32,8 @@ to, nothing to resolve from, and no way to build. So the sequence is:
    generations, upgrade, lockfile, importers, analysis, size, boot, farm,
    sandbox, repo (M54 → M69). ✅ Done.
 6. **Docs** (M70). ✅ Done.
-7. **Phase 5 — Reference Distributions** (M71+). ← current horizon.
+7. **Phase 5 — Reference Distributions** (M71–M73). ✅ Done.
+8. **Foundation for user-created distributions** (A1–A4). ← current horizon.
 
 ---
 
