@@ -439,8 +439,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             kernel_artifact_id=kernel_artifact_id,
             firmware_artifact_ids=firmware_artifact_ids,
             extra_boot_files=spec.extra_boot_files,
-            boot_size_mb=4,  # small default — operators can override via spec
-            rootfs_size_mb=16,
+            boot_size_mb=96,
+            rootfs_size_mb=512,
         )
 
         def _compose_image_step():
