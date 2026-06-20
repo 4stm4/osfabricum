@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -122,7 +123,11 @@ def install_command(request: Request) -> dict[str, Any]:
             ),
         }
 
-    db_url = _sync_db_url(raw_url)
+    # Replace docker-internal hostname with the real host IP so the command
+    # works on a machine outside the Docker network.
+    api_host = request.url.hostname or "HOST"
+    db_url = _sync_db_url(re.sub(r"@([^@:/]+)([:/])", f"@{api_host}\\2", raw_url))
+
     cmd = (
         "docker run -d --name osfabricum-worker \\\n"
         f"  -e OSFABRICUM_DB_URL='{db_url}' \\\n"

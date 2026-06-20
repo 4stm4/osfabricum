@@ -12,13 +12,14 @@ COPY vendor/ vendor/
 RUN pip install --no-cache-dir vendor/*.whl
 
 COPY . .
-RUN pip install --no-cache-dir ".[dev]"
+RUN pip install --no-cache-dir ".[dev]" asyncpg psycopg2-binary
 
-RUN mkdir -p /data /etc/osfabricum && \
+RUN mkdir -p /data /var/lib/osfabricum /etc/osfabricum && \
     printf '[database]\nurl = "sqlite+aiosqlite:////data/osfabricum.db"\n' \
     > /etc/osfabricum/osfabricum.toml
 
-ENV OSFABRICUM_DB_URL=sqlite:////data/osfabricum.db
+# Default: SQLite (overridden by OSFABRICUM_DB_URL in docker-compose)
+ENV OSFABRICUM_DB_URL=sqlite+aiosqlite:////data/osfabricum.db
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -28,11 +29,12 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=20s \
   CMD curl -fsS http://localhost:8000/healthz || exit 1
 
 CMD ["sh", "-c", "\
+  SYNC_DB=$(echo \"$OSFABRICUM_DB_URL\" | sed 's/+aiosqlite//g;s/+asyncpg//g') && \
   alembic upgrade head && \
   uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 & \
   while true; do \
     osfabricum-worker \
-      --db-url sqlite:////data/osfabricum.db \
+      --db-url \"$SYNC_DB\" \
       --worker-id worker-01 \
       --kinds 'build.run,package.build,rootfs.compose,image.compose' \
       --tags \"arch:$(uname -m)\"; \

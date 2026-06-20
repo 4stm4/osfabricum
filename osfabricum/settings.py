@@ -91,10 +91,21 @@ def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Pa
 
 
 def load_settings(config_path: str | os.PathLike[str] | None = None) -> Settings:
-    """Load settings from TOML if available, otherwise use defaults (SQLite)."""
+    """Load settings from TOML if available, otherwise use defaults (SQLite).
+
+    ``OSFABRICUM_DB_URL`` env var overrides database.url from any config file
+    so Docker Compose / CI can inject the connection string without rebuilding.
+    """
     path = resolve_config_path(config_path)
     if path is None:
-        return Settings()
-    with path.open("rb") as fh:
-        data = tomllib.load(fh)
-    return Settings.model_validate(data)
+        settings = Settings()
+    else:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+        settings = Settings.model_validate(data)
+
+    db_env = os.environ.get("OSFABRICUM_DB_URL")
+    if db_env:
+        settings.database.url = db_env
+
+    return settings
