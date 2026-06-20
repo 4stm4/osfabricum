@@ -239,7 +239,44 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             logs=logs,
         )
 
-    # ---- 3. Kernel build (if missing) ----
+    # ---- 3. Toolchain fetch + extract (if kernel build is needed) ----
+    toolchain_root: Path | None = None
+    if plan.kernel is not None and plan.kernel.artifact_id is None and plan.toolchain is not None:
+        logs.append(f"[pipeline] toolchain missing — fetching {plan.toolchain.name}")
+
+        def _toolchain_step():
+            from osfabricum.toolchain.fetch import fetch_and_extract_toolchain  # noqa: PLC0415
+
+            class _R:
+                logs: list[str] = []
+
+            r = _R()
+            nonlocal toolchain_root
+            toolchain_root = fetch_and_extract_toolchain(
+                plan.toolchain.name,  # type: ignore[union-attr]
+                spec.store_root,
+                db_url=spec.db_url,
+            )
+            logs.append(f"[pipeline] toolchain root: {toolchain_root}")
+            return r
+
+        if build_id is not None:
+            try:
+                _run_step(build_id, "toolchain.fetch", _toolchain_step, logs, spec.db_url)
+            except Exception as exc:
+                return _fail(f"toolchain fetch failed: {exc}", "toolchain.fetch")
+        else:
+            from osfabricum.toolchain.fetch import fetch_and_extract_toolchain  # noqa: PLC0415
+
+            toolchain_root = fetch_and_extract_toolchain(
+                plan.toolchain.name,
+                spec.store_root,
+                db_url=spec.db_url,
+            )
+    elif plan.kernel is not None and plan.kernel.artifact_id is None:
+        logs.append("[pipeline] no toolchain in plan — kernel build will use host PATH")
+
+    # ---- 4. Kernel build (if missing) ----
     kernel_artifact_id: str | None = None
     if plan.kernel is not None:
         if plan.kernel.artifact_id:
@@ -257,6 +294,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     db_url=spec.db_url,
                     jobs=spec.jobs,
                     src_dir=spec.kernel_src_dir,
+                    toolchain_root=toolchain_root,
                 )
 
             if build_id is not None:
@@ -280,6 +318,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     db_url=spec.db_url,
                     jobs=spec.jobs,
                     src_dir=spec.kernel_src_dir,
+                    toolchain_root=toolchain_root,
                 )
                 if kr.success:
                     kernel_artifact_id = kr.image_artifact_id

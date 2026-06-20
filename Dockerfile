@@ -2,7 +2,11 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl make bc flex bison \
+    libssl-dev libelf-dev libncurses-dev \
+    xz-utils bzip2 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY vendor/ vendor/
 RUN pip install --no-cache-dir vendor/*.whl
