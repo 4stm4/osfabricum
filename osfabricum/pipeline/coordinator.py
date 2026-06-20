@@ -23,6 +23,7 @@ builds will be dispatched as separate pyjobkit jobs in M18-extended.
 
 from __future__ import annotations
 
+import platform
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -245,7 +246,14 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
 
     # ---- 3. Toolchain fetch + extract (if kernel build is needed) ----
     toolchain_root: Path | None = None
-    if plan.kernel is not None and plan.kernel.artifact_id is None and plan.toolchain is not None:
+    _host_machine = platform.machine()
+    _arch_aliases: dict[str, str] = {"aarch64": "arm64", "arm64": "aarch64"}
+    _target_arch = plan.toolchain.arch if plan.toolchain is not None else ""
+    _native_build = (
+        _host_machine == _target_arch
+        or _host_machine == _arch_aliases.get(_target_arch, "")
+    )
+    if plan.kernel is not None and plan.kernel.artifact_id is None and plan.toolchain is not None and not _native_build:
         logs.append(f"[pipeline] toolchain missing — fetching {plan.toolchain.name}")
 
         def _toolchain_step():
@@ -278,7 +286,10 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 db_url=spec.db_url,
             )
     elif plan.kernel is not None and plan.kernel.artifact_id is None:
-        logs.append("[pipeline] no toolchain in plan — kernel build will use host PATH")
+        if _native_build and plan.toolchain is not None:
+            logs.append(f"[pipeline] native build ({_host_machine}→{_target_arch}) — skipping toolchain fetch, using host gcc")
+        else:
+            logs.append("[pipeline] no toolchain in plan — kernel build will use host PATH")
 
     # ---- 4. Kernel build (if missing) ----
     kernel_artifact_id: str | None = None

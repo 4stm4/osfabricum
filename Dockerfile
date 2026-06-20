@@ -12,7 +12,7 @@ COPY vendor/ vendor/
 RUN pip install --no-cache-dir vendor/*.whl
 
 COPY . .
-RUN pip install --no-cache-dir ".[dev]" asyncpg psycopg2-binary
+RUN pip install --no-cache-dir -e ".[dev]" asyncpg psycopg2-binary
 
 RUN mkdir -p /data /var/lib/osfabricum /etc/osfabricum && \
     printf '[database]\nurl = "sqlite+aiosqlite:////data/osfabricum.db"\n' \
