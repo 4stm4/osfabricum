@@ -30,9 +30,12 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=20s \
 CMD ["sh", "-c", "\
   alembic upgrade head && \
   uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 & \
-  osfabricum-worker \
-    --db-url sqlite:////data/osfabricum.db \
-    --worker-id worker-01 \
-    --kinds 'build.run,package.build,rootfs.compose,image.compose' \
-    --tags \"arch:$(uname -m)\" & \
+  while true; do \
+    osfabricum-worker \
+      --db-url sqlite:////data/osfabricum.db \
+      --worker-id worker-01 \
+      --kinds 'build.run,package.build,rootfs.compose,image.compose' \
+      --tags \"arch:$(uname -m)\"; \
+    sleep 3; \
+  done & \
   wait"]
