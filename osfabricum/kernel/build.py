@@ -175,6 +175,7 @@ def _compile_kernel(
     jobs: int,
     logs: list[str],
     toolchain_root: Path | None = None,
+    defconfig_target: str | None = None,
 ) -> tuple[Path, list[Path], Path]:
     """Run kernel compile steps; return ``(image_path, dtb_paths, modules_dir)``.
 
@@ -182,7 +183,11 @@ def _compile_kernel(
     """
     env = _make_build_env(toolchain_root, arch, cross_compile)
 
-    _run_make(["olddefconfig"], src_dir, env, logs)
+    if defconfig_target:
+        # Generate .config from a named defconfig (e.g. "bcm2711_defconfig")
+        _run_make([defconfig_target], src_dir, env, logs)
+    else:
+        _run_make(["olddefconfig"], src_dir, env, logs)
     _run_make(["-j", str(jobs), image_target, "modules"], src_dir, env, logs)
 
     if dtb_patterns:
@@ -371,7 +376,14 @@ def build_kernel(
                     cache_hit=True,
                 )
 
-    # --- write .config ---
+    # --- config: detect defconfig target vs raw .config content ---
+    # metadata_json["defconfig"] may store a make target name like
+    # "bcm2711_defconfig" (≤100 chars, no CONFIG_ lines) rather than
+    # actual .config file content. Detect this and run make accordingly.
+    defconfig_target: str | None = None
+    if config_data and b"CONFIG_" not in config_data and len(config_data) < 200:
+        defconfig_target = config_data.decode(errors="replace").strip()
+        config_data = None  # let _compile_kernel handle it via make target
     if config_data and src_dir.exists():
         (src_dir / ".config").write_bytes(config_data)
 
@@ -390,6 +402,7 @@ def build_kernel(
             jobs=jobs,
             logs=logs,
             toolchain_root=toolchain_root,
+            defconfig_target=defconfig_target,
         )
     except Exception as exc:
         return KernelBuildResult(
