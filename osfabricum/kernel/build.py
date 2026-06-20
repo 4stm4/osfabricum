@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import platform
 import subprocess
 import tarfile
 import tempfile
@@ -154,7 +155,8 @@ def _run_make(args: list[str], cwd: Path, env: dict[str, str], logs: list[str]) 
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     for line in (proc.stdout or "").splitlines():
         logs.append(line)
@@ -285,12 +287,19 @@ def build_kernel(
     dtb_patterns: list[str] = meta.get("dtbs", [])
     patches: list[str] = meta.get("patches", [])
 
+    # Native build: host arch == target arch → no cross-compiler needed.
+    # Bootlin toolchains are x86-64 host binaries; using them on aarch64 fails.
+    host_machine = platform.machine()
+    _arch_aliases = {"aarch64": "arm64", "arm64": "aarch64"}
+    native_build = host_machine == arch_name or host_machine == _arch_aliases.get(arch_name, "")
+    if native_build:
+        toolchain_root = None
     cross_compile = ""
-    if toolchain_root is not None:
-        cross_compile = f"{arch_name}-linux-musl-"
-    elif arch != "x86_64":
-        # Default cross-compile prefix
-        cross_compile = f"{arch_name}-linux-musl-"
+    if not native_build:
+        if toolchain_root is not None:
+            cross_compile = f"{arch_name}-linux-musl-"
+        elif arch != "x86_64":
+            cross_compile = f"{arch_name}-linux-musl-"
 
     # --- source fetch ---
     logs: list[str] = []

@@ -9,6 +9,7 @@ in-process path, asynchronously (G-03).
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -120,6 +121,7 @@ def run_queued_build(
         db_url=db_url,
         build_id=build_id,
         overrides=id_overrides or None,
+        jobs=os.cpu_count() or 1,
     )
     result = run_pipeline(spec)
     return {
