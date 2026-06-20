@@ -6,190 +6,597 @@
   <title>OSFabricum — Dashboard</title>
   <style>
     :root {
-      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --bg: #0d1117; --panel: #161b22; --panel2: #1c2128; --border: #30363d;
       --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
       --green: #3fb950; --red: #f85149; --yellow: #d29922; --cyan: #39c5cf;
+      --purple: #bc8cff;
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg);
-    }
-    header {
-      padding: 16px 24px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 12px;
-    }
-    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
-    header .ver { color: var(--muted); font-size: 13px; }
-    nav { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--border); }
-    nav button {
-      background: none; border: none; color: var(--muted); padding: 12px 16px;
-      cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent;
-    }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); font-size: 14px; }
+    header { padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+    header .ver { color: var(--muted); font-size: 12px; }
+    nav { display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--panel); }
+    nav button { background: none; border: none; color: var(--muted); padding: 10px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; }
     nav button.active { color: var(--fg); border-bottom-color: var(--accent); }
     nav button:hover { color: var(--fg); }
-    main { padding: 24px; }
+    .layout { display: flex; height: calc(100vh - 90px); overflow: hidden; }
+    .list-pane { width: 420px; min-width: 320px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
+    .detail-pane { flex: 1; overflow-y: auto; padding: 0; }
+    .detail-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); }
+
+    /* Build list */
+    .build-row { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .build-row:hover { background: var(--panel); }
+    .build-row.selected { background: var(--panel2); border-left: 3px solid var(--accent); padding-left: 13px; }
+    .build-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .build-name { font-weight: 600; }
+    .build-meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .progress-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; }
+    .progress-bar-fill { height: 3px; border-radius: 2px; transition: width .4s; }
+    .fill-running { background: var(--yellow); }
+    .fill-success { background: var(--green); }
+    .fill-failed { background: var(--red); }
+    .fill-queued { background: var(--muted); }
+
+    /* Badges */
+    .badge { padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .s-success { background: rgba(63,185,80,.15); color: var(--green); }
+    .s-failed  { background: rgba(248,81,73,.15); color: var(--red); }
+    .s-running { background: rgba(210,153,34,.15); color: var(--yellow); }
+    .s-queued  { background: rgba(139,148,158,.12); color: var(--muted); }
+    .s-cancelled { background: rgba(139,148,158,.12); color: var(--muted); }
+
+    /* Detail pane */
+    .detail-header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
+    .detail-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .detail-sub { color: var(--muted); font-size: 12px; font-family: monospace; }
+    .detail-stats { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+    .stat { }
+    .stat-val { font-size: 18px; font-weight: 700; }
+    .stat-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .stat-val.green { color: var(--green); }
+    .stat-val.yellow { color: var(--yellow); }
+    .stat-val.red { color: var(--red); }
+
+    /* Big progress bar */
+    .big-progress { padding: 12px 20px; border-bottom: 1px solid var(--border); }
+    .big-progress-bar { height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .big-progress-fill { height: 6px; border-radius: 4px; transition: width .5s; }
+    .big-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* Steps */
+    .steps-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .steps-title { font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; letter-spacing: .05em; }
+    .step { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
+    .step-icon { width: 16px; text-align: center; flex-shrink: 0; }
+    .step-name { flex: 1; }
+    .step-dur { color: var(--muted); font-size: 12px; }
+    .step-pending { color: var(--muted); }
+    .step-running { color: var(--yellow); }
+    .step-done { color: var(--green); }
+    .step-failed { color: var(--red); }
+
+    /* Events */
+    .events-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .event-row { display: flex; gap: 10px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid rgba(48,54,61,.5); }
+    .event-row:last-child { border: none; }
+    .event-ts { color: var(--muted); white-space: nowrap; font-family: monospace; }
+    .event-type { font-weight: 600; min-width: 140px; }
+    .event-payload { color: var(--muted); word-break: break-all; }
+    .ev-error { color: var(--red); }
+    .ev-plan { color: var(--cyan); }
+    .ev-queued { color: var(--muted); }
+    .ev-started { color: var(--yellow); }
+    .ev-done { color: var(--green); }
+
+    /* Logs */
+    .logs-section { padding: 16px 20px; }
+    .log-block { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+    .log-empty { color: var(--muted); font-size: 13px; }
+
+    /* Errors box */
+    .error-box { margin: 12px 20px; padding: 12px 16px; background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3); border-radius: 6px; font-size: 13px; color: var(--red); }
+
+    /* Simple views (non-builds) */
+    .simple-view { padding: 24px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
     th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; }
-    td.mono, th.mono { font-family: "SF Mono", Menlo, monospace; }
-    .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; }
-    .s-success { background: rgba(63,185,80,.15); color: var(--green); }
-    .s-failed { background: rgba(248,81,73,.15); color: var(--red); }
-    .s-running { background: rgba(210,153,34,.15); color: var(--yellow); }
-    .s-cancelled { background: rgba(139,148,158,.15); color: var(--muted); }
-    .empty { color: var(--muted); padding: 24px; text-align: center; }
-    .refresh { margin-left: auto; }
-    button.act {
-      background: var(--panel); border: 1px solid var(--border); color: var(--fg);
-      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
-    }
+    .mono { font-family: "SF Mono", Menlo, monospace; }
+    .empty { color: var(--muted); padding: 32px; text-align: center; }
+    button.act { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
     button.act:hover { border-color: var(--accent); }
+    .new-build-link { display: inline-block; margin-bottom: 16px; color: var(--accent); text-decoration: none; font-size: 13px; }
+    .new-build-link:hover { text-decoration: underline; }
+    .list-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .list-header-title { font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 1s linear infinite; }
+
+    /* Misc */
+    .cancel-btn { background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3); color: var(--red); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .cancel-btn:hover { background: rgba(248,81,73,.2); }
   </style>
 </head>
 <body>
-  <header>
-    <h1>⚙ OSFabricum</h1>
-    <span class="ver" id="version"></span>
-    <button class="act refresh" onclick="loadCurrent()">↻ Refresh</button>
-  </header>
-  <nav>
-    <button data-tab="builds" class="active">Builds</button>
-    <button data-tab="artifacts">Artifacts</button>
-    <button data-tab="distributions">Distributions</button>
-    <button data-tab="boards">Boards</button>
-    <button data-tab="workers">Workers</button>
-  </nav>
-  <main id="content"><div class="empty">Loading…</div></main>
+<header>
+  <h1>⚙ OSFabricum</h1>
+  <span class="ver" id="version"></span>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <button class="act" onclick="refreshAll()">↻ Refresh</button>
+  </div>
+</header>
+<nav>
+  <button data-tab="builds" class="active">Builds</button>
+  <button data-tab="artifacts">Artifacts</button>
+  <button data-tab="distributions">Distributions</button>
+  <button data-tab="boards">Boards</button>
+  <button data-tab="workers">Workers</button>
+</nav>
+<div id="app"></div>
 
-  <script>
-    let currentTab = "builds";
+<script>
+// ── state ────────────────────────────────────────────────────────────────────
+let currentTab = 'builds';
+let selectedBuildId = null;
+let buildsCache = [];
+let detailCache = {};
+let autoRefreshTimer = null;
+let sseSource = null;
 
-    const STATUS_CLASS = {
-      success: "s-success", failed: "s-failed",
-      running: "s-running", queued: "s-running", cancelled: "s-cancelled",
-    };
+// ── api helpers ───────────────────────────────────────────────────────────────
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${r.status}`);
+  return r.json();
+}
 
-    function badge(status) {
-      const cls = STATUS_CLASS[status] || "";
-      return `<span class="badge ${cls}">${status}</span>`;
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return iso.replace('T', ' ').slice(0, 19);
+}
+
+function fmtSize(n) {
+  if (n == null) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+
+function fmtDur(startIso, endIso) {
+  if (!startIso) return null;
+  const start = new Date(startIso).getTime();
+  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const s = Math.floor((end - start) / 1000);
+  if (s < 60) return s + 's';
+  return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+
+function elapsed(isoStart) {
+  if (!isoStart) return '—';
+  const s = Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+function badge(status) {
+  const cls = { success:'s-success', failed:'s-failed', running:'s-running',
+                queued:'s-queued', cancelled:'s-cancelled' }[status] || 's-queued';
+  return `<span class="badge ${cls}">${status}</span>`;
+}
+
+// ── build progress helpers ────────────────────────────────────────────────────
+function extractPlan(events) {
+  const planEv = events.find(e => e.event_type === 'build.plan');
+  return planEv?.payload || null;
+}
+
+function computeStepStates(plan, events) {
+  if (!plan) return [];
+  const steps = (plan.required_jobs || []).map(j => ({
+    name: j, status: 'pending', startedAt: null, endedAt: null, error: null
+  }));
+  const byName = {};
+  steps.forEach(s => { byName[s.name] = s; });
+
+  events.forEach(ev => {
+    const jn = ev.payload?.job_name || ev.payload?.kind;
+    const step = jn ? (byName[jn] || byName[jn + ':' + ev.payload?.target]) : null;
+    if (ev.event_type === 'job.started' && step) {
+      step.status = 'running'; step.startedAt = ev.ts;
+    } else if (ev.event_type === 'job.completed' && step) {
+      step.status = 'done'; step.endedAt = ev.ts;
+    } else if (ev.event_type === 'job.failed' && step) {
+      step.status = 'failed'; step.error = ev.payload?.error || 'failed'; step.endedAt = ev.ts;
+    } else if (ev.event_type === 'build.started') {
+      // mark first step as running if none are yet
     }
+  });
+  return steps;
+}
 
-    async function api(path) {
-      const r = await fetch(path);
-      if (!r.ok) throw new Error(`${path} → ${r.status}`);
-      return r.json();
-    }
+function progressFromEvents(events, plan) {
+  if (!plan) {
+    const statusMap = { queued: 0, running: 10, success: 100, failed: 100, cancelled: 0 };
+    const lastStatus = events[events.length - 1]?.event_type || '';
+    return 5;
+  }
+  const total = (plan.required_jobs || []).length;
+  if (!total) return 0;
+  const doneCount = events.filter(e =>
+    e.event_type === 'job.completed' || e.event_type === 'job.failed'
+  ).length;
+  return Math.round((doneCount / total) * 100);
+}
 
-    function table(headers, rows) {
-      if (!rows.length) return `<div class="empty">No records.</div>`;
-      const head = headers.map(h => `<th class="${h.mono ? 'mono' : ''}">${h.label}</th>`).join("");
-      const body = rows.map(r =>
-        `<tr>${r.map((c, i) =>
-          `<td class="${headers[i].mono ? 'mono' : ''}">${c}</td>`).join("")}</tr>`
-      ).join("");
-      return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-    }
+function buildStartedAt(events) {
+  const ev = events.find(e => e.event_type === 'build.started' || e.event_type === 'build.request');
+  return ev?.ts || null;
+}
 
-    const renderers = {
-      async builds() {
-        const data = await api("/v1/builds?limit=50");
-        const link = `<p><a href="/build/new" style="color:var(--accent)">→ New Build (Wizard)</a></p>`;
-        return link + table(
-          [{label:"Build"},{label:"Board"},{label:"Arch"},{label:"Status"},{label:"Hash",mono:true},{label:"Created"}],
-          data.map(b => [
-            `<b>${b.distribution || "?"}/${b.profile || "?"}</b>` +
-              ` <span style="color:var(--muted)">${b.id.slice(0, 8)}</span>`,
-            b.board || "—", b.arch || "—", badge(b.status),
-            (b.resolution_hash || "").replace("sha256:", "").slice(0, 12) || "—",
-            fmtDate(b.created_at),
-          ])
-        );
-      },
-      async artifacts() {
-        const data = await api("/v1/artifacts?limit=100");
-        return table(
-          [{label:"Kind"},{label:"Name"},{label:"Arch"},{label:"SHA256",mono:true},{label:"Size"}],
-          data.map(a => [
-            a.kind, a.name, a.arch || "—",
-            (a.blob_sha256 || "").slice(0, 16), fmtSize(a.size_bytes),
-          ])
-        );
-      },
-      async distributions() {
-        const data = await api("/v1/distributions");
-        const link = `<p><a href="/distributions" style="color:var(--accent)">→ Distribution Designer</a>
-          &nbsp;·&nbsp; <a href="/profiles" style="color:var(--accent)">Profile Designer</a>
-          &nbsp;·&nbsp; <a href="/packages" style="color:var(--accent)">Package Workspace</a></p>`;
-        return link + table(
-          [{label:"Name"},{label:"Class"},{label:"Channel"},{label:"Profiles"}],
-          data.map(d => [d.name, d.class || "—", d.default_channel, d.profile_count])
-        );
-      },
-      async boards() {
-        const data = await api("/v1/catalog/boards");
-        const links = `<p>` +
-          `<a href="/boards" style="color:var(--accent)">→ Board/BSP Designer</a>` +
-          ` &nbsp;·&nbsp; <a href="/boot-chains" style="color:var(--accent)">Boot Chains</a>` +
-          ` &nbsp;·&nbsp; <a href="/initramfs" style="color:var(--accent)">Initramfs</a>` +
-          ` &nbsp;·&nbsp; <a href="/kernel-config" style="color:var(--accent)">Kernel/Driver</a>` +
-          ` &nbsp;·&nbsp; <a href="/image-recipes" style="color:var(--accent)">Image Recipes</a></p>`;
-        return links + table(
-          [{label:"Name"},{label:"Arch"},{label:"Boot"},{label:"Firmware"}],
-          data.map(b => [b.name, b.arch, b.boot_scheme, b.firmware_required ? "yes" : "no"])
-        );
-      },
-      async workers() {
-        const data = await api("/v1/workers");
-        return table(
-          [{label:"Hostname"},{label:"Enabled"},{label:"Kinds"},{label:"Last seen"}],
-          data.map(w => [
-            w.hostname, w.enabled ? "yes" : "no",
-            (w.kinds || []).join(", ") || "—", w.last_seen_at || "never",
-          ])
-        );
-      },
-    };
+function buildErrors(events) {
+  return events.filter(e =>
+    e.event_type === 'build.failed' || e.event_type === 'job.failed' || e.event_type === 'error'
+  );
+}
 
-    function fmtSize(n) {
-      if (n == null) return "—";
-      if (n < 1024) return n + " B";
-      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
-      return (n / 1048576).toFixed(1) + " MB";
-    }
+function eta(events, plan) {
+  if (!plan) return null;
+  const total = (plan.required_jobs || []).length;
+  const done = events.filter(e => e.event_type === 'job.completed').length;
+  if (!done) return null;
+  const start = buildStartedAt(events);
+  if (!start) return null;
+  const elapsed = (Date.now() - new Date(start).getTime()) / 1000;
+  const perJob = elapsed / done;
+  const remaining = (total - done) * perJob;
+  if (remaining < 0) return null;
+  if (remaining < 60) return Math.round(remaining) + 's';
+  return Math.floor(remaining / 60) + 'm ' + Math.round(remaining % 60) + 's';
+}
 
-    function fmtDate(iso) {
-      return iso ? iso.replace("T", " ").slice(0, 19) : "—";
-    }
+// ── render: builds tab ────────────────────────────────────────────────────────
+function renderBuildRow(b, events) {
+  const plan = extractPlan(events || []);
+  const pct = progressFromEvents(events || [], plan);
+  const isActive = b.status === 'running' || b.status === 'queued';
+  const fillClass = {success:'fill-success', failed:'fill-failed', running:'fill-running', queued:'fill-queued'}[b.status] || 'fill-queued';
+  const sel = selectedBuildId === b.id ? ' selected' : '';
+  const elap = elapsed(b.created_at);
 
-    async function loadCurrent() {
-      const content = document.getElementById("content");
-      content.innerHTML = `<div class="empty">Loading…</div>`;
+  return `<div class="build-row${sel}" onclick="selectBuild('${b.id}')">
+    <div class="build-row-top">
+      <span class="build-name">${b.distribution || '?'}/${b.profile || '?'}</span>
+      ${badge(b.status)}
+    </div>
+    <div class="build-meta">
+      ${b.board || '—'} · ${b.arch || '—'} · ${fmtDate(b.created_at)} · ${elap}
+    </div>
+    ${plan ? `<div class="progress-bar-wrap"><div class="progress-bar-fill ${fillClass}" style="width:${pct}%"></div></div>` : ''}
+  </div>`;
+}
+
+async function renderBuildsTab() {
+  const builds = await api('/v1/builds?limit=50');
+  buildsCache = builds;
+
+  // fetch events for active builds
+  for (const b of builds) {
+    if (!detailCache[b.id]) {
       try {
-        content.innerHTML = await renderers[currentTab]();
-      } catch (e) {
-        content.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+        const events = await api(`/v1/builds/${b.id}/events?limit=100`);
+        detailCache[b.id] = { events };
+      } catch { detailCache[b.id] = { events: [] }; }
+    }
+  }
+
+  const listHtml = `
+    <div class="list-header">
+      <span class="list-header-title">Builds (${builds.length})</span>
+      <a href="/build/new" class="act" style="text-decoration:none;font-size:12px;">+ New Build</a>
+    </div>
+    ${builds.length ? builds.map(b => renderBuildRow(b, detailCache[b.id]?.events)).join('') : '<div class="empty">No builds yet.</div>'}
+  `;
+
+  const detailHtml = selectedBuildId
+    ? await renderBuildDetail(selectedBuildId)
+    : `<div class="detail-empty">← Select a build to see progress and logs</div>`;
+
+  return `<div class="layout">
+    <div class="list-pane">${listHtml}</div>
+    <div class="detail-pane" id="detail-pane">${detailHtml}</div>
+  </div>`;
+}
+
+async function renderBuildDetail(buildId) {
+  let build, events, logs;
+  try { build = await api(`/v1/builds/${buildId}`); } catch { return `<div class="detail-empty">Build not found.</div>`; }
+  try { events = await api(`/v1/builds/${buildId}/events?limit=200`); } catch { events = []; }
+  try { logs = await api(`/v1/builds/${buildId}/logs?limit=200`); } catch { logs = []; }
+  detailCache[buildId] = { events };
+
+  const plan = extractPlan(events);
+  const steps = computeStepStates(plan, events);
+  const total = steps.length;
+  const doneCount = steps.filter(s => s.status === 'done').length;
+  const failedCount = steps.filter(s => s.status === 'failed').length;
+  const runningStep = steps.find(s => s.status === 'running');
+  const pct = total ? Math.round((doneCount + failedCount) / total * 100) : (build.status === 'success' ? 100 : 5);
+  const fillClass = {success:'fill-success', failed:'fill-failed', running:'fill-running', queued:'fill-queued'}[build.status] || 'fill-queued';
+  const startedAt = buildStartedAt(events);
+  const elap = elapsed(startedAt);
+  const estEta = eta(events, plan);
+  const errors = buildErrors(events);
+  const isActive = build.status === 'running' || build.status === 'queued';
+
+  // step icons
+  function stepIcon(s) {
+    if (s.status === 'done') return '<span class="step-done">✓</span>';
+    if (s.status === 'failed') return '<span class="step-failed">✕</span>';
+    if (s.status === 'running') return '<span class="step-running spin">◌</span>';
+    return '<span style="color:var(--border)">○</span>';
+  }
+
+  const stepsHtml = steps.length ? steps.map(s => {
+    const dur = s.startedAt ? fmtDur(s.startedAt, s.endedAt) : null;
+    return `<div class="step">
+      <span class="step-icon">${stepIcon(s)}</span>
+      <span class="step-name step-${s.status}">${s.name}${s.error ? ` <span style="color:var(--red);font-size:11px">— ${s.error}</span>` : ''}</span>
+      ${dur ? `<span class="step-dur">${dur}</span>` : ''}
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px">No job steps yet — build is queued.</div>';
+
+  // event class
+  function evClass(type) {
+    if (type.includes('fail') || type.includes('error')) return 'ev-error';
+    if (type === 'build.plan') return 'ev-plan';
+    if (type.includes('start')) return 'ev-started';
+    if (type.includes('complet') || type.includes('done')) return 'ev-done';
+    return 'ev-queued';
+  }
+
+  function evSummary(ev) {
+    const p = ev.payload || {};
+    if (ev.event_type === 'build.plan') {
+      return `${(p.required_jobs||[]).length} jobs planned · ${(p.missing_artifacts||[]).length} artifacts missing`;
+    }
+    if (ev.event_type === 'build.queued') return `job_id: ${(p.job_id||'').slice(0,8)}`;
+    if (p.error) return p.error;
+    if (p.job_name) return p.job_name;
+    if (p.resolution_hash) return p.resolution_hash.replace('sha256:','').slice(0,16);
+    return '';
+  }
+
+  const eventsHtml = events.length ? events.map(ev => `
+    <div class="event-row">
+      <span class="event-ts">${ev.ts ? ev.ts.slice(11,19) : '—'}</span>
+      <span class="event-type ${evClass(ev.event_type)}">${ev.event_type}</span>
+      <span class="event-payload">${evSummary(ev)}</span>
+    </div>`).join('') : '<div style="color:var(--muted);font-size:13px">No events yet.</div>';
+
+  // logs
+  const logsHtml = logs.length
+    ? `<div class="log-block">${logs.map(l => {
+        const lvl = (l.level||'').toUpperCase();
+        const col = lvl === 'ERROR' ? 'var(--red)' : lvl === 'WARN' ? 'var(--yellow)' : 'var(--fg)';
+        return `<span style="color:${col}">[${lvl||'LOG'}] ${l.message || JSON.stringify(l)}</span>`;
+      }).join('\n')}</div>`
+    : '<div class="log-empty">No log lines yet.</div>';
+
+  const errorsHtml = errors.length ? `<div class="error-box">
+    ${errors.map(e => `<div>⚠ <b>${e.event_type}</b>: ${e.payload?.error || JSON.stringify(e.payload)}</div>`).join('')}
+  </div>` : '';
+
+  return `
+    <div class="detail-header">
+      <div class="detail-title">${build.distribution || '?'}/${build.profile || '?'} ${badge(build.status)}</div>
+      <div class="detail-sub">${build.id} · ${build.board || '—'} · ${build.arch || '—'}</div>
+      <div class="detail-sub" style="margin-top:2px;font-family:inherit;font-size:11px;color:var(--muted)">${(build.resolution_hash||'').replace('sha256:','sha256:').slice(0,24)}</div>
+      <div class="detail-stats">
+        <div class="stat">
+          <div class="stat-val ${pct===100 && !failedCount ? 'green' : failedCount ? 'red' : 'yellow'}">${pct}%</div>
+          <div class="stat-lbl">Progress</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">${doneCount}/${total}</div>
+          <div class="stat-lbl">Jobs done</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">${elap}</div>
+          <div class="stat-lbl">Elapsed</div>
+        </div>
+        ${estEta ? `<div class="stat"><div class="stat-val yellow">~${estEta}</div><div class="stat-lbl">ETA</div></div>` : ''}
+        ${failedCount ? `<div class="stat"><div class="stat-val red">${failedCount}</div><div class="stat-lbl">Failed</div></div>` : ''}
+      </div>
+      ${isActive ? `<div style="margin-top:8px;display:flex;gap:8px">
+        <button class="act" onclick="refreshDetail('${buildId}')">↻ Refresh</button>
+        <button class="cancel-btn" onclick="cancelBuild('${buildId}')">✕ Cancel</button>
+      </div>` : ''}
+    </div>
+
+    <div class="big-progress">
+      <div class="big-progress-bar"><div class="big-progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+      <div class="big-progress-label">
+        <span>${runningStep ? `Running: ${runningStep.name}` : (build.status === 'queued' ? 'Waiting for worker…' : build.status)}</span>
+        <span>${doneCount} of ${total || '?'} jobs</span>
+      </div>
+    </div>
+
+    ${errorsHtml}
+
+    <div class="steps-section">
+      <div class="steps-title">Build steps</div>
+      ${stepsHtml}
+    </div>
+
+    <div class="events-section">
+      <div class="steps-title">Events timeline</div>
+      ${eventsHtml}
+    </div>
+
+    <div class="logs-section">
+      <div class="steps-title">Logs</div>
+      ${logsHtml}
+    </div>`;
+}
+
+// ── simple tabs ───────────────────────────────────────────────────────────────
+function simpleTable(headers, rows) {
+  if (!rows.length) return `<div class="empty">No records.</div>`;
+  const head = headers.map(h => `<th class="${h.mono?'mono':''}">${h.label}</th>`).join('');
+  const body = rows.map(r => `<tr>${r.map((c,i)=>`<td class="${headers[i].mono?'mono':''}">${c}</td>`).join('')}</tr>`).join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+const simpleRenderers = {
+  async artifacts() {
+    const data = await api('/v1/artifacts?limit=100');
+    return simpleTable(
+      [{label:'Kind'},{label:'Name'},{label:'Arch'},{label:'SHA256',mono:true},{label:'Size'}],
+      data.map(a => [a.kind, a.name, a.arch||'—', (a.blob_sha256||'').slice(0,16), fmtSize(a.size_bytes)])
+    );
+  },
+  async distributions() {
+    const data = await api('/v1/distributions');
+    const links = `<p><a href="/distributions" style="color:var(--accent)">→ Distribution Designer</a>
+      &nbsp;·&nbsp; <a href="/profiles" style="color:var(--accent)">Profile Designer</a>
+      &nbsp;·&nbsp; <a href="/packages" style="color:var(--accent)">Package Workspace</a></p>`;
+    return links + simpleTable(
+      [{label:'Name'},{label:'Class'},{label:'Channel'},{label:'Profiles'}],
+      data.map(d => [d.name, d.class||'—', d.default_channel, d.profile_count])
+    );
+  },
+  async boards() {
+    const data = await api('/v1/catalog/boards');
+    return simpleTable(
+      [{label:'Name'},{label:'Arch'},{label:'Boot'},{label:'Firmware'}],
+      data.map(b => [b.name, b.arch, b.boot_scheme, b.firmware_required?'yes':'no'])
+    );
+  },
+  async workers() {
+    const data = await api('/v1/workers');
+    return simpleTable(
+      [{label:'Hostname'},{label:'Enabled'},{label:'Kinds'},{label:'Last seen'}],
+      data.map(w => [
+        w.hostname, w.enabled?'<span style="color:var(--green)">●</span> yes':'no',
+        `<span style="font-size:11px">${(w.kinds||[]).join(', ')||'*'}</span>`,
+        fmtDate(w.last_seen_at),
+      ])
+    );
+  },
+};
+
+// ── actions ───────────────────────────────────────────────────────────────────
+async function selectBuild(id) {
+  selectedBuildId = id;
+  if (currentTab === 'builds') {
+    await refreshAll();
+    // scroll detail to top
+    const dp = document.getElementById('detail-pane');
+    if (dp) dp.scrollTop = 0;
+  }
+}
+
+async function refreshDetail(id) {
+  delete detailCache[id];
+  const dp = document.getElementById('detail-pane');
+  if (dp) {
+    dp.innerHTML = '<div class="detail-empty"><span class="spin">◌</span> Loading…</div>';
+    dp.innerHTML = await renderBuildDetail(id);
+  }
+  // also refresh build row
+  const build = buildsCache.find(b => b.id === id);
+  if (build) {
+    const rows = document.querySelectorAll('.build-row');
+    // just reload full list pane
+    const lp = document.querySelector('.list-pane');
+    if (lp) {
+      const updatedBuilds = await api('/v1/builds?limit=50');
+      buildsCache = updatedBuilds;
+      const updatedBuild = updatedBuilds.find(b => b.id === id);
+      if (updatedBuild) {
+        const events = detailCache[id]?.events || [];
+        lp.innerHTML = `
+          <div class="list-header">
+            <span class="list-header-title">Builds (${updatedBuilds.length})</span>
+            <a href="/build/new" class="act" style="text-decoration:none;font-size:12px;">+ New Build</a>
+          </div>
+          ${updatedBuilds.map(b => renderBuildRow(b, detailCache[b.id]?.events)).join('')}`;
       }
     }
+  }
+}
 
-    document.querySelectorAll("nav button").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentTab = btn.dataset.tab;
-        loadCurrent();
-      });
-    });
+async function cancelBuild(id) {
+  if (!confirm('Cancel this build?')) return;
+  await fetch(`/v1/builds/${id}/cancel`, {method:'POST'});
+  await refreshDetail(id);
+}
 
-    (async () => {
-      try {
-        const h = await api("/healthz");
-        const m = await fetch("/metrics").then(r => r.text());
-        const ver = (m.match(/version="([^"]+)"/) || [])[1] || "";
-        document.getElementById("version").textContent = ver ? `v${ver}` : "";
-      } catch {}
-      loadCurrent();
-    })();
-  </script>
+// ── main render ───────────────────────────────────────────────────────────────
+async function renderApp() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  if (currentTab === 'builds') {
+    try {
+      app.innerHTML = await renderBuildsTab();
+    } catch(e) {
+      app.innerHTML = `<div class="detail-empty">Error: ${e.message}</div>`;
+    }
+  } else {
+    app.innerHTML = '<div class="simple-view"><div class="empty"><span class="spin">◌</span> Loading…</div></div>';
+    try {
+      const html = await simpleRenderers[currentTab]();
+      app.innerHTML = `<div class="simple-view">${html}</div>`;
+    } catch(e) {
+      app.innerHTML = `<div class="simple-view"><div class="empty">Error: ${e.message}</div></div>`;
+    }
+  }
+
+  // auto-refresh if active builds present
+  clearTimeout(autoRefreshTimer);
+  if (currentTab === 'builds') {
+    const hasActive = buildsCache.some(b => b.status === 'running' || b.status === 'queued');
+    if (hasActive) {
+      autoRefreshTimer = setTimeout(async () => {
+        if (selectedBuildId) await refreshDetail(selectedBuildId);
+        else await renderApp();
+      }, 4000);
+    }
+  }
+}
+
+async function refreshAll() {
+  detailCache = {};
+  await renderApp();
+}
+
+// ── nav ───────────────────────────────────────────────────────────────────────
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTab = btn.dataset.tab;
+    selectedBuildId = null;
+    clearTimeout(autoRefreshTimer);
+    renderApp();
+  });
+});
+
+// ── init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const m = await fetch('/metrics').then(r => r.text());
+    const ver = (m.match(/version="([^"]+)"/) || [])[1] || '';
+    if (ver) document.getElementById('version').textContent = 'v' + ver;
+  } catch {}
+  renderApp();
+})();
+</script>
 </body>
 </html>
