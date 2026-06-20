@@ -146,7 +146,7 @@ def fetch_and_extract_toolchain(
         )
         if existing_ta is not None:
             artifact = session.get(Artifact, existing_ta.artifact_id)
-            blob = blob_path(store_root, artifact.sha256) if artifact else None
+            blob = blob_path(store_root, artifact.blob_sha256) if artifact else None
         else:
             blob = None
 
@@ -182,7 +182,7 @@ def fetch_and_extract_toolchain(
                     )
                 )
                 session.commit()
-        blob = blob_path(store_root, artifact.sha256)
+        blob = blob_path(store_root, artifact.blob_sha256)
 
     # Extract tarball.
     extract_dir.mkdir(parents=True, exist_ok=True)

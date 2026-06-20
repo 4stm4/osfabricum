@@ -4,15 +4,15 @@ items:
   - name: aarch64-linux-musl-bootlin
     arch: aarch64
     libc: musl
-    version: "2024.05-1"
+    version: "2024.02-1"
     source_type: bootlin-prebuilt
     metadata:
-      download_url: "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2024.05-1.tar.bz2"
+      download_url: "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2024.02-1.tar.bz2"
 
   - name: x86_64-linux-musl-bootlin
     arch: x86_64
     libc: musl
-    version: "2024.05-1"
+    version: "2024.02-1"
     source_type: bootlin-prebuilt
     metadata:
-      download_url: "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--musl--stable-2024.05-1.tar.bz2"
+      download_url: "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--musl--stable-2024.02-1.tar.bz2"
