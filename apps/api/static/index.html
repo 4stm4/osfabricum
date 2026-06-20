@@ -166,10 +166,15 @@ function fmtSize(n) {
   return (n / 1048576).toFixed(1) + ' MB';
 }
 
+function parseUTC(s) {
+  if (!s) return new Date(NaN);
+  return new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z');
+}
+
 function fmtDur(startIso, endIso) {
   if (!startIso) return null;
-  const start = new Date(startIso).getTime();
-  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const start = parseUTC(startIso).getTime();
+  const end = endIso ? parseUTC(endIso).getTime() : Date.now();
   const s = Math.floor((end - start) / 1000);
   if (s < 60) return s + 's';
   return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
@@ -177,7 +182,7 @@ function fmtDur(startIso, endIso) {
 
 function elapsed(isoStart) {
   if (!isoStart) return '—';
-  const s = Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
+  const s = Math.floor((Date.now() - parseUTC(isoStart).getTime()) / 1000);
   if (s < 60) return s + 's';
   if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
   return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
@@ -254,7 +259,7 @@ function eta(events, plan) {
   if (!done) return null;
   const start = buildStartedAt(events);
   if (!start) return null;
-  const elapsedS = (Date.now() - new Date(start).getTime()) / 1000;
+  const elapsedS = (Date.now() - parseUTC(start).getTime()) / 1000;
   const perJob = elapsedS / done;
   const remaining = (total - done) * perJob;
   if (remaining < 0) return null;
@@ -316,10 +321,11 @@ async function renderBuildsTab() {
 }
 
 async function renderBuildDetail(buildId) {
-  let build, events, logs;
+  let build, events, logs, artifacts;
   try { build = await api(`/v1/builds/${buildId}`); } catch { return `<div class="detail-empty">Build not found.</div>`; }
   try { events = await api(`/v1/builds/${buildId}/events?limit=200`); } catch { events = []; }
   try { logs = await api(`/v1/builds/${buildId}/logs?limit=200`); } catch { logs = []; }
+  try { artifacts = await api(`/v1/builds/${buildId}/artifacts`); } catch { artifacts = []; }
   detailCache[buildId] = { events };
 
   const plan = extractPlan(events);
@@ -329,7 +335,7 @@ async function renderBuildDetail(buildId) {
   const doneCount = steps.filter(s => s.status === 'done').length;
   const failedCount = steps.filter(s => s.status === 'failed').length;
   const runningStep = steps.find(s => s.status === 'running');
-  const pct = total ? Math.round((doneCount + failedCount) / total * 100) : (build.status === 'success' ? 100 : 5);
+  const pct = build.status === 'success' ? 100 : total ? Math.round((doneCount + failedCount) / total * 100) : 5;
   const fillClass = {success:'fill-success', failed:'fill-failed', running:'fill-running', queued:'fill-queued'}[build.status] || 'fill-queued';
   const startedAt = buildStartedAt(events);
   const elap = elapsed(startedAt);
@@ -424,6 +430,19 @@ async function renderBuildDetail(buildId) {
         <button class="act" onclick="refreshDetail('${buildId}')">↻ Refresh</button>
         <button class="cancel-btn" onclick="cancelBuild('${buildId}')">✕ Cancel</button>
       </div>` : ''}
+      ${(() => {
+        const imgArt = (artifacts || []).find(a => a.kind === 'image');
+        if (!imgArt) return '';
+        const ext = {
+          'application/gzip': '.img.gz',
+          'application/x-xz': '.img.xz',
+        }[imgArt.media_type] || '';
+        const label = imgArt.name ? `${imgArt.name}${ext}` : 'image';
+        const size = imgArt.size_bytes ? ` (${fmtBytes(imgArt.size_bytes)})` : '';
+        return `<div style="margin-top:8px">
+          <a class="act" style="text-decoration:none;display:inline-block" href="/v1/artifacts/${imgArt.id}/download" download="${label}">⬇ Download ${label}${size}</a>
+        </div>`;
+      })()}
     </div>
 
     <div class="big-progress">

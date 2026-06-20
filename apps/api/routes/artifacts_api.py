@@ -2,18 +2,22 @@
 
 GET /v1/artifacts           — search artifacts
 GET /v1/artifacts/{id}      — artifact metadata
+GET /v1/artifacts/{id}/download — download artifact blob
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
+from osfabricum.store.layout import blob_path
 
 router = APIRouter(prefix="/v1/artifacts", tags=["artifacts"])
 
@@ -81,6 +85,31 @@ def get_artifact(artifact_id: str, request: Request) -> ArtifactItem:
         if art is None:
             raise HTTPException(status_code=404, detail=f"Artifact {artifact_id!r} not found")
         return _to_item(art)
+
+
+@router.get("/{artifact_id}/download")
+def download_artifact(artifact_id: str, request: Request) -> FileResponse:
+    """Download artifact blob as a file."""
+    db_url = _db(request)
+    try:
+        store_root = Path(request.app.state.settings.store.root)
+    except AttributeError:
+        raise HTTPException(status_code=503, detail="Store not configured")
+    with sync_session(db_url) as session:
+        art = session.scalar(select(Artifact).where(Artifact.id == artifact_id))
+        if art is None:
+            raise HTTPException(status_code=404, detail=f"Artifact {artifact_id!r} not found")
+        path = blob_path(store_root, art.blob_sha256)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Blob file not found in store")
+        _ext = {"application/gzip": ".img.gz", "application/x-xz": ".img.xz"}
+        ext = _ext.get(art.media_type or "", "")
+        filename = f"{art.name}{ext}" if art.name else artifact_id
+        return FileResponse(
+            path=str(path),
+            filename=filename,
+            media_type=art.media_type or "application/octet-stream",
+        )
 
 
 def _to_item(art: Artifact) -> ArtifactItem:
