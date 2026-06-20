@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reference Distributions — OSFabricum</title>
+  <style>
+    :root { --accent: #4e342e; --accent-light: #795548; --bg: #fbe9e7; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #212121; }
+    header { background: var(--accent); color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { margin: 0; font-size: 1.3rem; }
+    nav { display: flex; gap: 0; border-bottom: 2px solid var(--accent); background: #fff; padding: 0 16px; }
+    nav button { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 0.95rem; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    nav button.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .tab { display: none; padding: 24px; }
+    .tab.active { display: block; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 16px; }
+    .dist-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .dist-name { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+    .badge { background: var(--accent); color: #fff; border-radius: 4px; padding: 2px 10px; font-size: 0.78rem; }
+    .meta { font-size: 0.85rem; color: #666; margin: 4px 0; }
+    .stat-row { display: flex; gap: 24px; margin-top: 12px; }
+    .stat { text-align: center; }
+    .stat .val { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat .lbl { font-size: 0.75rem; color: #888; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 8px 12px; background: #efebe9; font-size: 0.85rem; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0e9e7; font-size: 0.9rem; vertical-align: top; }
+    .pkg-list { font-size: 0.8rem; color: #555; }
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; }
+    .btn:hover { background: var(--accent-light); }
+    select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .valid-ok { color: #2e7d32; font-weight: 600; }
+    .valid-fail { color: #c62828; font-weight: 600; }
+    pre { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 12px; font-size: 0.82rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+<header>
+  <div>📦</div>
+  <h1>Reference Distributions</h1>
+</header>
+<nav>
+  <button class="active" onclick="showTab('overview')">Overview</button>
+  <button onclick="showTab('profiles')">Profiles</button>
+  <button onclick="showTab('validate')">Validate</button>
+</nav>
+
+<!-- Tab: Overview -->
+<div id="tab-overview" class="tab active">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <strong>Reference Distributions</strong>
+      <button class="btn" onclick="loadOverview()">Refresh</button>
+    </div>
+    <div id="dist-list"></div>
+  </div>
+</div>
+
+<!-- Tab: Profiles -->
+<div id="tab-profiles" class="tab">
+  <div class="card">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+      <select id="prof-dist-select">
+        <option value="tinywifi">TinyWifi</option>
+        <option value="netos">NetOS</option>
+        <option value="ocultum">Ocultum</option>
+      </select>
+      <button class="btn" onclick="loadProfiles()">Load Profiles</button>
+    </div>
+    <div id="profiles-result"></div>
+  </div>
+</div>
+
+<!-- Tab: Validate -->
+<div id="tab-validate" class="tab">
+  <div class="card">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+      <select id="val-dist-select">
+        <option value="tinywifi">TinyWifi</option>
+        <option value="netos">NetOS</option>
+        <option value="ocultum">Ocultum</option>
+      </select>
+      <button class="btn" onclick="validateDist()">Validate</button>
+    </div>
+    <div id="validate-result"></div>
+  </div>
+</div>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  async function loadOverview() {
+    try {
+      const res = await fetch('/v1/refdist');
+      const dists = await res.json();
+      const el = document.getElementById('dist-list');
+      if (!Array.isArray(dists) || dists.length === 0) {
+        el.innerHTML = '<p style="color:#888">No reference distributions seeded yet. Run migrations 0045–0047.</p>';
+        return;
+      }
+      el.innerHTML = dists.map(d => `
+        <div class="card" style="margin-bottom:12px;">
+          <div class="dist-header">
+            <span class="dist-name">${d.name}</span>
+            <span class="badge">${d.class_name || '-'}</span>
+          </div>
+          <div class="meta">${d.description || ''}</div>
+          <div class="meta">channel: <strong>${d.default_channel || 'dev'}</strong></div>
+          <div class="stat-row">
+            <div class="stat"><div class="val">${d.profiles.length}</div><div class="lbl">Profiles</div></div>
+            <div class="stat"><div class="val">${d.group_count}</div><div class="lbl">Groups</div></div>
+            <div class="stat"><div class="val">${d.set_count}</div><div class="lbl">Sets</div></div>
+            <div class="stat"><div class="val">${d.package_count}</div><div class="lbl">Packages</div></div>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      document.getElementById('dist-list').innerHTML = '<p style="color:red">Error loading distributions.</p>';
+    }
+  }
+
+  async function loadProfiles() {
+    const name = document.getElementById('prof-dist-select').value;
+    const el = document.getElementById('profiles-result');
+    el.innerHTML = 'Loading…';
+    try {
+      const res = await fetch(`/v1/refdist/${name}/profiles`);
+      if (!res.ok) { el.innerHTML = `<p style="color:red">${res.status} ${res.statusText}</p>`; return; }
+      const profiles = await res.json();
+      el.innerHTML = `
+        <table>
+          <thead><tr><th>Profile</th><th>Board</th><th>Arch</th><th>Kernel</th><th>Toolchain</th><th>Packages</th></tr></thead>
+          <tbody>${profiles.map(p => `
+            <tr>
+              <td><strong>${p.name}</strong></td>
+              <td>${p.board_name || '-'}</td>
+              <td>${p.arch_name || '-'}</td>
+              <td>${p.kernel_name || '-'}</td>
+              <td>${p.toolchain_name || '-'}</td>
+              <td class="pkg-list">${(p.packages || []).join(', ') || '-'}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>`;
+    } catch(e) {
+      el.innerHTML = '<p style="color:red">Error loading profiles.</p>';
+    }
+  }
+
+  async function validateDist() {
+    const name = document.getElementById('val-dist-select').value;
+    const el = document.getElementById('validate-result');
+    el.innerHTML = 'Validating…';
+    try {
+      const res = await fetch(`/v1/refdist/${name}/validate`);
+      const data = await res.json();
+      const ok = data.valid;
+      el.innerHTML = `
+        <p class="${ok ? 'valid-ok' : 'valid-fail'}">${ok ? '✅ Valid' : '❌ Invalid'}</p>
+        <pre>${JSON.stringify(data, null, 2)}</pre>`;
+    } catch(e) {
+      el.innerHTML = '<p style="color:red">Error during validation.</p>';
+    }
+  }
+
+  loadOverview();
+</script>
+</body>
+</html>

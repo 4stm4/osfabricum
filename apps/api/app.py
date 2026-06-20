@@ -34,6 +34,7 @@ from apps.api.routes.bootprofiler_api import router as bootprofiler_router
 from apps.api.routes.workerpool_api import router as workerpool_router
 from apps.api.routes.isolation_api import router as isolation_router
 from apps.api.routes.repository_api import router as repository_router
+from apps.api.routes.refdist_api import router as refdist_router
 from apps.api.routes.services_api import router as services_router
 from apps.api.routes.users_api import router as users_router
 from apps.api.routes.artifacts_api import router as artifacts_router
@@ -163,6 +164,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(isolation_router)
     # M69: repository / release publishing
     app.include_router(repository_router)
+    # Phase 5 M71-M73: reference distributions
+    app.include_router(refdist_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -403,6 +406,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/repositories", include_in_schema=False)
         def repositories_page() -> FileResponse:
             return FileResponse(str(_STATIC_DIR / "releases.html"))
+
+        @app.get("/refdist", include_in_schema=False)
+        def refdist_page() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "refdist.html"))
 
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

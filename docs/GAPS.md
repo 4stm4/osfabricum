@@ -560,6 +560,31 @@ Severity scale:
   the `osfabricumctl layers` CLI (kind-list / list / create / entry-add / render)
   and the `/layers` designer UI page (4 tabs: Profiles, Layer Kinds, Entries,
   Render). 45 unit tests, all passing.
+- **M73 (Ocultum Reference Distribution) done.** `seed_ocultum_reference` seeds
+  distribution (class=mobile-handheld), 14 packages (busybox/systemd/wayland/weston/
+  pipewire/modem-manager/network-manager/calls-app/contacts-app/messages-app/phosh/
+  glib2/gtk4/wireplumber), 5 groups (ocultum-base/ui/audio/telephony/apps), 3 sets
+  (communicator/minimal/dev), 3 profiles (aarch64). Migration `0047_ocultum_reference`
+  (down_revision=0046). 39 unit tests total across M71-M73, all passing.
+
+- **M72 (NetOS Reference Distribution) done.** `seed_netos_reference` seeds
+  distribution (class=server), 11 packages (busybox/openssh/nftables/frr/ovs-vswitchd/
+  ovsdb-server/strongswan/curl/systemd/python3/netdata), 5 groups (netos-base/network/
+  sdn/security/monitoring), 3 sets (nervum/testum/ovsdb), 3 profiles (qemu-x86_64).
+  Migration `0046_netos_reference` (down_revision=0045).
+
+- **M71 (TinyWifi Reference Distribution) done.** Catalog YAML loaders:
+  `seed_architectures_from_yaml`, `seed_boards_from_yaml`, `seed_toolchains_from_yaml`,
+  `seed_kernels_from_yaml`, `seed_distributions_from_yaml` (from `catalog/seed/*.yaml`).
+  `seed_tinywifi_reference` seeds distribution (class=router), 7 packages
+  (busybox/dropbear/hostapd/wpa_supplicant/nftables/nanodhcp/webui-agent), 4 groups,
+  1 package set (tinywifi-default), 1 profile (default, board=rpi-zero-2w, aarch64).
+  Migration `0045_tinywifi_reference` (down_revision=0044). Service `osfabricum/refdist/service.py`
+  with `list_reference_distributions`, `get_reference_distribution`, `list_reference_profiles`,
+  `validate_reference_distribution`. API: `GET /v1/refdist`, `/v1/refdist/{name}`,
+  `/v1/refdist/{name}/profiles`, `/v1/refdist/{name}/validate`. CLI: `osfabricumctl refdist
+  list/show/profiles/validate`. UI: `/refdist` page (3 tabs, brown #4e342e).
+
 - **M69 (Public Artifact Repository / Release Publishing) done.** Five new tables:
   `release_channels` (seeded — 5 channels: stable/testing/nightly/lts/dev),
   `repositories` (name UNIQUE / repo_kind: package|image|firmware|release / base_url / sign_key_id / is_published),

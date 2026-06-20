@@ -4,11 +4,14 @@ items:
   - name: tinywifi
     description: Minimal Wi-Fi access point OS
     default_channel: dev
+    class: router
 
   - name: netos
-    description: NetOS network operating system
+    description: NetOS network operating system — infrastructure/SDN server class
     default_channel: dev
+    class: server
 
   - name: ocultum
-    description: Ocultum secure OS
+    description: Ocultum secure mobile OS — mobile/handheld class
     default_channel: dev
+    class: mobile-handheld

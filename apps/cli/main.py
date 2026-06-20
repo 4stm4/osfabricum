@@ -38,6 +38,7 @@ from apps.cli.commands.bootprofiler_cmd import bootprofiler_app
 from apps.cli.commands.workerpool_cmd import workerpool_app
 from apps.cli.commands.isolation_cmd import isolation_app
 from apps.cli.commands.repository_cmd import repository_app
+from apps.cli.commands.refdist_cmd import refdist_app
 from apps.cli.commands.network import network_app
 from apps.cli.commands.services import services_app
 from apps.cli.commands.users import users_app
@@ -301,6 +302,7 @@ def _register_groups() -> None:
     app.add_typer(workerpool_app, name="worker-pool")
     app.add_typer(isolation_app, name="isolation")
     app.add_typer(repository_app, name="releases")
+    app.add_typer(refdist_app, name="refdist")
 
 
 _register_groups()

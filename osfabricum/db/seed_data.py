@@ -1788,3 +1788,643 @@ def seed_release_channels(session: "Session") -> int:
     if inserted:
         session.flush()
     return inserted
+
+# ---------------------------------------------------------------------------
+# Phase 5 — Reference Distribution Catalog Loaders
+# ---------------------------------------------------------------------------
+
+from osfabricum.db.models import (
+    Architecture,
+    Toolchain,
+    Kernel,
+    Distribution,
+    Package,
+    PackageVersion,
+    PackageGroup,
+    PackageGroupMember,
+    PackageSet,
+    PackageSetMember,
+    Profile,
+)
+
+
+def seed_architectures_from_yaml(session: "Session", yaml_path: Path | None = None) -> int:
+    """Insert architectures from catalog/seed/architectures.yaml (idempotent)."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parents[2] / "catalog" / "seed" / "architectures.yaml"
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        return 0
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    existing = {a.name for a in session.scalars(select(Architecture)).all()}
+    added = 0
+    for item in (data or {}).get("items", []):
+        name = item["name"]
+        if name in existing:
+            continue
+        session.add(Architecture(id=str(uuid4()), name=name))
+        existing.add(name)
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_boards_from_yaml(session: "Session", yaml_path: Path | None = None) -> int:
+    """Insert boards from catalog/seed/boards.yaml (idempotent)."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parents[2] / "catalog" / "seed" / "boards.yaml"
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        return 0
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    existing = {b.name for b in session.scalars(select(Board)).all()}
+    added = 0
+    for item in (data or {}).get("items", []):
+        name = item["name"]
+        if name in existing:
+            continue
+        arch_id = arch_map.get(item.get("arch", ""))
+        if not arch_id:
+            continue
+        session.add(Board(
+            id=str(uuid4()), name=name, arch_id=arch_id,
+            boot_scheme=item.get("boot_scheme", "direct-kernel"),
+            firmware_required=item.get("firmware_required", False),
+            metadata_json=item.get("metadata"),
+        ))
+        existing.add(name)
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_toolchains_from_yaml(session: "Session", yaml_path: Path | None = None) -> int:
+    """Insert toolchains from catalog/seed/toolchains.yaml (idempotent)."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parents[2] / "catalog" / "seed" / "toolchains.yaml"
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        return 0
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    existing = {t.name for t in session.scalars(select(Toolchain)).all()}
+    added = 0
+    for item in (data or {}).get("items", []):
+        name = item["name"]
+        if name in existing:
+            continue
+        arch_id = arch_map.get(item.get("arch", ""))
+        if not arch_id:
+            continue
+        session.add(Toolchain(
+            id=str(uuid4()), name=name, arch_id=arch_id,
+            libc=item.get("libc", "musl"),
+            version=item.get("version", ""),
+            source_type=item.get("source_type", "bootlin-prebuilt"),
+            metadata_json=item.get("metadata"),
+        ))
+        existing.add(name)
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_kernels_from_yaml(session: "Session", yaml_path: Path | None = None) -> int:
+    """Insert kernels from catalog/seed/kernels.yaml (idempotent)."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parents[2] / "catalog" / "seed" / "kernels.yaml"
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        return 0
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    existing = {
+        (k.name, k.version, k.arch_id)
+        for k in session.scalars(select(Kernel)).all()
+    }
+    added = 0
+    for item in (data or {}).get("items", []):
+        arch_id = arch_map.get(item.get("arch", ""))
+        if not arch_id:
+            continue
+        name = item["name"]
+        version = item.get("version", "")
+        key = (name, version, arch_id)
+        if key in existing:
+            continue
+        board_id = board_map.get(item.get("board", ""))
+        session.add(Kernel(
+            id=str(uuid4()), name=name, version=version, arch_id=arch_id,
+            board_id=board_id,
+            source_uri=item.get("source_uri"),
+            source_ref=item.get("source_ref"),
+            metadata_json=item.get("metadata"),
+        ))
+        existing.add(key)
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def seed_distributions_from_yaml(
+    session: "Session",
+    yaml_path: Path | None = None,
+    class_name: str | None = None,
+) -> int:
+    """Insert distributions from catalog/seed/distributions.yaml (idempotent)."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parents[2] / "catalog" / "seed" / "distributions.yaml"
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        return 0
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f)
+    class_map = {
+        c.name: c.id
+        for c in session.scalars(select(DistributionClass)).all()
+    }
+    existing = {d.name for d in session.scalars(select(Distribution)).all()}
+    added = 0
+    for item in (data or {}).get("items", []):
+        name = item["name"]
+        if name in existing:
+            continue
+        cname = item.get("class", class_name)
+        cid = class_map.get(cname) if cname else None
+        session.add(Distribution(
+            id=str(uuid4()), name=name,
+            description=item.get("description"),
+            default_channel=item.get("default_channel", "dev"),
+            class_id=cid,
+        ))
+        existing.add(name)
+        added += 1
+    if added:
+        session.flush()
+    return added
+
+
+def _get_or_create_package(session: "Session", name: str, kind: str = "system", layer: str = "system") -> "Package":
+    """Get an existing package by name or create it (idempotent)."""
+    pkg = session.scalars(select(Package).where(Package.name == name)).first()
+    if pkg is None:
+        pkg = Package(id=str(uuid4()), name=name, kind=kind, layer=layer)
+        session.add(pkg)
+        session.flush()
+    return pkg
+
+
+def _get_or_create_package_version(
+    session: "Session", pkg: "Package", version: str, arch_id: str
+) -> "PackageVersion":
+    existing = session.scalars(
+        select(PackageVersion).where(
+            PackageVersion.package_id == pkg.id,
+            PackageVersion.version == version,
+            PackageVersion.arch_id == arch_id,
+        )
+    ).first()
+    if existing is None:
+        existing = PackageVersion(
+            id=str(uuid4()), package_id=pkg.id,
+            version=version, arch_id=arch_id, status="available",
+        )
+        session.add(existing)
+        session.flush()
+    return existing
+
+
+def _get_or_create_package_group(
+    session: "Session", name: str, dist_id: str, description: str = ""
+) -> "PackageGroup":
+    grp = session.scalars(
+        select(PackageGroup).where(
+            PackageGroup.distribution_id == dist_id,
+            PackageGroup.name == name,
+        )
+    ).first()
+    if grp is None:
+        grp = PackageGroup(
+            id=str(uuid4()), name=name,
+            distribution_id=dist_id, description=description,
+        )
+        session.add(grp)
+        session.flush()
+    return grp
+
+
+def _add_package_to_group(session: "Session", group: "PackageGroup", pkg: "Package") -> None:
+    exists = session.scalars(
+        select(PackageGroupMember).where(
+            PackageGroupMember.group_id == group.id,
+            PackageGroupMember.package_id == pkg.id,
+        )
+    ).first()
+    if exists is None:
+        session.add(PackageGroupMember(group_id=group.id, package_id=pkg.id))
+        session.flush()
+
+
+def _get_or_create_package_set(
+    session: "Session", name: str, dist_id: str, description: str = ""
+) -> "PackageSet":
+    ps = session.scalars(
+        select(PackageSet).where(
+            PackageSet.distribution_id == dist_id,
+            PackageSet.name == name,
+        )
+    ).first()
+    if ps is None:
+        ps = PackageSet(
+            id=str(uuid4()), name=name,
+            distribution_id=dist_id, description=description,
+        )
+        session.add(ps)
+        session.flush()
+    return ps
+
+
+def _add_group_to_set(session: "Session", pset: "PackageSet", grp: "PackageGroup") -> None:
+    exists = session.scalars(
+        select(PackageSetMember).where(
+            PackageSetMember.set_id == pset.id,
+            PackageSetMember.member_kind == "group",
+            PackageSetMember.group_id == grp.id,
+        )
+    ).first()
+    if exists is None:
+        session.add(PackageSetMember(
+            id=str(uuid4()), set_id=pset.id,
+            member_kind="group", group_id=grp.id,
+        ))
+        session.flush()
+
+
+def _get_or_create_profile(
+    session: "Session",
+    name: str,
+    dist_id: str,
+    board_id: str | None,
+    kernel_id: str | None,
+    toolchain_id: str | None,
+    package_set_id: str | None,
+) -> "Profile":
+    prof = session.scalars(
+        select(Profile).where(
+            Profile.distribution_id == dist_id,
+            Profile.name == name,
+        )
+    ).first()
+    if prof is None:
+        prof = Profile(
+            id=str(uuid4()), name=name, distribution_id=dist_id,
+            board_id=board_id, kernel_id=kernel_id,
+            toolchain_id=toolchain_id, package_set_id=package_set_id,
+        )
+        session.add(prof)
+        session.flush()
+    else:
+        updated = False
+        for attr, val in [
+            ("board_id", board_id), ("kernel_id", kernel_id),
+            ("toolchain_id", toolchain_id), ("package_set_id", package_set_id),
+        ]:
+            if val is not None and getattr(prof, attr) != val:
+                setattr(prof, attr, val)
+                updated = True
+        if updated:
+            session.flush()
+    return prof
+
+
+# ---------------------------------------------------------------------------
+# M71 — TinyWifi Reference Distribution seed
+# ---------------------------------------------------------------------------
+
+TINYWIFI_PACKAGES: list[tuple[str, str, str]] = [
+    # (name, kind, layer)
+    ("busybox", "system", "base"),
+    ("dropbear", "service", "services"),
+    ("hostapd", "service", "services"),
+    ("wpa_supplicant", "service", "services"),
+    ("nftables", "system", "system"),
+    ("nanodhcp", "service", "services"),
+    ("webui-agent", "service", "services"),
+]
+
+TINYWIFI_GROUPS: dict[str, list[str]] = {
+    "tinywifi-base": ["busybox", "nftables"],
+    "tinywifi-networking": ["nanodhcp", "dropbear"],
+    "tinywifi-wifi": ["hostapd", "wpa_supplicant"],
+    "tinywifi-management": ["webui-agent"],
+}
+
+
+def seed_tinywifi_reference(session: "Session") -> dict[str, int]:
+    """Seed TinyWifi reference distribution (M71). Idempotent."""
+    from sqlalchemy import select
+
+    # Ensure base catalog is present
+    seed_architectures_from_yaml(session)
+    seed_boards_from_yaml(session)
+    seed_toolchains_from_yaml(session)
+    seed_kernels_from_yaml(session)
+    seed_distribution_classes(session)
+
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    kernel_map = {
+        (k.name, k.version): k.id
+        for k in session.scalars(select(Kernel)).all()
+    }
+    toolchain_map = {t.name: t.id for t in session.scalars(select(Toolchain)).all()}
+    dist_map = {d.name: d.id for d in session.scalars(select(Distribution)).all()}
+    class_map = {c.name: c.id for c in session.scalars(select(DistributionClass)).all()}
+
+    counts: dict[str, int] = {"packages": 0, "groups": 0, "profiles": 0}
+
+    # Distribution
+    if "tinywifi" not in dist_map:
+        d = Distribution(
+            id=str(uuid4()), name="tinywifi",
+            description="Minimal Wi-Fi access point OS",
+            default_channel="dev",
+            class_id=class_map.get("router"),
+        )
+        session.add(d)
+        session.flush()
+        dist_map["tinywifi"] = d.id
+    dist_id = dist_map["tinywifi"]
+    # Update class_id if not already set
+    existing_dist = session.get(Distribution, dist_id)
+    if existing_dist and existing_dist.class_id is None:
+        existing_dist.class_id = class_map.get("router")
+        session.flush()
+    arch_id = arch_map.get("aarch64", "")
+
+    # Packages
+    pkg_map: dict[str, Package] = {}
+    for name, kind, layer in TINYWIFI_PACKAGES:
+        pkg = _get_or_create_package(session, name, kind, layer)
+        pkg_map[name] = pkg
+        _get_or_create_package_version(session, pkg, "latest", arch_id)
+        counts["packages"] += 1
+
+    # Package groups
+    group_objs: dict[str, PackageGroup] = {}
+    for gname, members in TINYWIFI_GROUPS.items():
+        grp = _get_or_create_package_group(session, gname, dist_id, f"TinyWifi {gname} packages")
+        for pname in members:
+            if pname in pkg_map:
+                _add_package_to_group(session, grp, pkg_map[pname])
+        group_objs[gname] = grp
+        counts["groups"] += 1
+
+    # Package set
+    pset = _get_or_create_package_set(session, "tinywifi-default", dist_id, "TinyWifi default package set")
+    for grp in group_objs.values():
+        _add_group_to_set(session, pset, grp)
+
+    # Profile: default
+    board_id = board_map.get("rpi-zero-2w")
+    kernel_id = kernel_map.get(("linux-rpi", "6.6.y"))
+    tc_id = toolchain_map.get("aarch64-linux-musl-bootlin")
+    _get_or_create_profile(
+        session, "default", dist_id,
+        board_id=board_id, kernel_id=kernel_id,
+        toolchain_id=tc_id, package_set_id=pset.id,
+    )
+    counts["profiles"] += 1
+    session.flush()
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# M72 — NetOS Reference Distribution seed
+# ---------------------------------------------------------------------------
+
+NETOS_PACKAGES: list[tuple[str, str, str]] = [
+    ("busybox", "system", "base"),
+    ("openssh", "service", "services"),
+    ("nftables", "system", "system"),
+    ("frr", "service", "services"),
+    ("ovs-vswitchd", "service", "services"),
+    ("ovsdb-server", "service", "services"),
+    ("strongswan", "service", "services"),
+    ("curl", "system", "system"),
+    ("systemd", "system", "system"),
+    ("python3", "runtime", "runtime"),
+    ("netdata", "service", "services"),
+]
+
+NETOS_GROUPS: dict[str, list[str]] = {
+    "netos-base": ["busybox", "systemd", "openssh", "curl"],
+    "netos-network": ["nftables", "frr"],
+    "netos-sdn": ["ovs-vswitchd", "ovsdb-server"],
+    "netos-security": ["strongswan"],
+    "netos-monitoring": ["netdata", "python3"],
+}
+
+NETOS_SETS: dict[str, list[str]] = {
+    "netos-nervum": ["netos-base", "netos-network", "netos-security", "netos-monitoring"],
+    "netos-testum": ["netos-base", "netos-network"],
+    "netos-ovsdb": ["netos-base", "netos-network", "netos-sdn", "netos-security"],
+}
+
+
+def seed_netos_reference(session: "Session") -> dict[str, int]:
+    """Seed NetOS reference distribution (M72). Idempotent."""
+    from sqlalchemy import select
+
+    seed_architectures_from_yaml(session)
+    seed_boards_from_yaml(session)
+    seed_toolchains_from_yaml(session)
+    seed_distribution_classes(session)
+
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    toolchain_map = {t.name: t.id for t in session.scalars(select(Toolchain)).all()}
+    dist_map = {d.name: d.id for d in session.scalars(select(Distribution)).all()}
+    class_map = {c.name: c.id for c in session.scalars(select(DistributionClass)).all()}
+
+    counts: dict[str, int] = {"packages": 0, "groups": 0, "sets": 0, "profiles": 0}
+
+    # Distribution
+    if "netos" not in dist_map:
+        d = Distribution(
+            id=str(uuid4()), name="netos",
+            description="NetOS network operating system — infrastructure/SDN server class",
+            default_channel="dev",
+            class_id=class_map.get("server"),
+        )
+        session.add(d)
+        session.flush()
+        dist_map["netos"] = d.id
+    dist_id = dist_map["netos"]
+    existing_dist = session.get(Distribution, dist_id)
+    if existing_dist and existing_dist.class_id is None:
+        existing_dist.class_id = class_map.get("server")
+        session.flush()
+    arch_id = arch_map.get("x86_64", "")
+
+    # Packages
+    pkg_map: dict[str, Package] = {}
+    for name, kind, layer in NETOS_PACKAGES:
+        pkg = _get_or_create_package(session, name, kind, layer)
+        pkg_map[name] = pkg
+        _get_or_create_package_version(session, pkg, "latest", arch_id)
+        counts["packages"] += 1
+
+    # Groups
+    group_objs: dict[str, PackageGroup] = {}
+    for gname, members in NETOS_GROUPS.items():
+        grp = _get_or_create_package_group(session, gname, dist_id, f"NetOS {gname} packages")
+        for pname in members:
+            if pname in pkg_map:
+                _add_package_to_group(session, grp, pkg_map[pname])
+        group_objs[gname] = grp
+        counts["groups"] += 1
+
+    # Package sets + profiles
+    board_id = board_map.get("qemu-x86_64")
+    tc_id = toolchain_map.get("x86_64-linux-musl-bootlin")
+    for set_name, group_names in NETOS_SETS.items():
+        profile_name = set_name.removeprefix("netos-")
+        pset = _get_or_create_package_set(session, set_name, dist_id, f"NetOS {profile_name} package set")
+        for gname in group_names:
+            if gname in group_objs:
+                _add_group_to_set(session, pset, group_objs[gname])
+        _get_or_create_profile(
+            session, profile_name, dist_id,
+            board_id=board_id, kernel_id=None,
+            toolchain_id=tc_id, package_set_id=pset.id,
+        )
+        counts["sets"] += 1
+        counts["profiles"] += 1
+    session.flush()
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# M73 — Ocultum Reference Distribution seed
+# ---------------------------------------------------------------------------
+
+OCULTUM_PACKAGES: list[tuple[str, str, str]] = [
+    ("busybox", "system", "base"),
+    ("systemd", "system", "system"),
+    ("wayland", "desktop", "desktop"),
+    ("weston", "desktop", "desktop"),
+    ("pipewire", "service", "services"),
+    ("modem-manager", "service", "services"),
+    ("network-manager", "service", "services"),
+    ("calls-app", "application", "applications"),
+    ("contacts-app", "application", "applications"),
+    ("messages-app", "application", "applications"),
+    ("phosh", "desktop", "desktop"),
+    ("glib2", "library", "runtime"),
+    ("gtk4", "library", "desktop"),
+    ("wireplumber", "service", "services"),
+]
+
+OCULTUM_GROUPS: dict[str, list[str]] = {
+    "ocultum-base": ["busybox", "systemd", "glib2"],
+    "ocultum-ui": ["wayland", "weston", "phosh", "gtk4"],
+    "ocultum-audio": ["pipewire", "wireplumber"],
+    "ocultum-telephony": ["modem-manager", "network-manager", "calls-app"],
+    "ocultum-apps": ["contacts-app", "messages-app"],
+}
+
+OCULTUM_SETS: dict[str, list[str]] = {
+    "ocultum-communicator": [
+        "ocultum-base", "ocultum-ui", "ocultum-audio",
+        "ocultum-telephony", "ocultum-apps",
+    ],
+    "ocultum-minimal": ["ocultum-base", "ocultum-ui"],
+    "ocultum-dev": [
+        "ocultum-base", "ocultum-ui", "ocultum-audio",
+        "ocultum-telephony", "ocultum-apps",
+    ],
+}
+
+
+def seed_ocultum_reference(session: "Session") -> dict[str, int]:
+    """Seed Ocultum reference distribution (M73). Idempotent."""
+    from sqlalchemy import select
+
+    seed_architectures_from_yaml(session)
+    seed_boards_from_yaml(session)
+    seed_toolchains_from_yaml(session)
+    seed_distribution_classes(session)
+
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    toolchain_map = {t.name: t.id for t in session.scalars(select(Toolchain)).all()}
+    dist_map = {d.name: d.id for d in session.scalars(select(Distribution)).all()}
+    class_map = {c.name: c.id for c in session.scalars(select(DistributionClass)).all()}
+
+    counts: dict[str, int] = {"packages": 0, "groups": 0, "sets": 0, "profiles": 0}
+
+    # Distribution
+    if "ocultum" not in dist_map:
+        d = Distribution(
+            id=str(uuid4()), name="ocultum",
+            description="Ocultum secure mobile OS — mobile/handheld class",
+            default_channel="dev",
+            class_id=class_map.get("mobile-handheld"),
+        )
+        session.add(d)
+        session.flush()
+        dist_map["ocultum"] = d.id
+    dist_id = dist_map["ocultum"]
+    existing_dist = session.get(Distribution, dist_id)
+    if existing_dist and existing_dist.class_id is None:
+        existing_dist.class_id = class_map.get("mobile-handheld")
+        session.flush()
+    arch_id = arch_map.get("aarch64", arch_map.get("x86_64", ""))
+
+    # Packages
+    pkg_map: dict[str, Package] = {}
+    for name, kind, layer in OCULTUM_PACKAGES:
+        pkg = _get_or_create_package(session, name, kind, layer)
+        pkg_map[name] = pkg
+        _get_or_create_package_version(session, pkg, "latest", arch_id)
+        counts["packages"] += 1
+
+    # Groups
+    group_objs: dict[str, PackageGroup] = {}
+    for gname, members in OCULTUM_GROUPS.items():
+        grp = _get_or_create_package_group(session, gname, dist_id, f"Ocultum {gname} packages")
+        for pname in members:
+            if pname in pkg_map:
+                _add_package_to_group(session, grp, pkg_map[pname])
+        group_objs[gname] = grp
+        counts["groups"] += 1
+
+    # Sets + profiles
+    board_id = board_map.get("qemu-x86_64")
+    tc_id = toolchain_map.get("aarch64-linux-musl-bootlin")
+    for set_name, group_names in OCULTUM_SETS.items():
+        profile_name = set_name.removeprefix("ocultum-")
+        pset = _get_or_create_package_set(session, set_name, dist_id, f"Ocultum {profile_name} package set")
+        for gname in group_names:
+            if gname in group_objs:
+                _add_group_to_set(session, pset, group_objs[gname])
+        _get_or_create_profile(
+            session, profile_name, dist_id,
+            board_id=board_id, kernel_id=None,
+            toolchain_id=tc_id, package_set_id=pset.id,
+        )
+        counts["sets"] += 1
+        counts["profiles"] += 1
+    session.flush()
+    return counts
