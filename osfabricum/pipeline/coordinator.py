@@ -293,6 +293,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
 
     # ---- 4. Kernel build (if missing) ----
     kernel_artifact_id: str | None = None
+    kernel_modules_artifact_id: str | None = None
+    kernel_dtb_artifact_ids: list[str] = []
     if plan.kernel is not None:
         if plan.kernel.artifact_id:
             kernel_artifact_id = plan.kernel.artifact_id
@@ -317,6 +319,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     kr = _run_step(build_id, "kernel.build", _kernel_step, logs, spec.db_url)
                     if kr.success:
                         kernel_artifact_id = kr.image_artifact_id
+                        kernel_modules_artifact_id = kr.modules_artifact_id
+                        kernel_dtb_artifact_ids = list(kr.dtb_artifact_ids or [])
                         steps_completed.append("kernel.build")
                         logs.append(f"[pipeline] kernel built: {kernel_artifact_id}")
                     else:
@@ -337,6 +341,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 )
                 if kr.success:
                     kernel_artifact_id = kr.image_artifact_id
+                    kernel_modules_artifact_id = kr.modules_artifact_id
+                    kernel_dtb_artifact_ids = list(kr.dtb_artifact_ids or [])
                     steps_completed.append("kernel.build")
                 else:
                     return _fail(f"kernel build failed: {kr.error}", "kernel.build")
@@ -479,8 +485,9 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
     if build_id is not None and spec.db_url is not None:
         link_ids = [
             x for x in [
-                kernel_artifact_id, base_rootfs_artifact_id,
-                rootfs_artifact_id, image_artifact_id,
+                kernel_artifact_id, kernel_modules_artifact_id,
+                *kernel_dtb_artifact_ids,
+                base_rootfs_artifact_id, rootfs_artifact_id, image_artifact_id,
             ]
             if x is not None
         ]
