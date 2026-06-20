@@ -27,7 +27,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import update as _sa_update
+
 from osfabricum.composer.rootfs import RootfsComposeSpec, compose_rootfs
+from osfabricum.db.models import Artifact
+from osfabricum.db.session import sync_session
 from osfabricum.image.composer import ImageSpec, compose_image
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
@@ -459,6 +463,27 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             log_build_event(build_id, "build.success", {}, db_url=spec.db_url)
         except Exception:
             pass
+
+    # ---- 10. Link produced artifacts to this build ----
+    if build_id is not None and spec.db_url is not None:
+        link_ids = [
+            x for x in [
+                kernel_artifact_id, base_rootfs_artifact_id,
+                rootfs_artifact_id, image_artifact_id,
+            ]
+            if x is not None
+        ]
+        if link_ids:
+            try:
+                with sync_session(spec.db_url) as _s:
+                    _s.execute(
+                        _sa_update(Artifact)
+                        .where(Artifact.id.in_(link_ids))
+                        .values(producer_build_id=build_id)
+                    )
+                    _s.commit()
+            except Exception:
+                pass
 
     logs.append(f"[pipeline] DONE — steps: {steps_completed}")
 
