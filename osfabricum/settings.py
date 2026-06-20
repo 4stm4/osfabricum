@@ -63,6 +63,10 @@ class TelemetrySettings(BaseModel):
     otlp_endpoint: str = ""
 
 
+class WorkerSettings(BaseModel):
+    max_local_workers: int = 4
+
+
 class Settings(BaseModel):
     database: DatabaseSettings = DatabaseSettings()
     store: StoreSettings = StoreSettings()
@@ -71,6 +75,7 @@ class Settings(BaseModel):
     auth: AuthSettings = AuthSettings()
     security: SecuritySettings = SecuritySettings()
     telemetry: TelemetrySettings = TelemetrySettings()
+    worker: WorkerSettings = WorkerSettings()
 
 
 def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Path | None:

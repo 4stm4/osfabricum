@@ -438,10 +438,11 @@ async function renderBuildDetail(buildId) {
           'application/x-xz': '.img.xz',
         }[imgArt.media_type] || '';
         const label = imgArt.name ? `${imgArt.name}${ext}` : 'image';
-        const size = imgArt.size_bytes ? ` (${fmtBytes(imgArt.size_bytes)})` : '';
+        const size = imgArt.size_bytes ? ` (${fmtSize(imgArt.size_bytes)})` : '';
         return `<div style="margin-top:8px">
           <a class="act" style="text-decoration:none;display:inline-block" href="/v1/artifacts/${imgArt.id}/download" download="${label}">⬇ Download ${label}${size}</a>
         </div>`;
+
       })()}
     </div>
 
@@ -505,15 +506,65 @@ const simpleRenderers = {
     );
   },
   async workers() {
-    const data = await api('/v1/workers');
-    return simpleTable(
-      [{label:'Hostname'},{label:'Enabled'},{label:'Kinds'},{label:'Last seen'}],
-      data.map(w => [
-        w.hostname, w.enabled?'<span style="color:var(--green)">●</span> yes':'no',
-        `<span style="font-size:11px">${(w.kinds||[]).join(', ')||'*'}</span>`,
-        fmtDate(w.last_seen_at),
-      ])
-    );
+    const [data, cmdData] = await Promise.all([
+      api('/v1/workers'),
+      api('/v1/workers/install-command').catch(() => ({command:null, warning:'Failed to load'})),
+    ]);
+    const { workers, online_count, max_local_workers } = data;
+    const atMax = online_count >= max_local_workers;
+
+    const rowsHtml = workers.length ? workers.map(w => {
+      const onlineDot = w.online
+        ? '<span style="color:var(--green)">● online</span>'
+        : '<span style="color:var(--muted)">○ offline</span>';
+      const agoBadge = w.last_seen_at
+        ? `<span style="color:var(--muted);font-size:11px">${fmtDate(w.last_seen_at)}</span>`
+        : '<span style="color:var(--muted)">—</span>';
+      const stopBtn = w.pid
+        ? `<button class="cancel-btn" onclick="stopWorker('${w.hostname}')">Stop</button>`
+        : '';
+      const tags = (w.tags||[]).join(' ') || '—';
+      const kinds = (w.kinds||[]).map(k => `<code style="font-size:10px;background:var(--panel2);padding:1px 4px;border-radius:3px">${k}</code>`).join(' ');
+      return `<tr>
+        <td class="mono" style="font-weight:600">${w.hostname}</td>
+        <td>${onlineDot}</td>
+        <td><span style="font-size:12px">${tags}</span></td>
+        <td>${kinds}</td>
+        <td>${agoBadge}</td>
+        <td style="text-align:right">${stopBtn}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">No workers registered yet.</td></tr>';
+
+    const remoteSection = cmdData.warning
+      ? `<div class="error-box" style="margin-top:0">${cmdData.warning}</div>`
+      : `<pre style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px;overflow-x:auto;white-space:pre;margin:0">${cmdData.command}</pre>
+         <button class="act" style="margin-top:8px" onclick="copyInstallCmd()">Copy command</button>`;
+
+    window._installCmd = cmdData.command;
+
+    return `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <div style="font-size:16px;font-weight:600;margin-bottom:4px">Workers</div>
+          <div style="color:var(--muted);font-size:12px">${online_count} online · max ${max_local_workers} local</div>
+        </div>
+        <button class="act" onclick="addWorker()" ${atMax ? 'disabled title="At maximum local workers"' : ''}
+          style="${atMax ? 'opacity:.4;cursor:not-allowed' : ''}">+ Add local</button>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th>Worker</th><th>Status</th><th>Tags</th><th>Kinds</th><th>Last seen</th><th></th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.05em;margin-bottom:12px">
+          Remote worker
+        </div>
+        ${remoteSection}
+      </div>`;
   },
 };
 
@@ -562,6 +613,48 @@ async function cancelBuild(id) {
   if (!confirm('Cancel this build?')) return;
   await fetch(`/v1/builds/${id}/cancel`, {method:'POST'});
   await refreshDetail(id);
+}
+
+async function addWorker() {
+  try {
+    const r = await fetch('/v1/workers/spawn', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: '{}',
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({detail: r.status}));
+      alert('Failed to spawn worker: ' + (err.detail || r.status));
+      return;
+    }
+    await renderApp();
+  } catch(e) {
+    alert('Failed to spawn worker: ' + e.message);
+  }
+}
+
+async function stopWorker(id) {
+  if (!confirm(`Stop worker "${id}"? It will be terminated.`)) return;
+  try {
+    const r = await fetch(`/v1/workers/${encodeURIComponent(id)}`, {method: 'DELETE'});
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({detail: r.status}));
+      alert('Failed to stop worker: ' + (err.detail || r.status));
+      return;
+    }
+    setTimeout(renderApp, 1500);
+  } catch(e) {
+    alert('Failed to stop worker: ' + e.message);
+  }
+}
+
+function copyInstallCmd() {
+  const cmd = window._installCmd;
+  if (!cmd) return;
+  navigator.clipboard.writeText(cmd).then(() => {
+    const btn = document.querySelector('button[onclick="copyInstallCmd()"]');
+    if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { btn.textContent = 'Copy command'; }, 2000); }
+  });
 }
 
 // ── main render ───────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ heartbeats, and runs the SQL job-queue poll loop (JobBackend + WorkerLoop).
 
 from __future__ import annotations
 
+import os
 import signal
 import threading
 from datetime import UTC, datetime
@@ -43,6 +44,7 @@ def _register_worker(
     capabilities: dict[str, object] | None = None,
 ) -> None:
     """Upsert the worker row in the ``workers`` table."""
+    pid = os.getpid()
     try:
         with sync_session(db_url) as session:
             existing = session.scalar(select(Worker).where(Worker.hostname == hostname))
@@ -55,6 +57,7 @@ def _register_worker(
                         tags_json=tags,
                         capabilities_json=capabilities,
                         last_seen_at=now,
+                        pid=pid,
                     )
                 )
             else:
@@ -66,6 +69,7 @@ def _register_worker(
                         tags_json=tags,
                         capabilities_json=capabilities,
                         last_seen_at=now,
+                        pid=pid,
                     )
                 )
             session.commit()

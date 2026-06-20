@@ -838,6 +838,7 @@ class Worker(Base):
     tags_json: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
     capabilities_json: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    pid: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
 
 
 class Release(Base):
