@@ -114,7 +114,9 @@ def _extract_base_rootfs(
         raise FileNotFoundError(f"base rootfs blob not found at {bp}")
 
     with tarfile.open(str(bp), mode="r:gz") as tar:
-        tar.extractall(path=str(stage_dir), filter="data")
+        # fully_trusted: upstream rootfs tarballs (e.g. Alpine) use absolute
+        # symlinks (usr/bin/yes → /bin/busybox) which "data" filter rejects.
+        tar.extractall(path=str(stage_dir), filter="fully_trusted")
 
 
 # ---------------------------------------------------------------------------
