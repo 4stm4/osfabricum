@@ -345,8 +345,9 @@ def build_hostapd(
 
         logs.append(f"[hostapd] compiling with -j{jobs}…")
         _run(
-            ["make", f"-j{jobs}", "CFLAGS=-Os -Wno-error"],
+            ["make", f"-j{jobs}"],
             cwd=src_dir, logs=logs,
+            extra_env={"EXTRA_CFLAGS": "-Os -Wno-error"},
         )
 
         # ---- install ----
