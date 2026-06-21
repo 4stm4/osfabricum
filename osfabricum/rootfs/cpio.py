@@ -125,6 +125,12 @@ def pack_initramfs(src_dir: Path) -> bytes:
         # Skip anything else (sockets, device nodes we can't read, etc.)
         ino += 1
 
+    # ---- /init symlink (required by Linux initramfs boot protocol) ----
+    # The kernel looks for /init first; sbin/init is the BusyBox init binary.
+    if "init" not in seen:
+        _add_entry(buf, "init", b"sbin/init", 0o120777, ino=ino)
+        ino += 1
+
     # ---- /dev device nodes (needed before devtmpfs is mounted) ----
     # Only add if not already present in src_dir (e.g. from a previous pack).
     if "dev" not in seen:

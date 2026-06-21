@@ -38,6 +38,8 @@ from osfabricum.image.composer import ImageSpec, compose_image
 from osfabricum.packaging.busybox import build_busybox
 from osfabricum.packaging.dropbear import build_dropbear
 from osfabricum.packaging.hostapd import build_hostapd
+from osfabricum.packaging.nanodhcp import build_nanodhcp
+from osfabricum.packaging.tinywifi import build_tinywifi
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
@@ -434,6 +436,38 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 logs.append(f"[pipeline] {pkg.name} built: {ha_result.artifact_id[:8]}")
             else:
                 logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {ha_result.error}")
+        elif pkg.name == "nanodhcp":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            nd_result = build_nanodhcp(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in nd_result.logs:
+                logs.append(line)
+            if nd_result.success and nd_result.artifact_id:
+                package_artifact_ids.append(nd_result.artifact_id)
+                _link_package_version(pkg.package_version_id, nd_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {nd_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {nd_result.error}")
+        elif pkg.name == "webui-agent":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            tw_result = build_tinywifi(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in tw_result.logs:
+                logs.append(line)
+            if tw_result.success and tw_result.artifact_id:
+                package_artifact_ids.append(tw_result.artifact_id)
+                _link_package_version(pkg.package_version_id, tw_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {tw_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {tw_result.error}")
         else:
             logs.append(f"[pipeline] WARNING: no builder for {pkg.name} — skipping")
 

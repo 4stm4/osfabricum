@@ -5,7 +5,8 @@ libssl-dev which are installed inside the build container at build time),
 bundles all shared-library dependencies found by ``ldd`` into the ``.ofpkg``
 so the initramfs has everything it needs.
 
-Also injects network-setup, hostapd start, and udhcpd start service scripts.
+Also injects network-setup and hostapd start scripts.
+DHCP is handled by nanodhcp (separate package).
 
 Entry point::
 
@@ -60,18 +61,6 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 """
 
-_UDHCPD_CONF = """\
-# /etc/udhcpd.conf — DHCP server for wlan0 AP clients
-start           192.168.42.10
-end             192.168.42.100
-interface       wlan0
-max_leases      50
-pidfile         /var/run/udhcpd.pid
-option  subnet  255.255.255.0
-option  router  192.168.42.1
-option  dns     8.8.8.8 1.1.1.1
-"""
-
 _S40_NETWORK = """\
 #!/bin/sh
 # /etc/init.d/S40network — Configure wlan0 for AP mode
@@ -115,27 +104,6 @@ restart)
 esac
 """
 
-_S70_UDHCPD = """\
-#!/bin/sh
-# /etc/init.d/S70udhcpd — Start udhcpd DHCP server for AP clients
-
-CONF=/etc/udhcpd.conf
-PIDFILE=/var/run/udhcpd.pid
-
-case "$1" in
-start)
-    mkdir -p /var/run
-    udhcpd "$CONF" 2>/var/log/udhcpd.log || true
-    ;;
-stop)
-    kill "$(cat $PIDFILE 2>/dev/null)" 2>/dev/null || true
-    ;;
-restart)
-    "$0" stop; sleep 1; "$0" start
-    ;;
-esac
-"""
-
 # hostapd .config — nl80211 driver + WPA2 + 11n support
 _HOSTAPD_BUILD_CONFIG = """\
 CONFIG_DRIVER_NL80211=y
@@ -167,7 +135,7 @@ class HostapdBuildResult:
 
 
 def _store_key(arch: str) -> str:
-    return f"packages/hostapd/{HOSTAPD_VERSION}/{arch}/hostapd.ofpkg"
+    return f"packages/hostapd/{HOSTAPD_VERSION}-v2/{arch}/hostapd.ofpkg"
 
 
 def _run(cmd: list[str], *, cwd: Path, logs: list[str], extra_env: dict | None = None) -> None:
@@ -368,13 +336,11 @@ def build_hostapd(
 
         # Config files
         (destdir / "etc" / "hostapd.conf").write_text(_HOSTAPD_CONF)
-        (destdir / "etc" / "udhcpd.conf").write_text(_UDHCPD_CONF)
 
         # Init service scripts
         for name, content in [
             ("S40network", _S40_NETWORK),
             ("S60hostapd", _S60_HOSTAPD),
-            ("S70udhcpd", _S70_UDHCPD),
         ]:
             p = destdir / "etc" / "init.d" / name
             p.write_text(content)
