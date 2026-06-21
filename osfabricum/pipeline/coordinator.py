@@ -31,7 +31,7 @@ from typing import Any
 from sqlalchemy import update as _sa_update
 
 from osfabricum.composer.rootfs import RootfsComposeSpec, compose_rootfs
-from osfabricum.db.models import Artifact, FirmwareBlob, PackageVersion
+from osfabricum.db.models import Artifact, FirmwareBlob, PackageVersion, ServiceProfile, ServiceEntry
 from osfabricum.db.session import sync_session
 from osfabricum.firmware.fetch import fetch_all_firmware
 from osfabricum.image.composer import ImageSpec, compose_image
@@ -537,6 +537,27 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
     logs.append(f"[pipeline] base rootfs: {base_rootfs_artifact_id}")
 
     # ---- 7. Rootfs compose ----
+    # Resolve disabled services from the distribution's service profile.
+    _disabled_services: list[str] = []
+    if spec.db_url is not None and plan.distribution_id is not None:
+        from sqlalchemy import select as _sel  # noqa: PLC0415
+        with sync_session(spec.db_url) as _ss:
+            _sp = _ss.scalar(
+                _sel(ServiceProfile).where(
+                    ServiceProfile.distribution_id == plan.distribution_id
+                )
+            )
+            if _sp is not None:
+                _disabled_entries = _ss.scalars(
+                    _sel(ServiceEntry).where(
+                        ServiceEntry.profile_id == _sp.id,
+                        ServiceEntry.is_enabled == False,  # noqa: E712
+                    )
+                ).all()
+                _disabled_services = [e.name for e in _disabled_entries]
+        if _disabled_services:
+            logs.append(f"[pipeline] disabled services: {_disabled_services}")
+
     rootfs_artifact_id: str | None = None
     compose_spec = RootfsComposeSpec(
         distribution=spec.distribution,
@@ -547,6 +568,8 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
         package_artifact_ids=package_artifact_ids,
         overlay_artifact_ids=overlay_artifact_ids,
         init_system=spec.init_system,
+        distribution_id=plan.distribution_id,
+        disabled_services=_disabled_services,
     )
 
     def _compose_rootfs_step():

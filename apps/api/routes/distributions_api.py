@@ -148,3 +148,88 @@ def clone_distribution(
         return dist_service.clone_distribution(dist_id, body.name, db_url=_db(request))
     except ValueError as exc:
         raise _guard(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Distribution config values (M50)
+# ---------------------------------------------------------------------------
+
+@router.get("/{dist_id}/config")
+def get_distribution_config(dist_id: str, request: Request) -> list[dict]:
+    """Return all config key-value entries for a distribution.
+
+    Each entry includes schema metadata (label, description, default) so the
+    UI can render a proper form without hardcoding key names.
+    """
+    from sqlalchemy import select as _sel  # noqa: PLC0415
+    from osfabricum.config.distro_config import CONFIG_SCHEMA, get_config_values  # noqa: PLC0415
+    from osfabricum.db.models import Distribution  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    db = _db(request)
+    with sync_session(db) as session:
+        dist = session.get(Distribution, dist_id)
+        if dist is None:
+            dist = session.scalar(_sel(Distribution).where(Distribution.name == dist_id))
+        if dist is None:
+            raise HTTPException(status_code=404, detail=f"distribution not found: {dist_id!r}")
+        vals = get_config_values(session, dist.id)
+
+    result = []
+    for key, meta in CONFIG_SCHEMA.items():
+        result.append({
+            "key": key,
+            "value": vals.get(key),
+            "label": meta["label"],
+            "description": meta["description"],
+            "default": meta["default"],
+        })
+    return result
+
+
+class ConfigPutBody(BaseModel):
+    values: dict[str, str | None]
+
+
+@router.put("/{dist_id}/config")
+def put_distribution_config(
+    dist_id: str, body: ConfigPutBody, request: Request, _auth: WriteAuthDep = None
+) -> list[dict]:
+    """Upsert config values for a distribution.
+
+    Pass ``null`` as the value to reset a key to its default (removes the row).
+    Returns the full updated config list.
+    """
+    from sqlalchemy import select as _sel  # noqa: PLC0415
+    from osfabricum.config.distro_config import (  # noqa: PLC0415
+        CONFIG_SCHEMA, get_config_values, set_config_value,
+    )
+    from osfabricum.db.models import Distribution  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    db = _db(request)
+    with sync_session(db) as session:
+        dist = session.get(Distribution, dist_id)
+        if dist is None:
+            dist = session.scalar(_sel(Distribution).where(Distribution.name == dist_id))
+        if dist is None:
+            raise HTTPException(status_code=404, detail=f"distribution not found: {dist_id!r}")
+
+        for key, value in body.values.items():
+            try:
+                set_config_value(session, dist.id, key, value)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        session.commit()
+        vals = get_config_values(session, dist.id)
+
+    result = []
+    for key, meta in CONFIG_SCHEMA.items():
+        result.append({
+            "key": key,
+            "value": vals.get(key),
+            "label": meta["label"],
+            "description": meta["description"],
+            "default": meta["default"],
+        })
+    return result

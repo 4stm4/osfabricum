@@ -4533,3 +4533,26 @@ class ReleaseArtifact(Base):
     sa.UniqueConstraint(
         "release_id", "artifact_role", name="uq_release_artifacts_rel_role"
     )
+
+
+class DistributionConfigValue(Base):
+    """Per-distribution key-value config store (M50).
+
+    Stores end-user-editable settings (e.g. WiFi SSID, DHCP pool) that are
+    rendered into package config files at rootfs.compose time, overriding the
+    defaults shipped inside .ofpkg archives.
+    """
+
+    __tablename__ = "distribution_config_values"
+
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=_uuid)
+    distribution_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("distributions.id", ondelete="CASCADE"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        sa.UniqueConstraint("distribution_id", "key", name="uq_dist_config_values_dist_key"),
+    )

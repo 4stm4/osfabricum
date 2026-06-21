@@ -28,6 +28,7 @@ from sqlalchemy import select
 
 from osfabricum.composer.packages import install_packages_into_rootfs
 from osfabricum.composer.services import install_services_into_rootfs
+from osfabricum.config.distro_config import apply_distro_configs, get_config_values
 from osfabricum.config.overlay import apply_overlay
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
@@ -71,6 +72,8 @@ class RootfsComposeSpec:
     overlay_artifact_ids: list[str] = field(default_factory=list)
     service_names: list[str] = field(default_factory=list)
     init_system: str = "busybox"
+    distribution_id: str | None = None
+    disabled_services: list[str] = field(default_factory=list)
 
     def store_key(self) -> str:
         return f"rootfs/{self.distribution}/{self.profile}/{self.board}/composed.tar.gz"
@@ -179,6 +182,25 @@ def compose_rootfs(
             )
             overlay_count += 1
             logs.append(f"[compose]   overlay: {len(extracted)} files")
+
+        # 3b. Render distribution config values (overrides package defaults)
+        if db_url is not None and spec.distribution_id is not None:
+            with sync_session(db_url) as _cs:
+                config_vals = get_config_values(_cs, spec.distribution_id)
+            if config_vals:
+                logs.append(f"[compose] applying {len(config_vals)} config value(s)")
+                apply_distro_configs(stage_dir, config_vals, logs=logs)
+        elif db_url is not None:
+            # No distribution_id — apply defaults so packages always get consistent configs
+            apply_distro_configs(stage_dir, {}, logs=logs)
+
+        # 3c. Disable services: remove S##name init scripts for disabled entries
+        if spec.disabled_services:
+            init_d = stage_dir / "etc" / "init.d"
+            for svc_name in spec.disabled_services:
+                for script in sorted(init_d.glob(f"S[0-9][0-9]{svc_name}")):
+                    script.unlink()
+                    logs.append(f"[compose] disabled service: removed {script.name}")
 
         # 4. Install services
         installed_svcs: list[str] = []

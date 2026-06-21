@@ -2206,7 +2206,108 @@ def seed_tinywifi_reference(session: "Session") -> dict[str, int]:
     )
     counts["profiles"] += 1
     session.flush()
+
+    # Config values (M50) — default tinywifi settings, idempotent
+    _seed_tinywifi_config_values(session, dist_id)
+
+    # Service profile (M50) — all services enabled by default, idempotent
+    _seed_tinywifi_service_profile(session, dist_id)
+
     return counts
+
+
+def _seed_tinywifi_config_values(session: "Session", dist_id: str) -> None:
+    """Seed default config key-value pairs for tinywifi. Idempotent."""
+    from datetime import datetime, UTC  # noqa: PLC0415
+    from sqlalchemy import select  # noqa: PLC0415
+    from osfabricum.db.models import DistributionConfigValue  # noqa: PLC0415
+
+    defaults = {
+        "hostapd.ssid": "tinywifi",
+        "hostapd.passphrase": "tinywifi123",
+        "hostapd.channel": "6",
+        "hostapd.interface": "wlan0",
+        "nanodhcp.server_ip": "192.168.42.1",
+        "nanodhcp.pool_start": "192.168.42.10",
+        "nanodhcp.pool_end": "192.168.42.100",
+        "nanodhcp.lease_time": "3600",
+        "nanodhcp.interface": "wlan0",
+        "tinywifi.listen": "0.0.0.0:80",
+        "network.ap_iface": "wlan0",
+        "network.ap_addr": "192.168.42.1",
+        "network.ap_prefix": "24",
+    }
+    now = datetime.now(UTC).replace(tzinfo=None)
+    existing = {
+        r.key
+        for r in session.scalars(
+            select(DistributionConfigValue).where(
+                DistributionConfigValue.distribution_id == dist_id
+            )
+        ).all()
+    }
+    for key, value in defaults.items():
+        if key not in existing:
+            session.add(DistributionConfigValue(
+                id=str(uuid4()),
+                distribution_id=dist_id,
+                key=key,
+                value=value,
+                updated_at=now,
+            ))
+    session.flush()
+
+
+def _seed_tinywifi_service_profile(session: "Session", dist_id: str) -> None:
+    """Seed default service profile for tinywifi. Idempotent."""
+    from datetime import datetime, UTC  # noqa: PLC0415
+    from sqlalchemy import select  # noqa: PLC0415
+    from osfabricum.db.models import ServiceEntry, ServiceProfile  # noqa: PLC0415
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+
+    sp = session.scalar(
+        select(ServiceProfile).where(ServiceProfile.distribution_id == dist_id)
+    )
+    if sp is None:
+        sp = ServiceProfile(
+            id=str(uuid4()),
+            name="tinywifi-default",
+            distribution_id=dist_id,
+            init_system="busybox",
+            description="Default TinyWifi service topology",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(sp)
+        session.flush()
+
+    # Services — name maps to S##name init script prefix (e.g. "hostapd" → S60hostapd)
+    services = [
+        ("network", "S40 — configure wlan0 static IP for AP mode"),
+        ("hostapd", "S60 — WiFi access point daemon"),
+        ("nanodhcp", "S70 — DHCP server for connected clients"),
+        ("tinywifi-web", "S80 — tinyWiFi web management panel"),
+    ]
+    existing_svc = {
+        e.name
+        for e in session.scalars(
+            select(ServiceEntry).where(ServiceEntry.profile_id == sp.id)
+        ).all()
+    }
+    for svc_name, description in services:
+        if svc_name not in existing_svc:
+            session.add(ServiceEntry(
+                id=str(uuid4()),
+                profile_id=sp.id,
+                name=svc_name,
+                unit_type="service",
+                description=description,
+                is_enabled=True,
+                is_masked=False,
+                priority=100,
+            ))
+    session.flush()
 
 
 # ---------------------------------------------------------------------------
