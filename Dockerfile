@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gcc make bc flex bison \
     libssl-dev libelf-dev libncurses-dev \
+    libc6-dev \
     xz-utils bzip2 \
     && rm -rf /var/lib/apt/lists/*
 

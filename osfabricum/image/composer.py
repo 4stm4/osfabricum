@@ -25,6 +25,10 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
+import shutil
+import tarfile
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,6 +41,7 @@ from osfabricum.image.fat16 import Fat16Writer
 from osfabricum.image.mbr import PART_FAT16, PART_LINUX, PartitionEntry, write_mbr
 from osfabricum.repro.chain import InputManifest, compute_input_hash, make_repro_record
 from osfabricum.repro.env import BuildEnvSpec, compute_env_hash
+from osfabricum.rootfs.cpio import pack_initramfs
 from osfabricum.store.ingest import ingest_blob
 from osfabricum.store.layout import blob_path
 
@@ -98,6 +103,7 @@ class ImageSpec:
     dtb_filename: str | None = None
     root_device: str = "/dev/mmcblk0p2"
     arm64: bool = True
+    use_initramfs: bool = True  # convert rootfs tar.gz → cpio.gz in boot partition
 
     def store_key(self) -> str:
         return (
@@ -149,6 +155,23 @@ def _load_artifact_blob(
     return bp.read_bytes()
 
 
+def _rootfs_to_initramfs(rootfs_data: bytes) -> bytes:
+    """Convert a rootfs tar.gz blob to a gzip-compressed newc cpio archive.
+
+    Extracts the tarball to a temp directory, packs it as newc cpio, then
+    gzip-compresses the result.  The temp directory is always cleaned up.
+    """
+    tmp = tempfile.mkdtemp(prefix="osfab-initramfs-")
+    try:
+        stage = Path(tmp)
+        with tarfile.open(fileobj=io.BytesIO(rootfs_data), mode="r:gz") as tar:
+            tar.extractall(path=str(stage), filter="fully_trusted")
+        cpio_raw = pack_initramfs(stage)
+        return gzip.compress(cpio_raw, compresslevel=9, mtime=0)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def _build_fat16_partition(
     boot_files: dict[str, bytes],
     total_sectors: int,
@@ -195,7 +218,22 @@ def compose_image(
     logs: list[str] = []
 
     try:
-        # 1. Collect boot files
+        # 1. Load rootfs tarball
+        logs.append(f"[image] loading rootfs artifact {spec.rootfs_artifact_id[:8]}…")
+        rootfs_data = _load_artifact_blob(spec.rootfs_artifact_id, store_root, db_url)
+        logs.append(f"[image] rootfs: {len(rootfs_data)} bytes")
+
+        # 2. Convert rootfs to initramfs cpio.gz (placed in boot partition)
+        initramfs_filename: str | None = None
+        extra_boot = dict(spec.extra_boot_files)
+        if spec.use_initramfs:
+            logs.append("[image] converting rootfs tar.gz → initramfs cpio.gz…")
+            initramfs_gz = _rootfs_to_initramfs(rootfs_data)
+            logs.append(f"[image] initramfs: {len(initramfs_gz)} bytes")
+            initramfs_filename = "initramfs.gz"
+            extra_boot[initramfs_filename] = initramfs_gz
+
+        # 3. Collect boot files (kernel, DTBs, firmware, initramfs)
         logs.append("[image] collecting boot files…")
         boot_files = collect_boot_files(
             kernel_artifact_id=spec.kernel_artifact_id,
@@ -204,50 +242,42 @@ def compose_image(
             store_root=store_root,
             db_url=db_url,
             kernel_filename=spec.kernel_filename,
-            extra_files=spec.extra_boot_files,
+            extra_files=extra_boot,
             dtb_filename=spec.dtb_filename,
             arm64=spec.arm64,
-            root_device=spec.root_device,
+            # In initramfs mode: no root= in cmdline
+            root_device=spec.root_device if not spec.use_initramfs else None,
+            initramfs=initramfs_filename,
         )
         logs.append(f"[image] boot files: {sorted(boot_files)}")
 
-        # 2. Load rootfs tarball
-        logs.append(f"[image] loading rootfs artifact {spec.rootfs_artifact_id[:8]}…")
-        rootfs_data = _load_artifact_blob(spec.rootfs_artifact_id, store_root, db_url)
-        logs.append(f"[image] rootfs: {len(rootfs_data)} bytes")
-
-        # 3. Compute partition layout (LBA)
-        total_sectors = _mb_to_sectors(spec.total_size_mb())
-
+        # 4. Compute partition layout (LBA) — boot only when initramfs
         boot_lba_start = PART_ALIGN_SECTORS  # 1 MiB offset
         boot_sectors = _mb_to_sectors(spec.boot_size_mb)
         boot_lba_end = boot_lba_start + boot_sectors
 
-        # Rootfs starts at next alignment boundary after boot
-        rootfs_lba_start = (
-            (boot_lba_end + PART_ALIGN_SECTORS - 1) // PART_ALIGN_SECTORS
-        ) * PART_ALIGN_SECTORS
-        rootfs_sectors = _mb_to_sectors(spec.rootfs_size_mb)
-
-        logs.append(
-            f"[image] layout: total={total_sectors} sectors "
-            f"boot={boot_lba_start}+{boot_sectors} "
-            f"rootfs={rootfs_lba_start}+{rootfs_sectors}"
-        )
-
-        # 4. Build FAT16 boot partition
-        logs.append("[image] building FAT16 boot partition…")
-        fat16_image = _build_fat16_partition(
-            boot_files, boot_sectors, hidden_sectors=boot_lba_start
-        )
-        logs.append(f"[image] FAT16: {len(fat16_image)} bytes")
-
-        # 5. Write raw disk image
-        image = bytearray(total_sectors * SECTOR_SIZE)
-
-        # MBR
-        mbr = write_mbr(
-            [
+        if spec.use_initramfs:
+            # Single boot partition, no rootfs partition
+            total_sectors = boot_lba_start + boot_sectors + PART_ALIGN_SECTORS
+            partitions = [
+                PartitionEntry(
+                    lba_start=boot_lba_start,
+                    lba_size=boot_sectors,
+                    partition_type=PART_FAT16,
+                    bootable=True,
+                ),
+            ]
+            logs.append(
+                f"[image] layout (initramfs): total={total_sectors} sectors "
+                f"boot={boot_lba_start}+{boot_sectors}"
+            )
+        else:
+            rootfs_lba_start = (
+                (boot_lba_end + PART_ALIGN_SECTORS - 1) // PART_ALIGN_SECTORS
+            ) * PART_ALIGN_SECTORS
+            rootfs_sectors = _mb_to_sectors(spec.rootfs_size_mb)
+            total_sectors = _mb_to_sectors(spec.total_size_mb())
+            partitions = [
                 PartitionEntry(
                     lba_start=boot_lba_start,
                     lba_size=boot_sectors,
@@ -261,20 +291,34 @@ def compose_image(
                     bootable=False,
                 ),
             ]
+            logs.append(
+                f"[image] layout: total={total_sectors} sectors "
+                f"boot={boot_lba_start}+{boot_sectors} "
+                f"rootfs={rootfs_lba_start}+{rootfs_sectors}"
+            )
+
+        # 5. Build FAT16 boot partition
+        logs.append("[image] building FAT16 boot partition…")
+        fat16_image = _build_fat16_partition(
+            boot_files, boot_sectors, hidden_sectors=boot_lba_start
         )
+        logs.append(f"[image] FAT16: {len(fat16_image)} bytes")
+
+        # 6. Assemble raw disk image
+        image = bytearray(total_sectors * SECTOR_SIZE)
+
+        mbr = write_mbr(partitions)
         image[0:512] = mbr
 
-        # Boot partition
         boot_offset = boot_lba_start * SECTOR_SIZE
         image[boot_offset : boot_offset + len(fat16_image)] = fat16_image
 
-        # Rootfs "partition" — raw tarball at partition offset
-        rootfs_offset = rootfs_lba_start * SECTOR_SIZE
-        rootfs_end = rootfs_offset + len(rootfs_data)
-        if rootfs_end > len(image):
-            # Extend image to accommodate larger rootfs
-            image.extend(b"\x00" * (rootfs_end - len(image)))
-        image[rootfs_offset : rootfs_offset + len(rootfs_data)] = rootfs_data
+        if not spec.use_initramfs:
+            rootfs_offset = rootfs_lba_start * SECTOR_SIZE  # type: ignore[possibly-undefined]
+            rootfs_end = rootfs_offset + len(rootfs_data)
+            if rootfs_end > len(image):
+                image.extend(b"\x00" * (rootfs_end - len(image)))
+            image[rootfs_offset : rootfs_offset + len(rootfs_data)] = rootfs_data
 
         raw_image = bytes(image)
         logs.append(f"[image] raw image: {len(raw_image)} bytes")

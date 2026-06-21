@@ -31,9 +31,11 @@ from typing import Any
 from sqlalchemy import update as _sa_update
 
 from osfabricum.composer.rootfs import RootfsComposeSpec, compose_rootfs
-from osfabricum.db.models import Artifact
+from osfabricum.db.models import Artifact, FirmwareBlob, PackageVersion
 from osfabricum.db.session import sync_session
+from osfabricum.firmware.fetch import fetch_all_firmware
 from osfabricum.image.composer import ImageSpec, compose_image
+from osfabricum.packaging.busybox import build_busybox
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
@@ -111,6 +113,31 @@ class PipelineResult:
     steps_failed: list[str] = field(default_factory=list)
     error: str | None = None
     logs: list[str] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _link_package_version(
+    package_version_id: str | None,
+    artifact_id: str,
+    db_url: str | None,
+) -> None:
+    """Persist artifact_id on PackageVersion so the resolver can cache it."""
+    if package_version_id is None or db_url is None:
+        return
+    try:
+        with sync_session(db_url) as session:
+            session.execute(
+                _sa_update(PackageVersion)
+                .where(PackageVersion.id == package_version_id)
+                .values(artifact_id=artifact_id)
+            )
+            session.commit()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -349,18 +376,51 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 else:
                     return _fail(f"kernel build failed: {kr.error}", "kernel.build")
 
-    # ---- 4. Collect package artifacts already in store ----
-    package_artifact_ids = [pkg.artifact_id for pkg in plan.packages if pkg.artifact_id is not None]
-    if plan.packages:
-        missing_pkgs = [p.name for p in plan.packages if p.artifact_id is None]
-        if missing_pkgs:
-            logs.append(
-                f"[pipeline] WARNING: {len(missing_pkgs)} package(s) not yet built "
-                f"(skipped): {missing_pkgs}"
+    # ---- 4. Build missing packages ----
+    package_artifact_ids: list[str] = []
+    for pkg in plan.packages:
+        if pkg.artifact_id is not None:
+            package_artifact_ids.append(pkg.artifact_id)
+            continue
+        # Inline builders for known packages
+        if pkg.name == "busybox":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            bb_result = build_busybox(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
             )
+            for line in bb_result.logs:
+                logs.append(line)
+            if bb_result.success and bb_result.artifact_id:
+                package_artifact_ids.append(bb_result.artifact_id)
+                # Update PackageVersion.artifact_id so resolver caches it next build
+                _link_package_version(pkg.package_version_id, bb_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {bb_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {bb_result.error}")
+        else:
+            logs.append(f"[pipeline] WARNING: no builder for {pkg.name} — skipping")
 
-    # ---- 5. Collect firmware + overlay artifacts ----
+    # ---- 5. Collect firmware (fetch missing ones from URL in metadata_json) ----
     firmware_artifact_ids = [fw.artifact_id for fw in plan.firmware if fw.artifact_id is not None]
+    missing_fw = [fw for fw in plan.firmware if fw.artifact_id is None]
+    if missing_fw or not plan.firmware:
+        # Try to fetch firmware registered for this board (with URL in metadata_json)
+        try:
+            fetched = fetch_all_firmware(
+                board_name=spec.board,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+            )
+            for fb in fetched:
+                if fb.artifact_id and fb.artifact_id not in firmware_artifact_ids:
+                    firmware_artifact_ids.append(fb.artifact_id)
+                    logs.append(f"[pipeline] firmware fetched: {fb.filename}")
+        except Exception as exc:
+            logs.append(f"[pipeline] WARNING: firmware fetch failed: {exc}")
+
     overlay_artifact_ids = [ov.artifact_id for ov in plan.overlays if ov.artifact_id is not None]
 
     # ---- 6. Base rootfs ----
@@ -456,9 +516,11 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
             rootfs_artifact_id=rootfs_artifact_id,  # type: ignore[arg-type]
             kernel_artifact_id=kernel_artifact_id,
             firmware_artifact_ids=firmware_artifact_ids,
+            dtb_artifact_ids=kernel_dtb_artifact_ids,
             extra_boot_files=spec.extra_boot_files,
             boot_size_mb=96,
             rootfs_size_mb=512,
+            use_initramfs=True,
         )
 
         def _compose_image_step():

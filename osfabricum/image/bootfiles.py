@@ -36,6 +36,7 @@ def make_rpi_config_txt(
     dtb: str = "bcm2710-rpi-zero-2-w.dtb",
     enable_uart: bool = True,
     arm64: bool = True,
+    initramfs: str | None = "initramfs.gz",
     extra: dict[str, str] | None = None,
 ) -> bytes:
     """Generate a ``config.txt`` for the RPi GPU firmware.
@@ -50,6 +51,10 @@ def make_rpi_config_txt(
         Set ``enable_uart=1`` for serial console output.
     arm64:
         Set ``arm_64bit=1`` for 64-bit mode (required for aarch64 kernels).
+    initramfs:
+        Filename of the initramfs cpio.gz.  When set, adds
+        ``initramfs <name> followkernel`` to config.txt.  Pass ``None``
+        to omit (for ext4 rootfs).
     extra:
         Additional ``key=value`` pairs appended at the end.
 
@@ -67,6 +72,8 @@ def make_rpi_config_txt(
         lines.append("arm_64bit=1")
     if enable_uart:
         lines.append("enable_uart=1")
+    if initramfs:
+        lines.append(f"initramfs {initramfs} followkernel")
     for key, val in (extra or {}).items():
         lines.append(f"{key}={val}")
     return ("\n".join(lines) + "\n").encode("utf-8")
@@ -74,12 +81,16 @@ def make_rpi_config_txt(
 
 def make_cmdline_txt(
     *,
-    root: str = "/dev/mmcblk0p2",
-    rootfstype: str = "ext4",
+    root: str | None = None,
+    rootfstype: str | None = None,
     console: str = "serial0,115200",
     extra: list[str] | None = None,
 ) -> bytes:
     """Generate ``cmdline.txt`` kernel command line.
+
+    When *root* is ``None`` (initramfs mode) the ``root=`` and
+    ``rootfstype=`` parameters are omitted; the kernel boots directly
+    from the initramfs image.
 
     Returns
     -------
@@ -89,11 +100,14 @@ def make_cmdline_txt(
     params = [
         f"console={console}",
         "console=tty1",
-        f"root={root}",
-        f"rootfstype={rootfstype}",
-        "rootwait",
-        "rw",
     ]
+    if root:
+        params.append(f"root={root}")
+    if rootfstype:
+        params.append(f"rootfstype={rootfstype}")
+    if root:
+        params.append("rootwait")
+    params.append("rw")
     params.extend(extra or [])
     return (" ".join(params) + "\n").encode("utf-8")
 
@@ -130,7 +144,8 @@ def collect_boot_files(
     extra_files: dict[str, bytes] | None = None,
     dtb_filename: str | None = None,
     arm64: bool = True,
-    root_device: str = "/dev/mmcblk0p2",
+    root_device: str | None = "/dev/mmcblk0p2",
+    initramfs: str | None = None,
 ) -> dict[str, bytes]:
     """Collect all files that go into the FAT boot partition.
 
@@ -192,6 +207,7 @@ def collect_boot_files(
         kernel=kernel_filename,
         dtb=first_dtb or "bcm2710-rpi-zero-2-w.dtb",
         arm64=arm64,
+        initramfs=initramfs,
     )
 
     # cmdline.txt
