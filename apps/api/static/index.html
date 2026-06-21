@@ -484,8 +484,16 @@ const simpleRenderers = {
   async artifacts() {
     const data = await api('/v1/artifacts?limit=100');
     return simpleTable(
-      [{label:'Kind'},{label:'Name'},{label:'Arch'},{label:'SHA256',mono:true},{label:'Size'}],
-      data.map(a => [a.kind, a.name, a.arch||'—', (a.blob_sha256||'').slice(0,16), fmtSize(a.size_bytes)])
+      [{label:'Kind'},{label:'Name'},{label:'Arch'},{label:'Build'},{label:'Size'},{label:'Download'}],
+      data.map(a => {
+        const buildCell = a.producer_build_id
+          ? `<a href="/builds/${a.producer_build_id}" style="color:var(--accent);font-family:monospace">${a.producer_build_id.slice(0,8)}</a>`
+          : '—';
+        const dlCell = (a.kind === 'image' || a.kind === 'kernel')
+          ? `<a href="/v1/artifacts/${a.id}/download" style="color:var(--accent)">⬇ download</a>`
+          : '—';
+        return [a.kind, a.name, a.arch||'—', buildCell, fmtSize(a.size_bytes), dlCell];
+      })
     );
   },
   async distributions() {

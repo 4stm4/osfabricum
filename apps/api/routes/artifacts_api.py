@@ -44,6 +44,7 @@ class ArtifactItem(BaseModel):
     input_hash: str | None
     created_at: str | None
     metadata: dict[str, Any] | None
+    producer_build_id: str | None = None
 
 
 @router.get("", response_model=list[ArtifactItem])
@@ -104,7 +105,10 @@ def download_artifact(artifact_id: str, request: Request) -> FileResponse:
             raise HTTPException(status_code=404, detail="Blob file not found in store")
         _ext = {"application/gzip": ".img.gz", "application/x-xz": ".img.xz"}
         ext = _ext.get(art.media_type or "", "")
-        filename = f"{art.name}{ext}" if art.name else artifact_id
+        build_prefix = art.producer_build_id[:8] if art.producer_build_id else artifact_id[:8]
+        date_str = art.created_at.strftime("%Y%m%d") if art.created_at else ""
+        suffix = f"-{date_str}-{build_prefix}" if date_str else f"-{build_prefix}"
+        filename = f"{art.name}{suffix}{ext}" if art.name else f"{artifact_id}{ext}"
         return FileResponse(
             path=str(path),
             filename=filename,
@@ -128,4 +132,5 @@ def _to_item(art: Artifact) -> ArtifactItem:
         input_hash=art.input_hash,
         created_at=art.created_at.isoformat() if art.created_at else None,
         metadata=art.metadata_json,
+        producer_build_id=art.producer_build_id,
     )
