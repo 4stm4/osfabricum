@@ -193,10 +193,16 @@ def _install_build_deps(logs: list[str]) -> None:
     if "ii  libnl-3-dev" in check.stdout:
         logs.append("[hostapd] libnl-3-dev already installed")
         return
+    logs.append("[hostapd] running apt-get update…")
+    subprocess.run(
+        ["apt-get", "update", "-qq"],
+        capture_output=True, text=True,
+        env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"},
+    )
     logs.append("[hostapd] installing build dependencies via apt-get…")
     proc = subprocess.run(
         ["apt-get", "install", "-y", "--no-install-recommends",
-         "libnl-3-dev", "libnl-genl-3-dev"],
+         "libnl-3-dev", "libnl-genl-3-dev", "libssl-dev"],
         capture_output=True, text=True,
         env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"},
     )
