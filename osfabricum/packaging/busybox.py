@@ -39,20 +39,200 @@ BUSYBOX_URL = (
 
 # Minimal .config fragment — static build, no Linux module utilities
 # (those require kernel headers we don't ship).
-_CONFIG_FRAGMENT = """\
+# Minimal embedded config — used with "make allnoconfig" so EVERY option is
+# explicitly listed.  This avoids compile errors in optional applets that
+# require obscure kernel headers (i2c_tools.c, tc.c, etc.).
+_MINIMAL_CONFIG = """\
 CONFIG_STATIC=y
 CONFIG_STATIC_LIBGCC=y
 CONFIG_LFS=y
 CONFIG_FEATURE_INSTALLER=y
-# Disable things that need extra headers / libs
-CONFIG_MODPROBE_SMALL=n
-CONFIG_DEPMOD=n
+CONFIG_DESKTOP=y
+CONFIG_EXTRA_COMPAT=y
+CONFIG_INCLUDE_SUSv2=y
+
+# Shell
+CONFIG_ASH=y
+CONFIG_ASH_BASH_COMPAT=y
+CONFIG_ASH_JOB_CONTROL=y
+CONFIG_ASH_ALIAS=y
+CONFIG_ASH_BUILTIN_ECHO=y
+CONFIG_ASH_BUILTIN_PRINTF=y
+CONFIG_ASH_BUILTIN_TEST=y
+CONFIG_ASH_CMDCMD=y
+CONFIG_FEATURE_SH_EXTRA_QUIET=y
+CONFIG_SH_IS_ASH=y
+CONFIG_BASH_IS_NONE=y
+
+# Coreutils
+CONFIG_LS=y
+CONFIG_FEATURE_LS_FILETYPES=y
+CONFIG_FEATURE_LS_SORTFILES=y
+CONFIG_FEATURE_LS_TIMESTAMPS=y
+CONFIG_FEATURE_LS_COLOR=y
+CONFIG_ECHO=y
+CONFIG_FEATURE_FANCY_ECHO=y
+CONFIG_CAT=y
+CONFIG_CP=y
+CONFIG_FEATURE_CP_LONG_OPTIONS=y
+CONFIG_MV=y
+CONFIG_RM=y
+CONFIG_MKDIR=y
+CONFIG_RMDIR=y
+CONFIG_LN=y
+CONFIG_CHMOD=y
+CONFIG_CHOWN=y
+CONFIG_TOUCH=y
+CONFIG_STAT=y
+CONFIG_FEATURE_STAT_FORMAT=y
+CONFIG_TEST=y
+CONFIG_PRINTF=y
+CONFIG_PWD=y
+CONFIG_WHOAMI=y
+CONFIG_DATE=y
+CONFIG_FEATURE_DATE_ISOFMT=y
+CONFIG_SORT=y
+CONFIG_UNIQ=y
+CONFIG_WC=y
+CONFIG_HEAD=y
+CONFIG_TAIL=y
+CONFIG_CUT=y
+CONFIG_TR=y
+CONFIG_BASENAME=y
+CONFIG_DIRNAME=y
+CONFIG_ID=y
+CONFIG_GROUPS=y
+CONFIG_FIND=y
+CONFIG_FEATURE_FIND_TYPE=y
+CONFIG_FEATURE_FIND_EXEC=y
+CONFIG_XARGS=y
+CONFIG_ENV=y
+CONFIG_EXPR=y
+CONFIG_TRUE=y
+CONFIG_FALSE=y
+CONFIG_YES=y
+CONFIG_TEE=y
+CONFIG_SEQ=y
+CONFIG_SHUF=y
+CONFIG_NPROC=y
+
+# Text tools
+CONFIG_GREP=y
+CONFIG_EGREP=y
+CONFIG_FGREP=y
+CONFIG_FEATURE_GREP_CONTEXT=y
+CONFIG_SED=y
+CONFIG_AWK=y
+CONFIG_DIFF=y
+CONFIG_PATCH=y
+
+# File tools
+CONFIG_TAR=y
+CONFIG_FEATURE_TAR_CREATE=y
+CONFIG_FEATURE_TAR_GZIP=y
+CONFIG_FEATURE_TAR_BZIP2=y
+CONFIG_GZIP=y
+CONFIG_GUNZIP=y
+CONFIG_ZCAT=y
+CONFIG_BZIP2=y
+CONFIG_BZCAT=y
+CONFIG_XZ=y
+CONFIG_UNXZ=y
+CONFIG_CPIO=y
+CONFIG_DD=y
+CONFIG_DU=y
+CONFIG_DF=y
+CONFIG_SYNC=y
+CONFIG_MD5SUM=y
+CONFIG_SHA1SUM=y
+CONFIG_SHA256SUM=y
+CONFIG_FILE=y
+
+# Init
+CONFIG_INIT=y
+CONFIG_FEATURE_USE_INITTAB=y
+CONFIG_FEATURE_INIT_SYSLOG=y
+CONFIG_GETTY=y
+CONFIG_LOGIN=y
+CONFIG_FEATURE_NOLOGIN=y
+CONFIG_SU=y
+
+# Process tools
+CONFIG_PS=y
+CONFIG_FEATURE_PS_WIDE=y
+CONFIG_TOP=y
+CONFIG_KILL=y
+CONFIG_KILLALL=y
+CONFIG_SLEEP=y
+CONFIG_FEATURE_FANCY_SLEEP=y
+CONFIG_USLEEP=y
+CONFIG_TIMEOUT=y
+CONFIG_NICE=y
+CONFIG_NOHUP=y
+
+# Network
+CONFIG_PING=y
+CONFIG_FEATURE_FANCY_PING=y
+CONFIG_WGET=y
+CONFIG_FEATURE_WGET_HTTPS=y
+CONFIG_FEATURE_WGET_OPENSSL=n
+CONFIG_FEATURE_WGET_STATUSBAR=y
+CONFIG_NETSTAT=y
+CONFIG_IFCONFIG=y
+CONFIG_IP=y
+CONFIG_FEATURE_IP_ADDRESS=y
+CONFIG_FEATURE_IP_ROUTE=y
+CONFIG_FEATURE_IP_LINK=y
+CONFIG_FEATURE_IP_TUNNEL=y
+CONFIG_UDHCPC=y
+CONFIG_FEATURE_UDHCPC_ARPING=y
+
+# Misc
+CONFIG_DMESG=y
+CONFIG_UNAME=y
+CONFIG_REBOOT=y
+CONFIG_HALT=y
+CONFIG_POWEROFF=y
+CONFIG_MOUNT=y
+CONFIG_FEATURE_MOUNT_FLAGS=y
+CONFIG_FEATURE_MOUNT_LABEL=y
+CONFIG_UMOUNT=y
+CONFIG_SYSCTL=y
+CONFIG_MODINFO=n
 CONFIG_INSMOD=n
 CONFIG_RMMOD=n
 CONFIG_LSMOD=n
-CONFIG_MODINFO=n
-CONFIG_FEATURE_MODPROBE_BLACKLIST=n
-CONFIG_UDHCPD=n
+CONFIG_DEPMOD=n
+CONFIG_FREE=y
+CONFIG_UPTIME=y
+CONFIG_CLEAR=y
+CONFIG_STTY=y
+CONFIG_LESS=y
+CONFIG_HEXDUMP=y
+CONFIG_XXDUMP=n
+CONFIG_VI=y
+
+# System
+CONFIG_HOSTNAME=y
+CONFIG_DNSDOMAINNAME=y
+CONFIG_FDISK=y
+CONFIG_FDISK_SUPPORT_LARGE_DISKS=y
+CONFIG_MKSWAP=y
+CONFIG_SWAPON=y
+CONFIG_SWAPOFF=y
+CONFIG_LOSETUP=y
+CONFIG_BLKID=y
+CONFIG_MDEV=y
+CONFIG_FEATURE_MDEV_CONF=y
+CONFIG_FEATURE_MDEV_DAEMON=y
+
+# Password / shadow
+CONFIG_FEATURE_DEFAULT_PASSWD_ALGO="md5"
+CONFIG_PASSWD=y
+CONFIG_ADDUSER=y
+CONFIG_ADDGROUP=y
+CONFIG_DELUSER=y
+CONFIG_DELGROUP=y
 """
 
 
@@ -63,6 +243,81 @@ class BusyboxBuildResult:
     error: str | None = None
     logs: list[str] = field(default_factory=list)
     cache_hit: bool = False
+
+
+def _patch_busybox_config(config_path: Path) -> None:
+    """Patch defconfig: enable static, disable applets with compile issues."""
+    text = config_path.read_text()
+
+    # Options to SET to y
+    enable = [
+        "CONFIG_STATIC",
+        "CONFIG_STATIC_LIBGCC",
+        "CONFIG_LFS",
+        "CONFIG_FEATURE_INSTALLER",
+    ]
+    # Options to SET to n (have compile issues or need obscure kernel headers)
+    # These are known to fail on GCC 13+/14 in BusyBox 1.37.0
+    disable = [
+        "CONFIG_TC",           # tc.c: needs kernel TC/CBQ headers (struct tc_cbq_wrropt undefined)
+        "CONFIG_I2CGET",       # i2c_tools.c: format-string issues on GCC 13+
+        "CONFIG_I2CSET",
+        "CONFIG_I2CDUMP",
+        "CONFIG_I2CDETECT",
+        "CONFIG_I2CTRANSFER",
+        "CONFIG_TFTP",         # tftp.c: uses char *x = x; self-init trick rejected by GCC 14
+        "CONFIG_TFTPD",
+        "CONFIG_MODPROBE_SMALL",
+        "CONFIG_DEPMOD",
+        "CONFIG_INSMOD",
+        "CONFIG_RMMOD",
+        "CONFIG_LSMOD",
+        "CONFIG_MODINFO",
+        "CONFIG_FEATURE_MODPROBE_BLACKLIST",
+        "CONFIG_UDHCPD",
+    ]
+    # String values to SET
+    set_values: dict[str, str] = {
+        # Suppress all warnings-as-errors to handle GCC version differences
+        "CONFIG_EXTRA_CFLAGS": '"-Wno-error"',
+    }
+
+    lines = text.splitlines()
+    result = []
+    seen: set[str] = set()
+
+    for line in lines:
+        # Match "CONFIG_FOO=..." or "# CONFIG_FOO is not set"
+        matched_key: str | None = None
+        for key in list(enable) + list(disable) + list(set_values):
+            if line.startswith(f"{key}=") or line == f"# {key} is not set":
+                matched_key = key
+                break
+        if matched_key:
+            if matched_key not in seen:
+                seen.add(matched_key)
+                if matched_key in set_values:
+                    result.append(f"{matched_key}={set_values[matched_key]}")
+                elif matched_key in enable:
+                    result.append(f"{matched_key}=y")
+                else:
+                    result.append(f"# {matched_key} is not set")
+            # drop duplicate occurrences
+        else:
+            result.append(line)
+
+    # Add any entries that weren't found in the original config
+    for key in enable:
+        if key not in seen:
+            result.append(f"{key}=y")
+    for key in disable:
+        if key not in seen:
+            result.append(f"# {key} is not set")
+    for key, val in set_values.items():
+        if key not in seen:
+            result.append(f"{key}={val}")
+
+    config_path.write_text("\n".join(result) + "\n")
 
 
 def _store_key(arch: str) -> str:
@@ -198,17 +453,36 @@ def build_busybox(
         src_dir = entries[0] if len(entries) == 1 and entries[0].is_dir() else Path(tmp)
         logs.append(f"[busybox] extracted to {src_dir}")
 
-        # ---- configure ----
-        _run(["make", "defconfig"], cwd=src_dir, logs=logs)
+        # ---- patch source for GCC 14 compatibility ----
+        # BusyBox 1.37.0 has SHA-NI code that fails to compile on GCC 14 when
+        # ARM crypto extensions are present: sha1_process_block64_shaNI is called
+        # without a declaration being in scope.  Replace with the software path.
+        sha_file = src_dir / "libbb" / "hash_md5_sha.c"
+        if sha_file.exists():
+            sha_src = sha_file.read_text()
+            if "sha1_process_block64_shaNI" in sha_src:
+                sha_src = sha_src.replace(
+                    "sha1_process_block64_shaNI", "sha1_process_block64"
+                )
+                sha_file.write_text(sha_src)
+                logs.append("[busybox] patched hash_md5_sha.c: sha1_process_block64_shaNI → software path")
 
-        # Append config fragment and merge
-        with open(src_dir / ".config", "a") as f:
-            f.write(_CONFIG_FRAGMENT)
-        _run(["make", "olddefconfig"], cwd=src_dir, logs=logs)
+        # ---- configure ----
+        # Start from defconfig (a complete, known-good config) and patch it:
+        # enable static linking, disable applets that need obscure kernel headers.
+        _run(["make", "defconfig"], cwd=src_dir, logs=logs)
+        _patch_busybox_config(src_dir / ".config")
 
         # ---- compile ----
+        # -march=armv8-a: disable ARM crypto extensions (SHA-NI) that cause
+        # undeclared-function errors in BusyBox 1.37.0 on GCC 14.
+        # -Wno-error: downgrade remaining warnings to non-fatal.
         logs.append(f"[busybox] compiling with -j{jobs}…")
-        _run(["make", f"-j{jobs}"], cwd=src_dir, logs=logs)
+        _run(
+            ["make", f"-j{jobs}",
+             "EXTRA_CFLAGS=-Wno-error -march=armv8-a"],
+            cwd=src_dir, logs=logs,
+        )
 
         # ---- install ----
         destdir = Path(tmp) / "destdir"

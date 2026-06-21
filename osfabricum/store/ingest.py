@@ -73,6 +73,18 @@ def ingest_blob(
     with sync_session(db_url) as session:
         existing = session.scalar(select(Artifact).where(Artifact.store_key == store_key))
         if existing is not None:
+            if existing.blob_sha256 == actual_sha256:
+                return existing
+            # Content changed — update the row in-place so the store_key always
+            # reflects the current blob (mutable store keys like composed rootfs/image).
+            existing.blob_sha256 = actual_sha256
+            existing.size_bytes = len(data)
+            if input_hash is not None:
+                existing.input_hash = input_hash
+            if repro_record is not None:
+                existing.metadata_json = {"repro": repro_record.to_dict()}
+            session.commit()
+            session.refresh(existing)
             return existing
         artifact = Artifact(
             kind=kind,
