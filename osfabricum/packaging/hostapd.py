@@ -186,13 +186,6 @@ def _run(cmd: list[str], *, cwd: Path, logs: list[str], extra_env: dict | None =
 def _install_build_deps(logs: list[str]) -> None:
     """Ensure libnl-3-dev and libnl-genl-3-dev are available in the container."""
     # Check if already installed (avoid slow apt-get if possible)
-    check = subprocess.run(
-        ["dpkg", "-l", "libnl-3-dev"],
-        capture_output=True, text=True,
-    )
-    if "ii  libnl-3-dev" in check.stdout:
-        logs.append("[hostapd] libnl-3-dev already installed")
-        return
     logs.append("[hostapd] running apt-get update…")
     subprocess.run(
         ["apt-get", "update", "-qq"],
