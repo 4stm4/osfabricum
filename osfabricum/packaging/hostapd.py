@@ -202,7 +202,7 @@ def _install_build_deps(logs: list[str]) -> None:
     logs.append("[hostapd] installing build dependencies via apt-get…")
     proc = subprocess.run(
         ["apt-get", "install", "-y", "--no-install-recommends",
-         "libnl-3-dev", "libnl-genl-3-dev", "libssl-dev"],
+         "pkg-config", "libnl-3-dev", "libnl-genl-3-dev", "libssl-dev"],
         capture_output=True, text=True,
         env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"},
     )
