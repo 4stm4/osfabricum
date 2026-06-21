@@ -484,7 +484,7 @@ const simpleRenderers = {
   async artifacts() {
     const data = await api('/v1/artifacts?limit=100');
     return simpleTable(
-      [{label:'Kind'},{label:'Name'},{label:'Arch'},{label:'Build'},{label:'Size'},{label:'Download'}],
+      [{label:'Kind'},{label:'Name'},{label:'Arch'},{label:'Date'},{label:'Build'},{label:'Size'},{label:'Download'}],
       data.map(a => {
         const buildCell = a.producer_build_id
           ? `<a href="/builds/${a.producer_build_id}" style="color:var(--accent);font-family:monospace">${a.producer_build_id.slice(0,8)}</a>`
@@ -492,7 +492,7 @@ const simpleRenderers = {
         const dlCell = (a.kind === 'image' || a.kind === 'kernel')
           ? `<a href="/v1/artifacts/${a.id}/download" style="color:var(--accent)">⬇ download</a>`
           : '—';
-        return [a.kind, a.name, a.arch||'—', buildCell, fmtSize(a.size_bytes), dlCell];
+        return [a.kind, a.name, a.arch||'—', fmtDate(a.created_at), buildCell, fmtSize(a.size_bytes), dlCell];
       })
     );
   },

@@ -44,7 +44,7 @@ from osfabricum.pipeline.record import (
 )
 from osfabricum.resolver import resolve_plan
 from osfabricum.resolver.plan import BuildPlan
-from osfabricum.rootfs.builder import RootfsSpec, build_base_rootfs
+from osfabricum.rootfs.builder import RootfsSpec, build_base_rootfs, fetch_upstream_rootfs
 
 # ---------------------------------------------------------------------------
 # Spec & result
@@ -373,6 +373,16 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
     )
 
     def _base_rootfs_step():
+        if plan.upstream_rootfs_url:
+            logs.append(f"[pipeline] upstream rootfs URL: {plan.upstream_rootfs_url}")
+            return fetch_upstream_rootfs(
+                plan.upstream_rootfs_url,
+                store_root=spec.store_root,
+                store_key=rootfs_spec.store_key().replace("base.tar.gz", "upstream.tar.gz"),
+                arch=plan.arch,
+                name=f"{spec.distribution}-{spec.board}-upstream",
+                db_url=spec.db_url,
+            )
         return build_base_rootfs(rootfs_spec, store_root=spec.store_root, db_url=spec.db_url)
 
     step_name = "rootfs.base"

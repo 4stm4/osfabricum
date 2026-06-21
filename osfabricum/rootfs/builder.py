@@ -26,9 +26,11 @@ inputs (same :class:`RootfsSpec`, same code version).
 
 from __future__ import annotations
 
+import hashlib
 import io
 import tarfile
 import tempfile
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -358,3 +360,49 @@ def build_base_rootfs(
         artifact_id=artifact.id,
         logs=logs,
     )
+
+
+def fetch_upstream_rootfs(
+    url: str,
+    *,
+    store_root: Path,
+    store_key: str,
+    arch: str,
+    name: str = "upstream-rootfs",
+    db_url: str | None = None,
+) -> RootfsBuildResult:
+    """Download an upstream rootfs tarball (e.g. Alpine minirootfs) and ingest as rootfs-base.
+
+    Uses store_key deduplication — subsequent calls with the same URL return the
+    cached artifact without re-downloading.
+    """
+    logs: list[str] = []
+    logs.append(f"[rootfs] fetching upstream rootfs: {url}")
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "osfabricum/1.0"})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data: bytes = resp.read()
+    except Exception as exc:
+        return RootfsBuildResult(success=False, error=f"download failed: {exc}", logs=logs)
+
+    logs.append(f"[rootfs] downloaded {len(data)} bytes (sha256={hashlib.sha256(data).hexdigest()[:12]})")
+
+    try:
+        artifact = ingest_blob(
+            data=data,
+            store_root=store_root,
+            store_key=store_key,
+            kind="rootfs-base",
+            name=name,
+            arch=arch,
+            media_type="application/gzip",
+            db_url=db_url,
+            retention_class="permanent",
+            input_hash=hashlib.sha256(url.encode()).hexdigest(),
+        )
+    except Exception as exc:
+        return RootfsBuildResult(success=False, error=f"ingest failed: {exc}", logs=logs)
+
+    logs.append(f"[rootfs] artifact ingested: {artifact.id}")
+    return RootfsBuildResult(success=True, artifact_id=artifact.id, logs=logs)

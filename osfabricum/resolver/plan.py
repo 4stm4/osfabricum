@@ -104,6 +104,8 @@ class BuildPlan:
     scripts: list[ScriptRef] = field(default_factory=list)
     partition_layout: PartitionLayoutRef | None = None
 
+    upstream_rootfs_url: str | None = None  # if set, download this tarball as rootfs-base
+
     missing_artifacts: list[str] = field(default_factory=list)
     required_jobs: list[str] = field(default_factory=list)
 

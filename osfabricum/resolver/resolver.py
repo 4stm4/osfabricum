@@ -443,6 +443,8 @@ def resolve_plan(
     required_jobs.append("rootfs.compose")
     required_jobs.append("image.compose")
 
+    upstream_rootfs_url: str | None = (board.metadata_json or {}).get("upstream_rootfs_url")
+
     return BuildPlan(
         distribution=distribution_name,
         profile=profile_name,
@@ -460,6 +462,7 @@ def resolve_plan(
         overlays=overlay_refs,
         scripts=script_refs,
         partition_layout=layout_ref,
+        upstream_rootfs_url=upstream_rootfs_url,
         missing_artifacts=missing,
         required_jobs=required_jobs,
     )
