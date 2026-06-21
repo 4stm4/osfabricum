@@ -186,6 +186,8 @@ CONFIG_FEATURE_IP_LINK=y
 CONFIG_FEATURE_IP_TUNNEL=y
 CONFIG_UDHCPC=y
 CONFIG_FEATURE_UDHCPC_ARPING=y
+CONFIG_UDHCPD=y
+CONFIG_FEATURE_UDHCPD_BASE=y
 
 # Misc
 CONFIG_DMESG=y
@@ -274,7 +276,6 @@ def _patch_busybox_config(config_path: Path) -> None:
         "CONFIG_LSMOD",
         "CONFIG_MODINFO",
         "CONFIG_FEATURE_MODPROBE_BLACKLIST",
-        "CONFIG_UDHCPD",
     ]
     # String values to SET
     set_values: dict[str, str] = {

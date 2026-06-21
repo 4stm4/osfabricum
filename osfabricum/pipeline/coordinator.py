@@ -36,6 +36,8 @@ from osfabricum.db.session import sync_session
 from osfabricum.firmware.fetch import fetch_all_firmware
 from osfabricum.image.composer import ImageSpec, compose_image
 from osfabricum.packaging.busybox import build_busybox
+from osfabricum.packaging.dropbear import build_dropbear
+from osfabricum.packaging.hostapd import build_hostapd
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
@@ -400,6 +402,38 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 logs.append(f"[pipeline] {pkg.name} built: {bb_result.artifact_id[:8]}")
             else:
                 logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {bb_result.error}")
+        elif pkg.name == "dropbear":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            dr_result = build_dropbear(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in dr_result.logs:
+                logs.append(line)
+            if dr_result.success and dr_result.artifact_id:
+                package_artifact_ids.append(dr_result.artifact_id)
+                _link_package_version(pkg.package_version_id, dr_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {dr_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {dr_result.error}")
+        elif pkg.name == "hostapd":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            ha_result = build_hostapd(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in ha_result.logs:
+                logs.append(line)
+            if ha_result.success and ha_result.artifact_id:
+                package_artifact_ids.append(ha_result.artifact_id)
+                _link_package_version(pkg.package_version_id, ha_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {ha_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {ha_result.error}")
         else:
             logs.append(f"[pipeline] WARNING: no builder for {pkg.name} — skipping")
 
