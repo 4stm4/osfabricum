@@ -312,6 +312,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     jobs=spec.jobs,
                     src_dir=spec.kernel_src_dir,
                     toolchain_root=toolchain_root,
+                    board_name=spec.board,
                 )
 
             if build_id is not None:
@@ -338,6 +339,7 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                     jobs=spec.jobs,
                     src_dir=spec.kernel_src_dir,
                     toolchain_root=toolchain_root,
+                    board_name=spec.board,
                 )
                 if kr.success:
                     kernel_artifact_id = kr.image_artifact_id
