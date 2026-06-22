@@ -420,7 +420,13 @@ def resolve_plan(
 
     # --- missing artifacts ---
     missing: list[str] = []
-    if toolchain_ref is not None and toolchain_ref.artifact_id is None:
+    # Report toolchain as missing only when kernel needs to be built with it
+    if (
+        toolchain_ref is not None
+        and toolchain_ref.artifact_id is None
+        and kernel_ref is not None
+        and kernel_ref.artifact_id is None
+    ):
         missing.append(f"toolchain:{toolchain_ref.name}")
     if kernel_ref is not None and kernel_ref.artifact_id is None:
         missing.append(f"kernel:{kernel_ref.name}")
@@ -433,7 +439,13 @@ def resolve_plan(
 
     # --- required jobs ---
     required_jobs: list[str] = []
-    if toolchain_ref is not None and toolchain_ref.artifact_id is None:
+    # toolchain is only needed when the kernel must be built
+    if (
+        toolchain_ref is not None
+        and toolchain_ref.artifact_id is None
+        and kernel_ref is not None
+        and kernel_ref.artifact_id is None
+    ):
         required_jobs.append("toolchain.fetch")
     if kernel_ref is not None and kernel_ref.artifact_id is None:
         required_jobs.append(f"kernel.build:{kernel_ref.name}")

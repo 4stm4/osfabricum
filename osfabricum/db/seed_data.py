@@ -2116,16 +2116,14 @@ TINYWIFI_PACKAGES: list[tuple[str, str, str]] = [
     ("busybox", "system", "base"),
     ("dropbear", "service", "services"),
     ("hostapd", "service", "services"),
-    ("wpa_supplicant", "service", "services"),
-    ("nftables", "system", "system"),
     ("nanodhcp", "service", "services"),
     ("webui-agent", "service", "services"),
 ]
 
 TINYWIFI_GROUPS: dict[str, list[str]] = {
-    "tinywifi-base": ["busybox", "nftables"],
+    "tinywifi-base": ["busybox"],
     "tinywifi-networking": ["nanodhcp", "dropbear"],
-    "tinywifi-wifi": ["hostapd", "wpa_supplicant"],
+    "tinywifi-wifi": ["hostapd"],
     "tinywifi-management": ["webui-agent"],
 }
 
