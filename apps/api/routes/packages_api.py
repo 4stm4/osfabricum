@@ -1,5 +1,8 @@
 """Package Workspace / Package Manager API (M35/M36/M37).
 
+    GET  /v1/packages                 — list all packages + versions + cache status
+    POST /v1/packages/ingest-url      — download .ofpkg from URL and ingest into cache
+    POST /v1/packages/upload          — upload .ofpkg file and ingest into cache
     GET  /v1/package-kinds | /v1/package-layers
     POST /v1/packages/cache          — record a cache entry
     POST /v1/packages/cache/lookup   — look up a key identity (explains a miss)
@@ -21,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from osfabricum import packageworkspace as pw
@@ -460,3 +463,210 @@ def promote(body: PromotionRequest, request: Request, _auth: WriteAuthDep = None
         from_channel=body.from_channel,
         db_url=_db(request),
     )
+
+
+# ---------------------------------------------------------------------------
+# Package list + cache ingestion
+# ---------------------------------------------------------------------------
+
+
+@router.get("/packages")
+def list_packages(request: Request) -> list[dict[str, Any]]:
+    """List all packages with their versions and cache (artifact) status."""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from osfabricum.db.models import Architecture, Artifact, Package, PackageVersion  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    db_url = _db(request)
+    with sync_session(db_url) as s:
+        packages = s.scalars(select(Package).order_by(Package.name)).all()
+        arch_names: dict[str, str] = {
+            a.id: a.name for a in s.scalars(select(Architecture)).all()
+        }
+        versions = s.scalars(select(PackageVersion)).all()
+        artifact_ids = [pv.artifact_id for pv in versions if pv.artifact_id]
+        artifacts: dict[str, Artifact] = {}
+        if artifact_ids:
+            for art in s.scalars(select(Artifact).where(Artifact.id.in_(artifact_ids))).all():
+                artifacts[art.id] = art
+
+        pkg_versions: dict[str, list[dict]] = {}
+        for pv in versions:
+            art = artifacts.get(pv.artifact_id) if pv.artifact_id else None
+            pkg_versions.setdefault(pv.package_id, []).append({
+                "id": pv.id,
+                "version": pv.version,
+                "arch": arch_names.get(pv.arch_id, pv.arch_id),
+                "cached": pv.artifact_id is not None,
+                "artifact_id": pv.artifact_id,
+                "size_bytes": art.size_bytes if art else None,
+                "cached_at": art.created_at.isoformat() if art and art.created_at else None,
+            })
+
+        result = []
+        for pkg in packages:
+            result.append({
+                "id": pkg.id,
+                "name": pkg.name,
+                "kind": pkg.kind,
+                "layer": pkg.layer,
+                "versions": pkg_versions.get(pkg.id, []),
+            })
+        return result
+
+
+class IngestUrlRequest(BaseModel):
+    url: str
+    package_version_id: str | None = None
+
+
+def _ingest_ofpkg_bytes(
+    data: bytes,
+    store_root_str: str | None,
+    db_url: str | None,
+    package_version_id: str | None = None,
+) -> dict[str, Any]:
+    """Verify, ingest and link a .ofpkg payload. Returns artifact info dict."""
+    import io  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+    import uuid  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from sqlalchemy import select as _sel  # noqa: PLC0415
+    from sqlalchemy import update as _upd  # noqa: PLC0415
+
+    from osfabricum.db.models import Architecture, Package, PackageVersion  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+    from osfabricum.packaging.installer import verify_ofpkg  # noqa: PLC0415
+    from osfabricum.store.ingest import ingest_blob  # noqa: PLC0415
+
+    store_root = Path(store_root_str) if store_root_str else Path("/store")
+
+    with tempfile.NamedTemporaryFile(suffix=".ofpkg", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = Path(tmp.name)
+
+    try:
+        manifest = verify_ofpkg(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    name = manifest["name"]
+    version = manifest["version"]
+    arch_name = manifest["arch"]
+
+    store_key = f"packages/{name}/{version}/{arch_name}/{name}-{version}-{arch_name}.ofpkg"
+    artifact = ingest_blob(
+        data,
+        store_root=store_root,
+        store_key=store_key,
+        kind="package",
+        name=name,
+        version=version,
+        arch=arch_name,
+        media_type="application/zip",
+        db_url=db_url,
+    )
+
+    # Link to PackageVersion: use provided id or find/create the row
+    with sync_session(db_url) as s:
+        arch_row = s.scalar(_sel(Architecture).where(Architecture.name == arch_name))
+        if arch_row is None:
+            raise ValueError(f"Architecture {arch_name!r} not found in DB — add it first")
+
+        if package_version_id:
+            pv = s.get(PackageVersion, package_version_id)
+            if pv is None:
+                raise ValueError(f"PackageVersion {package_version_id!r} not found")
+        else:
+            # Find or create Package + PackageVersion
+            pkg = s.scalar(_sel(Package).where(Package.name == name))
+            if pkg is None:
+                pkg = Package(id=str(uuid.uuid4()), name=name, package_type="native")
+                s.add(pkg)
+                s.flush()
+            pv = s.scalar(
+                _sel(PackageVersion).where(
+                    PackageVersion.package_id == pkg.id,
+                    PackageVersion.version == version,
+                    PackageVersion.arch_id == arch_row.id,
+                )
+            )
+            if pv is None:
+                pv = PackageVersion(
+                    id=str(uuid.uuid4()),
+                    package_id=pkg.id,
+                    version=version,
+                    arch_id=arch_row.id,
+                    status="cached",
+                )
+                s.add(pv)
+                s.flush()
+            package_version_id = pv.id
+
+        s.execute(
+            _upd(PackageVersion)
+            .where(PackageVersion.id == package_version_id)
+            .values(artifact_id=artifact.id, status="cached")
+        )
+        s.commit()
+
+    return {
+        "artifact_id": artifact.id,
+        "package_version_id": package_version_id,
+        "name": name,
+        "version": version,
+        "arch": arch_name,
+        "size_bytes": artifact.size_bytes,
+        "blob_sha256": artifact.blob_sha256,
+    }
+
+
+@router.post("/packages/ingest-url", status_code=201)
+def ingest_from_url(
+    body: IngestUrlRequest, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
+    """Download a .ofpkg from a URL, verify it, and add it to the cache."""
+    import urllib.request  # noqa: PLC0415
+
+    try:
+        with urllib.request.urlopen(body.url, timeout=120) as resp:  # noqa: S310
+            data = resp.read()
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Download failed: {exc}") from exc
+
+    try:
+        settings = getattr(request.app.state, "settings", None)
+        store_root_str = settings.store.root if settings else None
+        return _ingest_ofpkg_bytes(
+            data,
+            store_root_str=store_root_str,
+            db_url=_db(request),
+            package_version_id=body.package_version_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/packages/upload", status_code=201)
+async def ingest_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    _auth: WriteAuthDep = None,
+) -> dict[str, Any]:
+    """Upload a .ofpkg file, verify it, and add it to the cache."""
+    if not (file.filename or "").endswith(".ofpkg"):
+        raise HTTPException(status_code=422, detail="File must be a .ofpkg archive")
+
+    data = await file.read()
+    try:
+        settings = getattr(request.app.state, "settings", None)
+        store_root_str = settings.store.root if settings else None
+        return _ingest_ofpkg_bytes(
+            data,
+            store_root_str=store_root_str,
+            db_url=_db(request),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

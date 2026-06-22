@@ -125,6 +125,24 @@
     /* Misc */
     .cancel-btn { background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3); color: var(--red); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
     .cancel-btn:hover { background: rgba(248,81,73,.2); }
+
+    /* Packages tab */
+    .pkg-add-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
+    .pkg-add-box h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--fg); }
+    .pkg-add-tabs { display: flex; gap: 0; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .pkg-add-tab { background: none; border: none; color: var(--muted); padding: 6px 14px; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .pkg-add-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .pkg-add-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+    .pkg-add-row label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .pkg-add-row input[type=text], .pkg-add-row input[type=url] { background: var(--panel2); border: 1px solid var(--border); color: var(--fg); padding: 6px 10px; border-radius: 5px; font-size: 12px; width: 320px; }
+    .pkg-add-row input[type=text]:focus, .pkg-add-row input[type=url]:focus { outline: none; border-color: var(--accent); }
+    .pkg-add-panel { display: none; }
+    .pkg-add-panel.active { display: block; }
+    .cached-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .uncached-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .pkg-msg { margin-top: 10px; font-size: 12px; }
+    .pkg-msg.ok { color: var(--green); }
+    .pkg-msg.err { color: var(--red); }
   </style>
 </head>
 <body>
@@ -138,6 +156,7 @@
 <nav>
   <button data-tab="builds" class="active">Builds</button>
   <button data-tab="artifacts">Artifacts</button>
+  <button data-tab="packages">Packages</button>
   <button data-tab="distributions">Distributions</button>
   <button data-tab="boards">Boards</button>
   <button data-tab="workers">Workers</button>
@@ -500,6 +519,73 @@ function simpleTable(headers, rows) {
 }
 
 const simpleRenderers = {
+  async packages() {
+    const pkgs = await api('/v1/packages');
+    // Flatten to per-version rows
+    const rows = [];
+    for (const pkg of pkgs) {
+      if (!pkg.versions.length) {
+        rows.push({ name: pkg.name, kind: pkg.kind||'—', version: '—', arch: '—', cached: false, size_bytes: null, cached_at: null });
+      } else {
+        for (const v of pkg.versions) {
+          rows.push({ name: pkg.name, kind: pkg.kind||'—', version: v.version, arch: v.arch, cached: v.cached, size_bytes: v.size_bytes, cached_at: v.cached_at, artifact_id: v.artifact_id });
+        }
+      }
+    }
+
+    const tableHtml = rows.length ? `
+      <table>
+        <thead><tr><th>Package</th><th>Kind</th><th>Version</th><th>Arch</th><th>Cache</th><th>Size</th><th>Cached at</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td style="font-weight:600">${r.name}</td>
+          <td style="color:var(--muted)">${r.kind}</td>
+          <td class="mono">${r.version}</td>
+          <td class="mono">${r.arch}</td>
+          <td>${r.cached
+            ? '<span class="cached-dot"></span> <span style="color:var(--green);font-size:12px">cached</span>'
+            : '<span class="uncached-dot"></span> <span style="color:var(--muted);font-size:12px">pending</span>'}</td>
+          <td style="color:var(--muted)">${r.size_bytes ? fmtSize(r.size_bytes) : '—'}</td>
+          <td style="color:var(--muted);font-size:12px">${r.cached_at ? fmtDate(r.cached_at) : '—'}</td>
+          <td>${r.artifact_id ? `<a href="/v1/artifacts/${r.artifact_id}/download" style="color:var(--accent);font-size:12px">⬇ download</a>` : ''}</td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">No packages in DB yet.</div>';
+
+    return `
+      <div class="pkg-add-box">
+        <h3>Add package to cache</h3>
+        <div class="pkg-add-tabs">
+          <button class="pkg-add-tab active" onclick="pkgTabSwitch(this,'url')">From URL</button>
+          <button class="pkg-add-tab" onclick="pkgTabSwitch(this,'upload')">Upload .ofpkg</button>
+        </div>
+
+        <div id="pkg-panel-url" class="pkg-add-panel active">
+          <div class="pkg-add-row">
+            <label>URL to .ofpkg file
+              <input type="url" id="pkg-url-input" placeholder="https://github.com/…/releases/download/…/name-ver-arch.ofpkg" style="width:480px">
+            </label>
+            <button class="act" onclick="pkgIngestUrl()" style="margin-top:4px">⬇ Download &amp; ingest</button>
+          </div>
+          <div class="pkg-msg" id="pkg-url-msg"></div>
+        </div>
+
+        <div id="pkg-panel-upload" class="pkg-add-panel">
+          <div class="pkg-add-row" style="align-items:center">
+            <label>Select .ofpkg file
+              <input type="file" id="pkg-file-input" accept=".ofpkg" style="background:var(--panel2);border:1px solid var(--border);color:var(--fg);padding:5px 10px;border-radius:5px;font-size:12px">
+            </label>
+            <button class="act" onclick="pkgUpload()" style="margin-top:4px">↑ Upload &amp; ingest</button>
+          </div>
+          <div class="pkg-msg" id="pkg-upload-msg"></div>
+        </div>
+      </div>
+
+      <div style="font-size:16px;font-weight:600;margin-bottom:16px">
+        Packages
+        <span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px">${rows.length} versions · ${rows.filter(r=>r.cached).length} cached</span>
+      </div>
+      ${tableHtml}`;
+  },
+
   async artifacts() {
     const data = await api('/v1/artifacts?limit=100');
     return simpleTable(
@@ -675,6 +761,58 @@ async function deleteBulk(mode, keepLatest = 0) {
   if (result.ids.includes(selectedBuildId)) selectedBuildId = null;
   result.ids.forEach(id => delete detailCache[id]);
   await renderApp();
+}
+
+// ── packages tab helpers ──────────────────────────────────────────────────────
+function pkgTabSwitch(btn, panel) {
+  document.querySelectorAll('.pkg-add-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.pkg-add-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  const el = document.getElementById('pkg-panel-' + panel);
+  if (el) el.classList.add('active');
+}
+
+function _pkgShowMsg(elId, text, isOk) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'pkg-msg ' + (isOk ? 'ok' : 'err');
+}
+
+async function pkgIngestUrl() {
+  const urlEl = document.getElementById('pkg-url-input');
+  const url = (urlEl?.value || '').trim();
+  if (!url) { _pkgShowMsg('pkg-url-msg', 'Enter a URL first.', false); return; }
+  _pkgShowMsg('pkg-url-msg', '⏳ Downloading…', true);
+  try {
+    const r = await fetch('/v1/packages/ingest-url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) { _pkgShowMsg('pkg-url-msg', '✗ ' + (body.detail || r.status), false); return; }
+    _pkgShowMsg('pkg-url-msg', `✓ Ingested ${body.name} ${body.version} (${fmtSize(body.size_bytes)})`, true);
+    if (urlEl) urlEl.value = '';
+    setTimeout(() => renderApp(), 800);
+  } catch(e) { _pkgShowMsg('pkg-url-msg', '✗ ' + e.message, false); }
+}
+
+async function pkgUpload() {
+  const fileEl = document.getElementById('pkg-file-input');
+  const file = fileEl?.files?.[0];
+  if (!file) { _pkgShowMsg('pkg-upload-msg', 'Select a .ofpkg file first.', false); return; }
+  _pkgShowMsg('pkg-upload-msg', '⏳ Uploading…', true);
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const r = await fetch('/v1/packages/upload', {method: 'POST', body: form});
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) { _pkgShowMsg('pkg-upload-msg', '✗ ' + (body.detail || r.status), false); return; }
+    _pkgShowMsg('pkg-upload-msg', `✓ Ingested ${body.name} ${body.version} (${fmtSize(body.size_bytes)})`, true);
+    if (fileEl) fileEl.value = '';
+    setTimeout(() => renderApp(), 800);
+  } catch(e) { _pkgShowMsg('pkg-upload-msg', '✗ ' + e.message, false); }
 }
 
 async function addWorker() {
