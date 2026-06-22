@@ -26,12 +26,18 @@
     .detail-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); }
 
     /* Build list */
-    .build-row { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .build-row { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; position: relative; }
     .build-row:hover { background: var(--panel); }
     .build-row.selected { background: var(--panel2); border-left: 3px solid var(--accent); padding-left: 13px; }
     .build-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
     .build-name { font-weight: 600; }
     .build-meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .build-del-btn { opacity: 0; position: absolute; top: 10px; right: 8px; background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 2px 5px; border-radius: 4px; line-height: 1; }
+    .build-row:hover .build-del-btn { opacity: 1; }
+    .build-del-btn:hover { background: rgba(255,80,80,.15); color: var(--red); }
+    .bulk-del-wrap { display: flex; gap: 6px; align-items: center; }
+    .bulk-del-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+    .bulk-del-btn:hover { border-color: var(--red); color: var(--red); background: rgba(255,80,80,.08); }
     .progress-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; }
     .progress-bar-fill { height: 3px; border-radius: 2px; transition: width .4s; }
     .fill-running { background: var(--yellow); }
@@ -276,7 +282,12 @@ function renderBuildRow(b, events) {
   const sel = selectedBuildId === b.id ? ' selected' : '';
   const elap = elapsed(b.created_at);
 
+  const canDel = b.status !== 'running' && b.status !== 'queued';
+  const delBtn = canDel
+    ? `<button class="build-del-btn" title="Delete build" onclick="event.stopPropagation();deleteBuild('${b.id}')">✕</button>`
+    : '';
   return `<div class="build-row${sel}" onclick="selectBuild('${b.id}')">
+    ${delBtn}
     <div class="build-row-top">
       <span class="build-name">${b.distribution || '?'}/${b.profile || '?'}</span>
       ${badge(b.status)}
@@ -302,10 +313,15 @@ async function renderBuildsTab() {
     }
   }
 
+  const failedCount = builds.filter(b => b.status === 'failed').length;
   const listHtml = `
     <div class="list-header">
       <span class="list-header-title">Builds (${builds.length})</span>
-      <a href="/build/new" class="act" style="text-decoration:none;font-size:12px;">+ New Build</a>
+      <div class="bulk-del-wrap">
+        ${failedCount ? `<button class="bulk-del-btn" onclick="deleteBulk('failed')" title="Delete all failed builds">✕ Failed (${failedCount})</button>` : ''}
+        ${builds.length > 5 ? `<button class="bulk-del-btn" onclick="deleteBulk('all',5)" title="Keep 5 newest, delete the rest">Keep 5</button>` : ''}
+        <a href="/build/new" class="act" style="text-decoration:none;font-size:12px;">+ New Build</a>
+      </div>
     </div>
     ${builds.length ? builds.map(b => renderBuildRow(b, detailCache[b.id]?.events)).join('') : '<div class="empty">No builds yet.</div>'}
   `;
@@ -426,10 +442,13 @@ async function renderBuildDetail(buildId) {
         ${estEta ? `<div class="stat"><div class="stat-val yellow">~${estEta}</div><div class="stat-lbl">ETA</div></div>` : ''}
         ${failedCount ? `<div class="stat"><div class="stat-val red">${failedCount}</div><div class="stat-lbl">Failed</div></div>` : ''}
       </div>
-      ${isActive ? `<div style="margin-top:8px;display:flex;gap:8px">
-        <button class="act" onclick="refreshDetail('${buildId}')">↻ Refresh</button>
-        <button class="cancel-btn" onclick="cancelBuild('${buildId}')">✕ Cancel</button>
-      </div>` : ''}
+      <div style="margin-top:8px;display:flex;gap:8px">
+        ${isActive
+          ? `<button class="act" onclick="refreshDetail('${buildId}')">↻ Refresh</button>
+             <button class="cancel-btn" onclick="cancelBuild('${buildId}')">✕ Cancel</button>`
+          : `<button class="cancel-btn" onclick="deleteBuild('${buildId}')">🗑 Delete</button>`
+        }
+      </div>
       ${(() => {
         const imgArt = (artifacts || []).find(a => a.kind === 'image');
         if (!imgArt) return '';
@@ -621,6 +640,41 @@ async function cancelBuild(id) {
   if (!confirm('Cancel this build?')) return;
   await fetch(`/v1/builds/${id}/cancel`, {method:'POST'});
   await refreshDetail(id);
+}
+
+async function deleteBuild(id) {
+  if (!confirm('Delete this build and all its logs?')) return;
+  const r = await fetch(`/v1/builds/${id}`, {method:'DELETE'});
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({detail: r.status}));
+    alert('Delete failed: ' + (err.detail || r.status));
+    return;
+  }
+  if (selectedBuildId === id) selectedBuildId = null;
+  delete detailCache[id];
+  await renderApp();
+}
+
+async function deleteBulk(mode, keepLatest = 0) {
+  const label = mode === 'failed'
+    ? 'all failed builds'
+    : `all builds except the ${keepLatest} newest`;
+  if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+
+  const params = new URLSearchParams();
+  if (mode === 'failed') params.set('status', 'failed');
+  if (keepLatest > 0) params.set('keep_latest', keepLatest);
+
+  const r = await fetch(`/v1/builds?${params}`, {method:'DELETE'});
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({detail: r.status}));
+    alert('Bulk delete failed: ' + (err.detail || r.status));
+    return;
+  }
+  const result = await r.json();
+  if (result.ids.includes(selectedBuildId)) selectedBuildId = null;
+  result.ids.forEach(id => delete detailCache[id]);
+  await renderApp();
 }
 
 async function addWorker() {

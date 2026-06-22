@@ -364,3 +364,97 @@ def build_artifacts_api(build_id: str, request: Request) -> list[dict[str, Any]]
             }
             for a in rows
         ]
+
+
+# ---------------------------------------------------------------------------
+# Delete endpoints
+# ---------------------------------------------------------------------------
+
+def _delete_builds(build_ids: list[str], db_url: str | None) -> int:
+    """Delete builds and all their associated rows. Returns deleted count."""
+    from sqlalchemy import delete as _del  # noqa: PLC0415
+    from osfabricum.db.models import Build, BuildEvent, BuildJob, BuildLog  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    if not build_ids:
+        return 0
+    with sync_session(db_url) as s:
+        # Order matters: child rows first due to FK constraints
+        s.execute(_del(BuildLog).where(BuildLog.build_id.in_(build_ids)))
+        s.execute(_del(BuildEvent).where(BuildEvent.build_id.in_(build_ids)))
+        s.execute(_del(BuildJob).where(BuildJob.build_id.in_(build_ids)))
+        result = s.execute(_del(Build).where(Build.id.in_(build_ids)))
+        s.commit()
+        return result.rowcount
+
+
+@router.delete("/{build_id}", status_code=200)
+def delete_build_api(
+    build_id: str, request: Request, _auth: WriteAuthDep = None
+) -> dict[str, Any]:
+    """Delete a single build and all its jobs/events/logs."""
+    from osfabricum.db.models import Build  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    db_url = _get_db_url(request)
+    with sync_session(db_url) as s:
+        build = s.get(Build, build_id)
+        if build is None:
+            raise HTTPException(status_code=404, detail=f"Build {build_id!r} not found")
+        if build.status in ("running", "queued"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot delete build in state {build.status!r} — cancel it first",
+            )
+
+    deleted = _delete_builds([build_id], db_url)
+    return {"deleted": deleted, "ids": [build_id]}
+
+
+@router.delete("", status_code=200)
+def delete_builds_bulk_api(
+    request: Request,
+    _auth: WriteAuthDep = None,
+    status: str | None = Query(default=None, description="Only delete builds with this status (e.g. 'failed', 'success')"),
+    distribution: str | None = Query(default=None, description="Only delete builds for this distribution name"),
+    keep_latest: int = Query(default=0, ge=0, description="Keep this many most-recent builds (0 = delete all matching)"),
+) -> dict[str, Any]:
+    """Bulk-delete builds matching the given filters.
+
+    At least one of ``status``, ``distribution``, or ``keep_latest`` must be
+    provided to prevent accidental deletion of everything.
+    Running/queued builds are always skipped.
+    """
+    from sqlalchemy import select as _sel  # noqa: PLC0415
+    from osfabricum.db.models import Build, Distribution  # noqa: PLC0415
+    from osfabricum.db.session import sync_session  # noqa: PLC0415
+
+    if status is None and distribution is None and keep_latest == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one filter: status, distribution, or keep_latest",
+        )
+
+    db_url = _get_db_url(request)
+    with sync_session(db_url) as s:
+        q = _sel(Build).where(Build.status.notin_(["running", "queued"]))
+
+        if status is not None:
+            q = q.where(Build.status == status)
+
+        if distribution is not None:
+            dist_row = s.scalar(_sel(Distribution).where(Distribution.name == distribution))
+            if dist_row is None:
+                raise HTTPException(status_code=404, detail=f"Distribution {distribution!r} not found")
+            q = q.where(Build.distribution_id == dist_row.id)
+
+        q = q.order_by(Build.created_at.desc())
+        builds = s.scalars(q).all()
+
+        if keep_latest > 0:
+            builds = builds[keep_latest:]  # skip the N newest, delete the rest
+
+        ids = [b.id for b in builds]
+
+    deleted = _delete_builds(ids, db_url)
+    return {"deleted": deleted, "ids": ids}
