@@ -278,6 +278,14 @@ def build_openbox(
         destdir = Path(tmp) / "destdir"
         destdir.mkdir()
 
+        # openbox 3.6.1 ships config.guess from 2008 that doesn't know aarch64.
+        # Replace with the system copy before running configure.
+        for _cfg in ("config.guess", "config.sub"):
+            _sys = Path("/usr/share/misc") / _cfg
+            if _sys.exists():
+                shutil.copy2(_sys, src_dir / _cfg)
+                (src_dir / _cfg).chmod(0o755)
+
         _run([
             "./configure",
             "--prefix=/usr",

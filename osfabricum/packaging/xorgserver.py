@@ -406,6 +406,12 @@ def build_xorgserver(
         fbentries = [e for e in fbsrc.iterdir() if e.is_dir()]
         fbdir = fbentries[0] if fbentries else fbsrc
 
+        for _cfg in ("config.guess", "config.sub"):
+            _sys = Path("/usr/share/misc") / _cfg
+            if _sys.exists():
+                shutil.copy2(_sys, fbdir / _cfg)
+                (fbdir / _cfg).chmod(0o755)
+
         _run(["./configure", "--prefix=/usr", f"CFLAGS=-O2 -Wno-error"],
              cwd=fbdir, logs=logs, tag="fbdev")
         _run(["make", f"-j{jobs}"], cwd=fbdir, logs=logs, tag="fbdev")
