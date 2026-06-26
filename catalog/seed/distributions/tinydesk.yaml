@@ -22,3 +22,7 @@ sets:
         board: orange-pi-5
         kernel: [linux-rpi, "6.6.y"]
         toolchain: aarch64-linux-musl-bootlin
+      - name: rpi-zero-2w
+        board: rpi-zero-2w
+        kernel: [linux-rpi, "6.6.y"]
+        toolchain: aarch64-linux-musl-bootlin
