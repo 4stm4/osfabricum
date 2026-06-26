@@ -30,6 +30,7 @@ from sqlalchemy import select
 
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
+from osfabricum.packaging.registry import register
 from osfabricum.store.ingest import ingest_blob
 
 BUSYBOX_VERSION = "1.37.0"
@@ -393,6 +394,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("busybox")
 def build_busybox(
     *,
     arch: str,

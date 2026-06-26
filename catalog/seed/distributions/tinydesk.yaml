@@ -1,0 +1,24 @@
+name: tinydesk
+class: desktop
+description: Minimal desktop OS — Openbox + xterm on Orange Pi
+default_channel: dev
+arch: aarch64
+
+packages:
+  - {name: busybox,     kind: system,      layer: base}
+  - {name: xterm,       kind: application, layer: desktop}
+  - {name: openbox,     kind: application, layer: desktop}
+  - {name: xorg-server, kind: system,      layer: system}
+
+groups:
+  tinydesk-base:    [busybox]
+  tinydesk-desktop: [xterm, openbox, xorg-server]
+
+sets:
+  tinydesk-default:
+    groups: [tinydesk-base, tinydesk-desktop]
+    profiles:
+      - name: orange-pi-5
+        board: orange-pi-5
+        kernel: [linux-rpi, "6.6.y"]
+        toolchain: aarch64-linux-musl-bootlin

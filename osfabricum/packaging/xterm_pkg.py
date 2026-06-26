@@ -31,6 +31,7 @@ from sqlalchemy import select
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.ingest import ingest_blob
+from osfabricum.packaging.registry import register
 
 XTERM_VERSION = "394"
 XTERM_URL = f"https://invisible-island.net/datafiles/release/xterm-{XTERM_VERSION}.tgz"
@@ -173,6 +174,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("xterm")
 def build_xterm(
     *,
     arch: str,

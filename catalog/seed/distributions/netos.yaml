@@ -1,0 +1,47 @@
+name: netos
+class: server
+description: NetOS network operating system — infrastructure/SDN server class
+default_channel: dev
+arch: x86_64
+
+packages:
+  - {name: busybox,       kind: system,  layer: base}
+  - {name: openssh,       kind: service, layer: services}
+  - {name: nftables,      kind: system,  layer: system}
+  - {name: frr,           kind: service, layer: services}
+  - {name: ovs-vswitchd,  kind: service, layer: services}
+  - {name: ovsdb-server,  kind: service, layer: services}
+  - {name: strongswan,    kind: service, layer: services}
+  - {name: curl,          kind: system,  layer: system}
+  - {name: systemd,       kind: system,  layer: system}
+  - {name: python3,       kind: runtime, layer: runtime}
+  - {name: netdata,       kind: service, layer: services}
+
+groups:
+  netos-base:       [busybox, systemd, openssh, curl]
+  netos-network:    [nftables, frr]
+  netos-sdn:        [ovs-vswitchd, ovsdb-server]
+  netos-security:   [strongswan]
+  netos-monitoring: [netdata, python3]
+
+sets:
+  netos-nervum:
+    groups: [netos-base, netos-network, netos-security, netos-monitoring]
+    profiles:
+      - name: nervum
+        board: qemu-x86_64
+        toolchain: x86_64-linux-musl-bootlin
+
+  netos-testum:
+    groups: [netos-base, netos-network]
+    profiles:
+      - name: testum
+        board: qemu-x86_64
+        toolchain: x86_64-linux-musl-bootlin
+
+  netos-ovsdb:
+    groups: [netos-base, netos-network, netos-sdn, netos-security]
+    profiles:
+      - name: ovsdb
+        board: qemu-x86_64
+        toolchain: x86_64-linux-musl-bootlin

@@ -15,3 +15,8 @@ items:
     description: Ocultum secure mobile OS — mobile/handheld class
     default_channel: dev
     class: mobile-handheld
+
+  - name: tinydesk
+    description: Minimal desktop OS — Openbox + xterm on Orange Pi
+    default_channel: dev
+    class: desktop

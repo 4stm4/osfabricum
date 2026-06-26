@@ -1,0 +1,27 @@
+name: tinywifi
+class: router
+description: Minimal Wi-Fi access point OS
+default_channel: dev
+arch: aarch64
+
+packages:
+  - {name: busybox,     kind: system,  layer: base}
+  - {name: dropbear,    kind: service, layer: services}
+  - {name: hostapd,     kind: service, layer: services}
+  - {name: nanodhcp,    kind: service, layer: services}
+  - {name: webui-agent, kind: service, layer: services}
+
+groups:
+  tinywifi-base:       [busybox]
+  tinywifi-networking: [nanodhcp, dropbear]
+  tinywifi-wifi:       [hostapd]
+  tinywifi-management: [webui-agent]
+
+sets:
+  tinywifi-default:
+    groups: [tinywifi-base, tinywifi-networking, tinywifi-wifi, tinywifi-management]
+    profiles:
+      - name: default
+        board: rpi-zero-2w
+        kernel: [linux-rpi, "6.6.y"]
+        toolchain: aarch64-linux-musl-bootlin

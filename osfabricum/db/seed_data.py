@@ -1974,6 +1974,128 @@ def seed_distributions_from_yaml(
     return added
 
 
+def seed_distribution_catalog(
+    session: "Session",
+    catalog_dir: Path | None = None,
+) -> dict[str, int]:
+    """Seed distributions from catalog/seed/distributions/*.yaml (idempotent).
+
+    Each YAML file defines one distribution: metadata, packages, groups, sets,
+    and profiles.  Adding a new distribution requires only a new YAML file —
+    no Python code changes.
+
+    Schema::
+
+        name: tinywifi
+        class: router
+        description: ...
+        default_channel: dev
+        arch: aarch64          # default arch for package versions
+        packages:
+          - {name: busybox, kind: system, layer: base}
+        groups:
+          group-name: [pkg1, pkg2]
+        sets:
+          set-name:
+            groups: [group-name]
+            profiles:
+              - name: default
+                board: rpi-zero-2w
+                kernel: [linux-rpi, "6.6.y"]   # optional
+                toolchain: aarch64-linux-musl-bootlin
+    """
+    if catalog_dir is None:
+        catalog_dir = Path(__file__).parents[2] / "catalog" / "seed" / "distributions"
+    catalog_dir = Path(catalog_dir)
+    if not catalog_dir.exists():
+        return {"distributions": 0, "packages": 0, "groups": 0, "sets": 0, "profiles": 0}
+
+    # Pre-load lookup maps once
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    kernel_map = {(k.name, k.version): k.id for k in session.scalars(select(Kernel)).all()}
+    toolchain_map = {t.name: t.id for t in session.scalars(select(Toolchain)).all()}
+    dist_map = {d.name: d.id for d in session.scalars(select(Distribution)).all()}
+    class_map = {c.name: c.id for c in session.scalars(select(DistributionClass)).all()}
+
+    totals: dict[str, int] = {"distributions": 0, "packages": 0, "groups": 0, "sets": 0, "profiles": 0}
+
+    for yaml_file in sorted(catalog_dir.glob("*.yaml")):
+        with yaml_file.open() as f:
+            data = yaml.safe_load(f)
+        if not data or "name" not in data:
+            continue
+
+        dist_name = data["name"]
+        arch_id = arch_map.get(data.get("arch", "aarch64"), "")
+
+        # Distribution row
+        if dist_name not in dist_map:
+            cid = class_map.get(data.get("class", "")) or None
+            d = Distribution(
+                id=str(uuid4()), name=dist_name,
+                description=data.get("description"),
+                default_channel=data.get("default_channel", "dev"),
+                class_id=cid,
+            )
+            session.add(d)
+            session.flush()
+            dist_map[dist_name] = d.id
+            totals["distributions"] += 1
+        else:
+            existing_d = session.get(Distribution, dist_map[dist_name])
+            if existing_d and existing_d.class_id is None:
+                existing_d.class_id = class_map.get(data.get("class", "")) or None
+                session.flush()
+
+        dist_id = dist_map[dist_name]
+
+        # Packages
+        pkg_map: dict[str, "Package"] = {}
+        for p in data.get("packages", []):
+            pkg = _get_or_create_package(session, p["name"], p.get("kind", "system"), p.get("layer", "system"))
+            pkg_map[p["name"]] = pkg
+            _get_or_create_package_version(session, pkg, "latest", arch_id)
+            totals["packages"] += 1
+
+        # Groups
+        group_objs: dict[str, "PackageGroup"] = {}
+        for gname, members in (data.get("groups") or {}).items():
+            grp = _get_or_create_package_group(session, gname, dist_id, f"{dist_name} {gname}")
+            for pname in (members or []):
+                if pname in pkg_map:
+                    _add_package_to_group(session, grp, pkg_map[pname])
+            group_objs[gname] = grp
+            totals["groups"] += 1
+
+        # Sets + profiles
+        for set_name, set_data in (data.get("sets") or {}).items():
+            group_names = set_data.get("groups", []) if isinstance(set_data, dict) else []
+            pset = _get_or_create_package_set(session, set_name, dist_id, f"{dist_name} {set_name}")
+            for gname in group_names:
+                if gname in group_objs:
+                    _add_group_to_set(session, pset, group_objs[gname])
+            totals["sets"] += 1
+
+            for prof in (set_data.get("profiles", []) if isinstance(set_data, dict) else []):
+                board_id = board_map.get(prof.get("board", "")) or None
+                kernel_spec = prof.get("kernel")
+                kernel_id = None
+                if kernel_spec and isinstance(kernel_spec, list) and len(kernel_spec) == 2:
+                    kernel_id = kernel_map.get(tuple(kernel_spec))
+                tc_id = toolchain_map.get(prof.get("toolchain", "")) or None
+                _get_or_create_profile(
+                    session, prof["name"], dist_id,
+                    board_id=board_id, kernel_id=kernel_id,
+                    toolchain_id=tc_id, package_set_id=pset.id,
+                )
+                totals["profiles"] += 1
+
+        session.flush()
+
+    return totals
+
+
 def _get_or_create_package(session: "Session", name: str, kind: str = "system", layer: str = "system") -> "Package":
     """Get an existing package by name or create it (idempotent)."""
     pkg = session.scalars(select(Package).where(Package.name == name)).first()

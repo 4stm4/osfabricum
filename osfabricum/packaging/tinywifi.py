@@ -34,6 +34,7 @@ from sqlalchemy import select
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.ingest import ingest_blob
+from osfabricum.packaging.registry import register
 
 TINYWIFI_REPO = "https://github.com/4stm4/tinyWiFi"
 TINYWIFI_VERSION = "git-main"
@@ -247,6 +248,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("webui-agent")
 def build_tinywifi(
     *,
     arch: str,

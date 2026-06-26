@@ -35,6 +35,7 @@ from sqlalchemy import select
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.ingest import ingest_blob
+from osfabricum.packaging.registry import register
 
 HOSTAPD_VERSION = "2.10"
 HOSTAPD_URL = f"https://w1.fi/releases/hostapd-{HOSTAPD_VERSION}.tar.gz"
@@ -260,6 +261,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("hostapd")
 def build_hostapd(
     *,
     arch: str,

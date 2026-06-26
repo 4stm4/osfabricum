@@ -36,6 +36,7 @@ from sqlalchemy import select
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.ingest import ingest_blob
+from osfabricum.packaging.registry import register
 
 XORG_SERVER_VERSION = "21.1.11"
 XORG_SERVER_URL = (
@@ -332,6 +333,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("xorg-server")
 def build_xorgserver(
     *,
     arch: str,

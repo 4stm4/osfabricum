@@ -35,14 +35,8 @@ from osfabricum.db.models import Artifact, FirmwareBlob, PackageVersion, Service
 from osfabricum.db.session import sync_session
 from osfabricum.firmware.fetch import fetch_all_firmware
 from osfabricum.image.composer import ImageSpec, compose_image
-from osfabricum.packaging.busybox import build_busybox
-from osfabricum.packaging.dropbear import build_dropbear
-from osfabricum.packaging.hostapd import build_hostapd
-from osfabricum.packaging.nanodhcp import build_nanodhcp
-from osfabricum.packaging.tinywifi import build_tinywifi
-from osfabricum.packaging.xterm_pkg import build_xterm
-from osfabricum.packaging.openbox_pkg import build_openbox
-from osfabricum.packaging.xorgserver import build_xorgserver
+import osfabricum.packaging  # noqa: F401 — registers all built-in builders
+from osfabricum.packaging.registry import get as _get_builder
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
@@ -389,138 +383,25 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
         if pkg.artifact_id is not None:
             package_artifact_ids.append(pkg.artifact_id)
             continue
-        # Inline builders for known packages
-        if pkg.name == "busybox":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            bb_result = build_busybox(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in bb_result.logs:
-                logs.append(line)
-            if bb_result.success and bb_result.artifact_id:
-                package_artifact_ids.append(bb_result.artifact_id)
-                # Update PackageVersion.artifact_id so resolver caches it next build
-                _link_package_version(pkg.package_version_id, bb_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {bb_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {bb_result.error}")
-        elif pkg.name == "dropbear":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            dr_result = build_dropbear(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in dr_result.logs:
-                logs.append(line)
-            if dr_result.success and dr_result.artifact_id:
-                package_artifact_ids.append(dr_result.artifact_id)
-                _link_package_version(pkg.package_version_id, dr_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {dr_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {dr_result.error}")
-        elif pkg.name == "hostapd":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            ha_result = build_hostapd(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in ha_result.logs:
-                logs.append(line)
-            if ha_result.success and ha_result.artifact_id:
-                package_artifact_ids.append(ha_result.artifact_id)
-                _link_package_version(pkg.package_version_id, ha_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {ha_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {ha_result.error}")
-        elif pkg.name == "nanodhcp":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            nd_result = build_nanodhcp(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in nd_result.logs:
-                logs.append(line)
-            if nd_result.success and nd_result.artifact_id:
-                package_artifact_ids.append(nd_result.artifact_id)
-                _link_package_version(pkg.package_version_id, nd_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {nd_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {nd_result.error}")
-        elif pkg.name == "webui-agent":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            tw_result = build_tinywifi(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in tw_result.logs:
-                logs.append(line)
-            if tw_result.success and tw_result.artifact_id:
-                package_artifact_ids.append(tw_result.artifact_id)
-                _link_package_version(pkg.package_version_id, tw_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {tw_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {tw_result.error}")
-        elif pkg.name == "xterm":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            xt_result = build_xterm(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in xt_result.logs:
-                logs.append(line)
-            if xt_result.success and xt_result.artifact_id:
-                package_artifact_ids.append(xt_result.artifact_id)
-                _link_package_version(pkg.package_version_id, xt_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {xt_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {xt_result.error}")
-        elif pkg.name == "openbox":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            ob_result = build_openbox(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in ob_result.logs:
-                logs.append(line)
-            if ob_result.success and ob_result.artifact_id:
-                package_artifact_ids.append(ob_result.artifact_id)
-                _link_package_version(pkg.package_version_id, ob_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {ob_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {ob_result.error}")
-        elif pkg.name == "xorg-server":
-            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
-            xs_result = build_xorgserver(
-                arch=pkg.arch,
-                store_root=spec.store_root,
-                db_url=spec.db_url,
-                jobs=spec.jobs,
-            )
-            for line in xs_result.logs:
-                logs.append(line)
-            if xs_result.success and xs_result.artifact_id:
-                package_artifact_ids.append(xs_result.artifact_id)
-                _link_package_version(pkg.package_version_id, xs_result.artifact_id, spec.db_url)
-                logs.append(f"[pipeline] {pkg.name} built: {xs_result.artifact_id[:8]}")
-            else:
-                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {xs_result.error}")
+        builder = _get_builder(pkg.name)
+        if builder is None:
+            logs.append(f"[pipeline] WARNING: no builder registered for {pkg.name} — skipping")
+            continue
+        logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+        result = builder(
+            arch=pkg.arch,
+            store_root=spec.store_root,
+            db_url=spec.db_url,
+            jobs=spec.jobs,
+        )
+        for line in result.logs:
+            logs.append(line)
+        if result.success and result.artifact_id:
+            package_artifact_ids.append(result.artifact_id)
+            _link_package_version(pkg.package_version_id, result.artifact_id, spec.db_url)
+            logs.append(f"[pipeline] {pkg.name} built: {result.artifact_id[:8]}")
         else:
-            logs.append(f"[pipeline] WARNING: no builder for {pkg.name} — skipping")
+            logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {result.error}")
 
     # ---- 5. Collect firmware (fetch missing ones from URL in metadata_json) ----
     firmware_artifact_ids = [fw.artifact_id for fw in plan.firmware if fw.artifact_id is not None]

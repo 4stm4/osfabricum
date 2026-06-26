@@ -32,6 +32,7 @@ from sqlalchemy import select
 from osfabricum.db.models import Artifact
 from osfabricum.db.session import sync_session
 from osfabricum.store.ingest import ingest_blob
+from osfabricum.packaging.registry import register
 
 OPENBOX_VERSION = "3.6.1"
 OPENBOX_URL = f"http://openbox.org/dist/openbox/openbox-{OPENBOX_VERSION}.tar.gz"
@@ -233,6 +234,7 @@ def _pack_ofpkg(destdir: Path, arch: str) -> bytes:
     return zip_buf.getvalue()
 
 
+@register("openbox")
 def build_openbox(
     *,
     arch: str,

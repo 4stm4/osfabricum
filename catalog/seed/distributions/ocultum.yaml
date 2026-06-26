@@ -1,0 +1,50 @@
+name: ocultum
+class: mobile-handheld
+description: Ocultum secure mobile OS — mobile/handheld class
+default_channel: dev
+arch: aarch64
+
+packages:
+  - {name: busybox,          kind: system,      layer: base}
+  - {name: systemd,          kind: system,      layer: system}
+  - {name: wayland,          kind: desktop,     layer: desktop}
+  - {name: weston,           kind: desktop,     layer: desktop}
+  - {name: pipewire,         kind: service,     layer: services}
+  - {name: modem-manager,    kind: service,     layer: services}
+  - {name: network-manager,  kind: service,     layer: services}
+  - {name: calls-app,        kind: application, layer: applications}
+  - {name: contacts-app,     kind: application, layer: applications}
+  - {name: messages-app,     kind: application, layer: applications}
+  - {name: phosh,            kind: desktop,     layer: desktop}
+  - {name: glib2,            kind: library,     layer: runtime}
+  - {name: gtk4,             kind: library,     layer: desktop}
+  - {name: wireplumber,      kind: service,     layer: services}
+
+groups:
+  ocultum-base:      [busybox, systemd, glib2]
+  ocultum-ui:        [wayland, weston, phosh, gtk4]
+  ocultum-audio:     [pipewire, wireplumber]
+  ocultum-telephony: [modem-manager, network-manager, calls-app]
+  ocultum-apps:      [contacts-app, messages-app]
+
+sets:
+  ocultum-communicator:
+    groups: [ocultum-base, ocultum-ui, ocultum-audio, ocultum-telephony, ocultum-apps]
+    profiles:
+      - name: communicator
+        board: qemu-x86_64
+        toolchain: aarch64-linux-musl-bootlin
+
+  ocultum-minimal:
+    groups: [ocultum-base, ocultum-ui]
+    profiles:
+      - name: minimal
+        board: qemu-x86_64
+        toolchain: aarch64-linux-musl-bootlin
+
+  ocultum-dev:
+    groups: [ocultum-base, ocultum-ui, ocultum-audio, ocultum-telephony, ocultum-apps]
+    profiles:
+      - name: dev
+        board: qemu-x86_64
+        toolchain: aarch64-linux-musl-bootlin
