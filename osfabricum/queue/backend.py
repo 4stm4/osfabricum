@@ -29,11 +29,13 @@ OSF_LEASE_TTL_KEY = "__osf_lease_ttl_s"
 
 
 def _async_db_url(db_url: str) -> str:
-    """Return an async-driver URL (adds +aiosqlite for plain SQLite URLs)."""
+    """Return an async-driver URL (adds async driver prefix for plain URLs)."""
     if "://" not in db_url:
         return db_url
     if db_url.startswith("sqlite:///") and "+aiosqlite" not in db_url:
         return db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    if db_url.startswith("postgresql://") and "+asyncpg" not in db_url:
+        return db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return db_url
 
 
