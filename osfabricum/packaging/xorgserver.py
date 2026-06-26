@@ -388,8 +388,8 @@ def build_xorgserver(
         ], cwd=xsrc, logs=logs)
 
         _run(["ninja", f"-j{jobs}", "-C", str(build_dir)], cwd=xsrc, logs=logs)
-        _run(["ninja", "-C", str(build_dir), "install",
-              f"DESTDIR={destdir}"], cwd=xsrc, logs=logs)
+        _run(["ninja", "-C", str(build_dir), "install"],
+             cwd=xsrc, logs=logs, extra_env={"DESTDIR": str(destdir)})
         logs.append("[xorg] xorg-server installed")
 
         # Bundle runtime .so for the Xorg binary
