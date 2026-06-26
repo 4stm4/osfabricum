@@ -327,6 +327,18 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
         if plan.kernel.artifact_id:
             kernel_artifact_id = plan.kernel.artifact_id
             logs.append(f"[pipeline] kernel cached: {plan.kernel.name}")
+            if spec.db_url is not None:
+                from sqlalchemy import select as _sel  # noqa: PLC0415
+
+                with sync_session(spec.db_url) as _s:
+                    _kart = _s.scalar(_sel(Artifact).where(Artifact.id == kernel_artifact_id))
+                    if _kart is not None and _kart.store_key.endswith("/image"):
+                        _pfx = _kart.store_key[: -len("/image")]
+                        _dtb_arts = _s.scalars(
+                            _sel(Artifact).where(Artifact.store_key.like(f"{_pfx}/dtb/%"))
+                        ).all()
+                        kernel_dtb_artifact_ids = [a.id for a in _dtb_arts]
+                        logs.append(f"[pipeline] kernel cached DTBs: {len(kernel_dtb_artifact_ids)}")
         else:
             logs.append(f"[pipeline] kernel missing — building {plan.kernel.name}")
 
