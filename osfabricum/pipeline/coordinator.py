@@ -40,6 +40,9 @@ from osfabricum.packaging.dropbear import build_dropbear
 from osfabricum.packaging.hostapd import build_hostapd
 from osfabricum.packaging.nanodhcp import build_nanodhcp
 from osfabricum.packaging.tinywifi import build_tinywifi
+from osfabricum.packaging.xterm_pkg import build_xterm
+from osfabricum.packaging.openbox_pkg import build_openbox
+from osfabricum.packaging.xorgserver import build_xorgserver
 from osfabricum.pipeline.log import write_build_logs
 from osfabricum.pipeline.record import (
     create_build,
@@ -468,6 +471,54 @@ def run_pipeline(spec: PipelineSpec) -> PipelineResult:
                 logs.append(f"[pipeline] {pkg.name} built: {tw_result.artifact_id[:8]}")
             else:
                 logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {tw_result.error}")
+        elif pkg.name == "xterm":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            xt_result = build_xterm(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in xt_result.logs:
+                logs.append(line)
+            if xt_result.success and xt_result.artifact_id:
+                package_artifact_ids.append(xt_result.artifact_id)
+                _link_package_version(pkg.package_version_id, xt_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {xt_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {xt_result.error}")
+        elif pkg.name == "openbox":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            ob_result = build_openbox(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in ob_result.logs:
+                logs.append(line)
+            if ob_result.success and ob_result.artifact_id:
+                package_artifact_ids.append(ob_result.artifact_id)
+                _link_package_version(pkg.package_version_id, ob_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {ob_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {ob_result.error}")
+        elif pkg.name == "xorg-server":
+            logs.append(f"[pipeline] building {pkg.name} ({pkg.arch})…")
+            xs_result = build_xorgserver(
+                arch=pkg.arch,
+                store_root=spec.store_root,
+                db_url=spec.db_url,
+                jobs=spec.jobs,
+            )
+            for line in xs_result.logs:
+                logs.append(line)
+            if xs_result.success and xs_result.artifact_id:
+                package_artifact_ids.append(xs_result.artifact_id)
+                _link_package_version(pkg.package_version_id, xs_result.artifact_id, spec.db_url)
+                logs.append(f"[pipeline] {pkg.name} built: {xs_result.artifact_id[:8]}")
+            else:
+                logs.append(f"[pipeline] WARNING: {pkg.name} build failed: {xs_result.error}")
         else:
             logs.append(f"[pipeline] WARNING: no builder for {pkg.name} — skipping")
 

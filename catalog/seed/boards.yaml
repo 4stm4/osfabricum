@@ -15,3 +15,11 @@ items:
     firmware_required: false
     metadata:
       description: QEMU x86_64 virtual machine
+
+  - name: orange-pi-5
+    arch: aarch64
+    boot_scheme: rkboot
+    firmware_required: true
+    metadata:
+      soc: rk3588s
+      description: Orange Pi 5 (Rockchip RK3588S)

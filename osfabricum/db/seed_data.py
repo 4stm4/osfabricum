@@ -2527,3 +2527,104 @@ def seed_ocultum_reference(session: "Session") -> dict[str, int]:
         counts["profiles"] += 1
     session.flush()
     return counts
+
+
+# ---------------------------------------------------------------------------
+# M74 — TinyDesk Reference Distribution seed
+# ---------------------------------------------------------------------------
+
+TINYDESK_PACKAGES: list[tuple[str, str, str]] = [
+    # (name, kind, layer)
+    ("busybox", "system", "base"),
+    ("xterm", "application", "desktop"),
+    ("openbox", "application", "desktop"),
+    ("xorg-server", "system", "system"),
+]
+
+TINYDESK_GROUPS: dict[str, list[str]] = {
+    "tinydesk-base": ["busybox"],
+    "tinydesk-desktop": ["xterm", "openbox", "xorg-server"],
+}
+
+
+def seed_tinydesk_reference(session: "Session") -> dict[str, int]:
+    """Seed TinyDesk reference distribution (M74). Idempotent.
+
+    Minimal desktop distribution: BusyBox userland + Xorg + Openbox + xterm,
+    targeting Orange Pi 5 (aarch64/RK3588S) hardware.
+    """
+    from sqlalchemy import select  # noqa: PLC0415
+
+    seed_architectures_from_yaml(session)
+    seed_boards_from_yaml(session)
+    seed_toolchains_from_yaml(session)
+    seed_kernels_from_yaml(session)
+    seed_distribution_classes(session)
+
+    arch_map = {a.name: a.id for a in session.scalars(select(Architecture)).all()}
+    board_map = {b.name: b.id for b in session.scalars(select(Board)).all()}
+    kernel_map = {
+        (k.name, k.version): k.id
+        for k in session.scalars(select(Kernel)).all()
+    }
+    toolchain_map = {t.name: t.id for t in session.scalars(select(Toolchain)).all()}
+    dist_map = {d.name: d.id for d in session.scalars(select(Distribution)).all()}
+    class_map = {c.name: c.id for c in session.scalars(select(DistributionClass)).all()}
+
+    counts: dict[str, int] = {"packages": 0, "groups": 0, "profiles": 0}
+
+    # Distribution
+    if "tinydesk" not in dist_map:
+        d = Distribution(
+            id=str(uuid4()), name="tinydesk",
+            description="Minimal desktop OS — Openbox + xterm on Orange Pi",
+            default_channel="dev",
+            class_id=class_map.get("desktop"),
+        )
+        session.add(d)
+        session.flush()
+        dist_map["tinydesk"] = d.id
+    dist_id = dist_map["tinydesk"]
+    existing_dist = session.get(Distribution, dist_id)
+    if existing_dist and existing_dist.class_id is None:
+        existing_dist.class_id = class_map.get("desktop")
+        session.flush()
+    arch_id = arch_map.get("aarch64", "")
+
+    # Packages
+    pkg_map: dict[str, Package] = {}
+    for name, kind, layer in TINYDESK_PACKAGES:
+        pkg = _get_or_create_package(session, name, kind, layer)
+        pkg_map[name] = pkg
+        _get_or_create_package_version(session, pkg, "latest", arch_id)
+        counts["packages"] += 1
+
+    # Package groups
+    group_objs: dict[str, PackageGroup] = {}
+    for gname, members in TINYDESK_GROUPS.items():
+        grp = _get_or_create_package_group(session, gname, dist_id, f"TinyDesk {gname} packages")
+        for pname in members:
+            if pname in pkg_map:
+                _add_package_to_group(session, grp, pkg_map[pname])
+        group_objs[gname] = grp
+        counts["groups"] += 1
+
+    # Package set
+    pset = _get_or_create_package_set(session, "tinydesk-default", dist_id, "TinyDesk default package set")
+    for grp in group_objs.values():
+        _add_group_to_set(session, pset, grp)
+
+    # Profile: orange-pi-5
+    board_id = board_map.get("orange-pi-5")
+    if board_id is None:
+        board_id = board_map.get("rpi-zero-2w")
+    kernel_id = kernel_map.get(("linux-rpi", "6.6.y"))
+    tc_id = toolchain_map.get("aarch64-linux-musl-bootlin")
+    _get_or_create_profile(
+        session, "orange-pi-5", dist_id,
+        board_id=board_id, kernel_id=kernel_id,
+        toolchain_id=tc_id, package_set_id=pset.id,
+    )
+    counts["profiles"] += 1
+    session.flush()
+    return counts
