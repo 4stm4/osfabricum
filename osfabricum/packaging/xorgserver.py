@@ -69,7 +69,7 @@ _BUILD_DEPS = [
     "libgl-dev", "libegl-dev", "libgles-dev",
     # Misc
     "libbsd-dev", "libssl-dev", "libzstd-dev",
-    "libxshmfence-dev", "libdbus-1-dev",
+    "libxshmfence-dev", "libdbus-1-dev", "libudev-dev", "libepoxy-dev",
     # xkb data (runtime + build)
     "xkb-data", "x11-xkb-utils",
     # xinit dependencies
