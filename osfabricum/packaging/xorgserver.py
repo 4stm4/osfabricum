@@ -47,7 +47,7 @@ XORG_SERVER_URL = (
 FBDEV_VERSION = "0.5.0"
 FBDEV_URL = (
     f"https://www.x.org/releases/individual/driver/"
-    f"xf86-video-fbdev-{FBDEV_VERSION}.tar.xz"
+    f"xf86-video-fbdev-{FBDEV_VERSION}.tar.gz"
 )
 
 XINIT_VERSION = "1.4.2"
@@ -401,7 +401,7 @@ def build_xorgserver(
         fbdev_tarball = _download(FBDEV_URL, logs, tag="fbdev")
         fbsrc = Path(tmp) / "fbdev-src"
         fbsrc.mkdir()
-        with tarfile.open(fileobj=io.BytesIO(fbdev_tarball), mode="r:xz") as t:
+        with tarfile.open(fileobj=io.BytesIO(fbdev_tarball), mode="r:gz") as t:
             t.extractall(path=str(fbsrc), filter="data")
         fbentries = [e for e in fbsrc.iterdir() if e.is_dir()]
         fbdir = fbentries[0] if fbentries else fbsrc

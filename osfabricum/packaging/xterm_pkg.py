@@ -34,7 +34,7 @@ from osfabricum.store.ingest import ingest_blob
 from osfabricum.packaging.registry import register
 
 XTERM_VERSION = "394"
-XTERM_URL = f"https://invisible-island.net/datafiles/release/xterm-{XTERM_VERSION}.tgz"
+XTERM_URL = f"https://invisible-island.net/archives/xterm/xterm-{XTERM_VERSION}.tgz"
 
 _BUILD_DEPS = [
     "libx11-dev", "libxft-dev", "libxrender-dev", "libxt-dev",
