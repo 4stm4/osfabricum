@@ -178,7 +178,7 @@ class XorgBuildResult:
 
 
 def _store_key(arch: str) -> str:
-    return f"packages/xorg-server/{XORG_SERVER_VERSION}-v3/{arch}/xorg-server.ofpkg"
+    return f"packages/xorg-server/{XORG_SERVER_VERSION}-v4/{arch}/xorg-server.ofpkg"
 
 
 def _run(cmd: list[str], *, cwd: Path, logs: list[str],
@@ -378,8 +378,7 @@ def build_xorgserver(
             f"--sysconfdir=/etc",
             f"--localstatedir=/var",
             "-Dxvfb=false",
-            "-Dxwayland=false",
-            "-Dglamor=true",          # enable Glamour (disabled at runtime if no GPU)
+            "-Dglamor=true",
             "-Dxf86bigfont=false",
             "-Dxdm-auth-1=false",
             "-Dxcsecurity=false",
