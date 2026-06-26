@@ -69,14 +69,15 @@ _BUILD_DEPS = [
     "libgl-dev", "libegl-dev", "libgles-dev",
     # Misc
     "libbsd-dev", "libssl-dev", "libzstd-dev",
+    "libxshmfence-dev", "libdbus-1-dev",
     # xkb data (runtime + build)
     "xkb-data", "x11-xkb-utils",
     # xinit dependencies
     "libx11-dev",
     # for autoconf-based sub-packages (fbdev, xinit)
     "autoconf", "automake", "libtool",
-    # font support
-    "libfreetype-dev", "libfontconfig-dev",
+    # font support — fontutil.pc is in xfonts-utils
+    "libfreetype-dev", "libfontconfig-dev", "xfonts-utils",
 ]
 
 # Minimal /etc/X11/xorg.conf using the modesetting (KMS) driver
